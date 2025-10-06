@@ -64,7 +64,7 @@ const PublicNavbar = () => {
     <header
       className={`fixed w-full z-50 transition-all duration-300 ${
         isScrolled || !isPublicPage
-          ? 'bg-white shadow-md py-2'
+          ? 'bg-white/80 backdrop-blur-md shadow-md py-2'
           : 'bg-transparent py-4'
       }`}
     >
@@ -162,50 +162,85 @@ const PublicNavbar = () => {
         </div>
       </div>
 
-      {/* Mobile Menu */}
+      {/* Mobile Menu Overlay */}
       {isMobileMenuOpen && (
-        <div className="md:hidden bg-white shadow-lg">
-          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-            {navLinks.map((link) => (
-              <Link
-                key={link.path}
-                to={link.path}
-                className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-primary-600 hover:bg-gray-50"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                {link.name}
-              </Link>
-            ))}
-            
-            {user ? (
-              <Link
-                to={getDashboardUrl()}
-                className="flex items-center px-3 py-2 rounded-md text-base font-medium bg-primary-600 text-white hover:bg-primary-700"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                <FiUser className="mr-2" />
-                Dashboard
-              </Link>
-            ) : (
-              <>
-                <Link
-                  to="/login"
-                  className="flex items-center px-3 py-2 rounded-md text-base font-medium text-primary-600 hover:text-primary-700 hover:bg-gray-50"
+        <div className="md:hidden fixed inset-0 z-40">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+          
+          {/* Menu Panel */}
+          <div className="absolute top-0 right-0 h-full w-80 max-w-[85vw] bg-white/70 backdrop-blur-md shadow-2xl transform transition-transform duration-300 ease-in-out">
+            <div className="flex flex-col h-full">
+              {/* Menu Header */}
+              <div className="flex items-center justify-between p-6 border-b border-gray-100">
+                <div className="flex items-center">
+                  <img 
+                    src={logo}
+                    alt={`${clinicInfo.clinicName} Logo`}
+                    className="h-10 w-10 mr-3 object-contain"
+                  />
+                  <span className="text-lg font-semibold text-gray-800">
+                    Menu
+                  </span>
+                </div>
+                <button
                   onClick={() => setIsMobileMenuOpen(false)}
+                  className="p-2 rounded-full hover:bg-gray-100 transition-colors"
                 >
-                  <FiLogIn className="mr-2" />
-                  Log In
-                </Link>
-                <Link
-                  to="/register"
-                  className="flex items-center px-3 py-2 rounded-md text-base font-medium bg-primary-600 text-white hover:bg-primary-700"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  <FiUser className="mr-2" />
-                  Sign Up
-                </Link>
-              </>
-            )}
+                  <FiX className="h-6 w-6 text-gray-600" />
+                </button>
+              </div>
+
+              {/* Navigation Links */}
+              <div className="flex-1 px-6 py-4 space-y-2">
+                {navLinks.map((link) => (
+                  <Link
+                    key={link.path}
+                    to={link.path}
+                    className="flex items-center px-4 py-3 rounded-xl text-base font-medium text-gray-700 hover:text-primary-600 hover:bg-primary-50 transition-all duration-200 group"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <span className="group-hover:translate-x-1 transition-transform duration-200">
+                      {link.name}
+                    </span>
+                  </Link>
+                ))}
+                
+                {/* Auth Links - Now part of navigation */}
+                {user ? (
+                  <Link
+                    to={getDashboardUrl()}
+                    className="flex items-center px-4 py-3 rounded-xl text-base font-medium bg-primary-600 text-white hover:bg-primary-700 transition-colors duration-200 shadow-lg mt-4"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <FiUser className="mr-2" />
+                    Dashboard
+                  </Link>
+                ) : (
+                  <>
+                    <Link
+                      to="/login"
+                      className="flex items-center px-4 py-3 rounded-xl text-base font-medium text-primary-600 hover:text-primary-700 hover:bg-primary-50 border border-primary-200 transition-all duration-200 mt-4"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      <FiLogIn className="mr-2" />
+                      Log In
+                    </Link>
+                    <Link
+                      to="/register"
+                      className="flex items-center px-4 py-3 rounded-xl text-base font-medium bg-primary-600 text-white hover:bg-primary-700 transition-colors duration-200 shadow-lg"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      <FiUser className="mr-2" />
+                      Sign Up
+                    </Link>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}

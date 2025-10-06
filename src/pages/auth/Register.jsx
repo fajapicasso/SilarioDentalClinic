@@ -262,7 +262,7 @@ const Register = () => {
                             ? 'border-red-300 text-red-600 placeholder-red-200 focus:outline-none focus:ring-red-500 focus:border-red-500 bg-red-50'
                             : 'border-gray-300 text-gray-600 placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500 bg-gray-100'
                         } rounded-md shadow-sm`}
-                          placeholder="first name"
+                          placeholder="First Name"
                         style={{ color: 'rgb(75, 85, 99)' }}
                       />
                     </div>
@@ -288,7 +288,7 @@ const Register = () => {
                               ? 'border-red-300 text-red-600 placeholder-red-200 focus:outline-none focus:ring-red-500 focus:border-red-500 bg-red-50'
                               : 'border-gray-300 text-gray-600 placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500 bg-gray-100'
                           } rounded-md shadow-sm`}
-                          placeholder="middle name"
+                          placeholder="Middle Name"
                           style={{ color: 'rgb(75, 85, 99)' }}
                         />
                       </div>
@@ -314,7 +314,7 @@ const Register = () => {
                               ? 'border-red-300 text-red-600 placeholder-red-200 focus:outline-none focus:ring-red-500 focus:border-red-500 bg-red-50'
                               : 'border-gray-300 text-gray-600 placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500 bg-gray-100'
                           } rounded-md shadow-sm`}
-                          placeholder="last name"
+                          placeholder="Last Name"
                           style={{ color: 'rgb(75, 85, 99)' }}
                         />
                       </div>
@@ -416,7 +416,7 @@ const Register = () => {
                                 ? 'border-red-300 text-red-600 placeholder-red-200 focus:outline-none focus:ring-red-500 focus:border-red-500 bg-red-50'
                                 : 'border-gray-300 text-gray-600 placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500 bg-gray-100'
                             } rounded-md shadow-sm`}
-                            placeholder="street address"
+                            placeholder="Street Address"
                             style={{ color: 'rgb(75, 85, 99)' }}
                           />
                         </div>
@@ -442,7 +442,7 @@ const Register = () => {
                                 ? 'border-red-300 text-red-600 placeholder-red-200 focus:outline-none focus:ring-red-500 focus:border-red-500 bg-red-50'
                                 : 'border-gray-300 text-gray-600 placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500 bg-gray-100'
                             } rounded-md shadow-sm`}
-                            placeholder="barangay"
+                            placeholder="Barangay"
                             style={{ color: 'rgb(75, 85, 99)' }}
                           />
                         </div>
@@ -456,7 +456,7 @@ const Register = () => {
                       {/* City */}
                       <div>
                         <label htmlFor="city" className="block text-sm font-medium text-gray-500">
-                          City *
+                          City/Municipality *
                         </label>
                         <div className="mt-1 relative rounded-md shadow-sm">
                       <Field
@@ -468,7 +468,7 @@ const Register = () => {
                             ? 'border-red-300 text-red-600 placeholder-red-200 focus:outline-none focus:ring-red-500 focus:border-red-500 bg-red-50'
                             : 'border-gray-300 text-gray-600 placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500 bg-gray-100'
                         } rounded-md shadow-sm`}
-                            placeholder="city/municipality"
+                            placeholder="City/Municipality"
                         style={{ color: 'rgb(75, 85, 99)' }}
                       />
                     </div>
@@ -494,7 +494,7 @@ const Register = () => {
                                 ? 'border-red-300 text-red-600 placeholder-red-200 focus:outline-none focus:ring-red-500 focus:border-red-500 bg-red-50'
                                 : 'border-gray-300 text-gray-600 placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500 bg-gray-100'
                             } rounded-md shadow-sm`}
-                            placeholder="province"
+                            placeholder="Province"
                             style={{ color: 'rgb(75, 85, 99)' }}
                           />
                         </div>

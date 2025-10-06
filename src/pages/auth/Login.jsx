@@ -101,7 +101,7 @@ const Login = () => {
         <div className="absolute inset-0 bg-black/50" />
       </div>
       {/* Login Card */}
-      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8 pt-20">
         <div className="max-w-md w-full space-y-6 bg-white/80 p-8 rounded-2xl shadow-lg border border-gray-100">
           {/* Professional Header */}
           <div className="flex flex-col items-center mb-6">

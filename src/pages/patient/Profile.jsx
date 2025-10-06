@@ -932,14 +932,24 @@ const Profile = () => {
       return;
     }
     
+    // Detect mobile browsers and messaging apps
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const isInApp = /FBAN|FBAV|Instagram|Line|WhatsApp|Telegram|Messenger/i.test(navigator.userAgent);
+    
     try {
-      // Create a Blob URL and trigger download
+      // Method 1: Try direct download with enhanced mobile support
       const blobUrl = URL.createObjectURL(fileBlob);
-      
       const a = document.createElement('a');
       a.href = blobUrl;
       a.download = fileName || 'download';
       a.style.display = 'none';
+      
+      // Add mobile-specific attributes
+      if (isMobile) {
+        a.setAttribute('target', '_blank');
+        a.setAttribute('rel', 'noopener noreferrer');
+      }
+      
       document.body.appendChild(a);
       a.click();
       
@@ -949,10 +959,86 @@ const Profile = () => {
         URL.revokeObjectURL(blobUrl);
       }, 100);
       
-      toast.success('File download started');
+      // Show success message with mobile-specific instructions
+      if (isMobile || isInApp) {
+        toast.success('Download started! If the file opens in browser, use the browser menu to save it.', {
+          autoClose: 8000,
+          hideProgressBar: false
+        });
+      } else {
+        toast.success('File download started');
+      }
+      
     } catch (error) {
-      console.error('Error saving file:', error);
-      toast.error('Failed to save file: ' + error.message);
+      console.error('Download failed:', error);
+      
+      // Fallback method for mobile/messaging apps
+      if (isMobile || isInApp) {
+        // Create a new window with download instructions
+        const downloadWindow = window.open('', '_blank');
+        if (downloadWindow) {
+          downloadWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <title>Download ${fileName || 'File'}</title>
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <style>
+                body { 
+                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                  margin: 0; padding: 20px; background: #f5f5f5;
+                  text-align: center; line-height: 1.6;
+                }
+                .container { 
+                  max-width: 400px; margin: 50px auto; 
+                  background: white; padding: 30px; border-radius: 12px;
+                  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+                }
+                .icon { font-size: 48px; margin-bottom: 20px; }
+                .btn { 
+                  display: inline-block; background: #4F46E5; color: white; 
+                  padding: 12px 24px; text-decoration: none; border-radius: 8px; 
+                  margin: 10px; font-weight: 500;
+                }
+                .btn:hover { background: #4338CA; }
+                .instructions { 
+                  background: #F3F4F6; padding: 15px; border-radius: 8px; 
+                  margin: 20px 0; text-align: left; font-size: 14px;
+                }
+                .step { margin: 8px 0; }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <div class="icon">📱</div>
+                <h2>Download ${fileName || 'Your File'}</h2>
+                <p>To download this file on mobile:</p>
+                <div class="instructions">
+                  <div class="step">1. Tap the download button below</div>
+                  <div class="step">2. If it opens in browser, tap the share button</div>
+                  <div class="step">3. Select "Save to Files" or "Download"</div>
+                  <div class="step">4. Choose your preferred location</div>
+                </div>
+                <a href="${URL.createObjectURL(fileBlob)}" download="${fileName || 'download'}" class="btn">
+                  📥 Download File
+                </a>
+                <br>
+                <a href="javascript:window.close()" class="btn" style="background: #6B7280;">
+                  ✕ Close
+                </a>
+              </div>
+            </body>
+            </html>
+          `);
+          downloadWindow.document.close();
+        }
+        
+        toast.info('Download instructions opened in new tab', {
+          autoClose: 5000
+        });
+      } else {
+        toast.error('Download failed. Please try again.');
+      }
     }
   };
 
