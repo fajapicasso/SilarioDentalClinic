@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test No Auto Login</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background-color: #0056b3; }
+        pre {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Password Reset Auto-Login Test</h1>
+        
+        <div class="test-section info">
+            <h3>Test Instructions</h3>
+            <ol>
+                <li>Click the "Simulate Reset Link" button below</li>
+                <li>This will open your reset password page</li>
+                <li>Check if you see the password reset form (not auto-logged in)</li>
+                <li>Look for these elements:
+                    <ul>
+                        <li>Current Password field</li>
+                        <li>New Password field</li>
+                        <li>Confirm Password field</li>
+                        <li>NO automatic redirect to dashboard</li>
+                    </ul>
+                </li>
+            </ol>
+        </div>
+
+        <div class="test-section">
+            <h3>Test Actions</h3>
+            <button onclick="simulateResetLink()">Simulate Reset Link</button>
+            <button onclick="checkCurrentState()">Check Current State</button>
+        </div>
+
+        <div class="test-section" id="statusSection">
+            <h3>Status Check</h3>
+            <div id="statusContent">Click "Check Current State" to see current status</div>
+        </div>
+
+        <div class="test-section info">
+            <h3>Expected Behavior</h3>
+            <p><strong>✅ CORRECT:</strong> You should see the password reset form with three fields</p>
+            <p><strong>❌ WRONG:</strong> You should NOT be automatically logged in or redirected</p>
+        </div>
+    </div>
+
+    <script>
+        function simulateResetLink() {
+            // Simulate a reset password link
+            const resetUrl = window.location.origin + '/reset-password#access_token=test_token&refresh_token=test_refresh&type=recovery';
+            console.log('Opening reset link:', resetUrl);
+            window.open(resetUrl, '_blank');
+        }
+
+        function checkCurrentState() {
+            const currentUrl = window.location.href;
+            const pathname = window.location.pathname;
+            const hash = window.location.hash;
+            const search = window.location.search;
+            
+            const isResetPage = pathname.includes('reset-password');
+            const hasResetToken = hash.includes('type=recovery') || search.includes('type=recovery');
+            
+            let status = `
+                <strong>Current URL:</strong> ${currentUrl}<br>
+                <strong>Pathname:</strong> ${pathname}<br>
+                <strong>Hash:</strong> ${hash || '(empty)'}<br>
+                <strong>Search:</strong> ${search || '(empty)'}<br>
+                <strong>Is Reset Page:</strong> ${isResetPage ? '✅ Yes' : '❌ No'}<br>
+                <strong>Has Reset Token:</strong> ${hasResetToken ? '✅ Yes' : '❌ No'}<br>
+            `;
+            
+            if (isResetPage && hasResetToken) {
+                status += '<br><strong>Status:</strong> <span style="color: green;">✅ On reset page with token</span>';
+            } else if (isResetPage) {
+                status += '<br><strong>Status:</strong> <span style="color: orange;">⚠️ On reset page but no token</span>';
+            } else {
+                status += '<br><strong>Status:</strong> <span style="color: red;">❌ Not on reset page</span>';
+            }
+            
+            document.getElementById('statusContent').innerHTML = status;
+        }
+
+        // Check state on page load
+        window.onload = function() {
+            checkCurrentState();
+        };
+    </script>
+</body>
+</html>

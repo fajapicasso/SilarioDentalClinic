@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reset Link Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background-color: #0056b3; }
+        pre {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Password Reset Link Test</h1>
+        
+        <div class="test-section info">
+            <h3>Current URL Information</h3>
+            <p><strong>Full URL:</strong> <span id="fullUrl"></span></p>
+            <p><strong>Hash:</strong> <span id="hash"></span></p>
+            <p><strong>Query String:</strong> <span id="query"></span></p>
+        </div>
+
+        <div class="test-section" id="tokenCheck">
+            <h3>Token Detection</h3>
+            <p><strong>Has Access Token:</strong> <span id="hasAccessToken"></span></p>
+            <p><strong>Has Refresh Token:</strong> <span id="hasRefreshToken"></span></p>
+            <p><strong>Has Recovery Type:</strong> <span id="hasRecoveryType"></span></p>
+            <p><strong>Overall Token Status:</strong> <span id="tokenStatus"></span></p>
+        </div>
+
+        <div class="test-section" id="urlAnalysis">
+            <h3>URL Analysis</h3>
+            <pre id="urlAnalysisText"></pre>
+        </div>
+
+        <div class="test-section">
+            <h3>Test Actions</h3>
+            <button onclick="analyzeUrl()">Analyze Current URL</button>
+            <button onclick="testTokenExtraction()">Test Token Extraction</button>
+            <button onclick="simulateResetLink()">Simulate Reset Link</button>
+        </div>
+
+        <div class="test-section info">
+            <h3>Instructions</h3>
+            <ol>
+                <li>Copy the reset link from your email</li>
+                <li>Paste it in your browser's address bar</li>
+                <li>Come back to this page to see the analysis</li>
+                <li>Check the console for detailed debug information</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        function updateUrlInfo() {
+            document.getElementById('fullUrl').textContent = window.location.href;
+            document.getElementById('hash').textContent = window.location.hash || '(empty)';
+            document.getElementById('query').textContent = window.location.search || '(empty)';
+        }
+
+        function analyzeUrl() {
+            updateUrlInfo();
+            
+            const url = window.location.href;
+            const hash = window.location.hash;
+            const query = window.location.search;
+            
+            // Check for tokens
+            const hasAccessToken = hash.includes('access_token') || query.includes('access_token');
+            const hasRefreshToken = hash.includes('refresh_token') || query.includes('refresh_token');
+            const hasRecoveryType = hash.includes('type=recovery') || query.includes('type=recovery');
+            
+            // Update display
+            document.getElementById('hasAccessToken').textContent = hasAccessToken ? '✅ Yes' : '❌ No';
+            document.getElementById('hasRefreshToken').textContent = hasRefreshToken ? '✅ Yes' : '❌ No';
+            document.getElementById('hasRecoveryType').textContent = hasRecoveryType ? '✅ Yes' : '❌ No';
+            
+            const overallStatus = (hasAccessToken && hasRefreshToken && hasRecoveryType) ? '✅ Valid' : '❌ Invalid';
+            document.getElementById('tokenStatus').textContent = overallStatus;
+            
+            // Update section styling
+            const tokenCheckSection = document.getElementById('tokenCheck');
+            if (hasAccessToken && hasRefreshToken && hasRecoveryType) {
+                tokenCheckSection.className = 'test-section success';
+            } else {
+                tokenCheckSection.className = 'test-section error';
+            }
+            
+            // Detailed analysis
+            const analysis = `
+URL Analysis:
+- Full URL: ${url}
+- Hash: ${hash || '(empty)'}
+- Query: ${query || '(empty)'}
+- Contains access_token: ${hasAccessToken}
+- Contains refresh_token: ${hasRefreshToken}
+- Contains type=recovery: ${hasRecoveryType}
+- Reset link valid: ${hasAccessToken && hasRefreshToken && hasRecoveryType}
+
+Expected format:
+https://yourdomain.com/reset-password#access_token=...&refresh_token=...&type=recovery
+
+OR
+
+https://yourdomain.com/reset-password?access_token=...&refresh_token=...&type=recovery
+            `;
+            
+            document.getElementById('urlAnalysisText').textContent = analysis;
+            
+            console.log('URL Analysis:', {
+                url,
+                hash,
+                query,
+                hasAccessToken,
+                hasRefreshToken,
+                hasRecoveryType,
+                isValid: hasAccessToken && hasRefreshToken && hasRecoveryType
+            });
+        }
+
+        function testTokenExtraction() {
+            const hash = window.location.hash;
+            const query = window.location.search;
+            
+            console.log('Testing token extraction...');
+            
+            // Extract from hash
+            if (hash) {
+                const hashParams = new URLSearchParams(hash.substring(1));
+                console.log('Hash params:', Object.fromEntries(hashParams));
+            }
+            
+            // Extract from query
+            if (query) {
+                const queryParams = new URLSearchParams(query);
+                console.log('Query params:', Object.fromEntries(queryParams));
+            }
+        }
+
+        function simulateResetLink() {
+            const simulatedUrl = window.location.origin + '/reset-password#access_token=test_token&refresh_token=test_refresh&type=recovery';
+            console.log('Simulated reset link:', simulatedUrl);
+            alert('Simulated reset link:\n' + simulatedUrl + '\n\nCopy this and test it in your app.');
+        }
+
+        // Run analysis on page load
+        window.onload = function() {
+            analyzeUrl();
+        };
+    </script>
+</body>
+</html>
