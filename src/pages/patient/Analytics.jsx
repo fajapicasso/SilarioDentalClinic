@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import supabase from '../../config/supabaseClient';
-import { FiCalendar, FiCreditCard, FiBarChart2, FiPrinter } from 'react-icons/fi';
+import { FiCalendar, FiCreditCard, FiBarChart2, FiPrinter, FiRefreshCw } from 'react-icons/fi';
 import { Chart, registerables } from 'chart.js';
 Chart.register(...registerables);
 
@@ -23,12 +23,28 @@ const PatientAnalytics = () => {
 
   useEffect(() => {
     if (user && user.id) {
+      console.log('🚀 Starting analytics fetch for user:', user.id);
       fetchAnalytics();
     } else {
       console.log('⚠️ User not available yet');
       setLoading(false);
     }
   }, [user]);
+
+  // Force re-render chart when data changes
+  useEffect(() => {
+    if (!loading && appointmentsOverTime.length > 0) {
+      console.log('📊 Data loaded, forcing chart re-render');
+      // Force a small delay to ensure DOM is updated
+      setTimeout(() => {
+        if (chartRef.current) {
+          console.log('📊 Canvas element found, triggering chart render');
+          // Trigger chart render by updating state
+          setAppointmentsOverTime([...appointmentsOverTime]);
+        }
+      }, 200);
+    }
+  }, [loading, appointmentsOverTime.length]);
 
   // Auto-refresh every 60 seconds
   useEffect(() => {
@@ -61,48 +77,65 @@ const PatientAnalytics = () => {
     const renderChart = () => {
       if (appointmentsOverTime.length > 0 && chartRef.current) {
         console.log('📊 Rendering appointments chart with data:', appointmentsOverTime);
-        const ctx = chartRef.current.getContext('2d');
+        
+        // Wait for canvas to be fully available
+        const canvas = chartRef.current;
+        if (!canvas) {
+          console.log('📊 Canvas not available yet');
+          return;
+        }
+        
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          console.log('📊 Canvas context not available');
+          return;
+        }
         
         // Destroy existing chart if it exists
         if (window.patientBarChart) {
+          console.log('📊 Destroying existing chart');
           window.patientBarChart.destroy();
         }
         
         // Create new chart
-        window.patientBarChart = new Chart(ctx, {
-          type: 'bar',
-          data: {
-            labels: appointmentsOverTime.map(a => a.date),
-            datasets: [{
-              label: 'Appointments',
-              data: appointmentsOverTime.map(a => a.count),
-              backgroundColor: '#2563eb',
-              borderColor: '#1d4ed8',
-              borderWidth: 1
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { 
-              legend: { display: false } 
+        try {
+          window.patientBarChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels: appointmentsOverTime.map(a => a.date),
+              datasets: [{
+                label: 'Appointments',
+                data: appointmentsOverTime.map(a => a.count),
+                backgroundColor: '#2563eb',
+                borderColor: '#1d4ed8',
+                borderWidth: 1
+              }]
             },
-            scales: { 
-              y: { 
-                beginAtZero: true,
-                ticks: {
-                  stepSize: 1
-                }
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { 
+                legend: { display: false } 
               },
-              x: {
-                ticks: {
-                  maxRotation: 45
+              scales: { 
+                y: { 
+                  beginAtZero: true,
+                  ticks: {
+                    stepSize: 1
+                  }
+                },
+                x: {
+                  ticks: {
+                    maxRotation: 45
+                  }
                 }
               }
             }
-          }
-        });
-        console.log('📊 Chart created successfully');
+          });
+          console.log('📊 Chart created successfully');
+        } catch (error) {
+          console.error('📊 Error creating chart:', error);
+        }
       } else {
         console.log('📊 Chart conditions not met:', { 
           hasData: appointmentsOverTime.length > 0, 
@@ -113,7 +146,10 @@ const PatientAnalytics = () => {
 
     // Add a small delay to ensure DOM is ready
     if (appointmentsOverTime.length > 0) {
-      const timeoutId = setTimeout(renderChart, 100);
+      const timeoutId = setTimeout(() => {
+        console.log('📊 Attempting to render chart after timeout');
+        renderChart();
+      }, 300);
       return () => clearTimeout(timeoutId);
     } else {
       renderChart();
@@ -160,6 +196,10 @@ const PatientAnalytics = () => {
       }
 
       console.log('🚀 Fetching patient analytics for user:', user.id);
+      
+      // Clear existing data to force re-render
+      setAppointmentsOverTime([]);
+      setAttendanceRate(0);
 
       // 1. APPOINTMENTS FOR THIS PATIENT
       debugLog += '\n\n1. FETCHING PATIENT APPOINTMENTS...';
@@ -522,7 +562,16 @@ const PatientAnalytics = () => {
       <div className="max-w-7xl mx-auto bg-white rounded-xl shadow-lg p-8 border border-blue-100">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-blue-700">My Dental Analytics</h1>
-         
+          <div className="flex space-x-3">
+            <button
+              onClick={fetchAnalytics}
+              disabled={loading}
+              className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
+            >
+              <FiRefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              {loading ? 'Loading...' : 'Refresh'}
+            </button>
+          </div>
         </div>
 
         
