@@ -357,7 +357,9 @@ const PatientDashboard = () => {
         });
       }
       
-      setServingPatients(filteredServingData);
+      // 🚫 Remove duplicate patients from serving list (client-side only)
+      const uniqueServingData = removeDuplicatePatients(filteredServingData);
+      setServingPatients(uniqueServingData);
       
       // Keep backward compatibility - set first serving patient as currentlyServing
       if (filteredServingData.length > 0) {
@@ -448,8 +450,11 @@ const PatientDashboard = () => {
         });
       }
       
+      // 🚫 Remove duplicate patients from waiting list (client-side only)
+      const uniqueWaitingData = removeDuplicatePatients(filteredWaitingData);
+      
       // Format waiting list with proper privacy handling
-      const formattedWaitingList = filteredWaitingData.map(patient => {
+      const formattedWaitingList = uniqueWaitingData.map(patient => {
         // Primary match: auth user id === queue.patient_id
         let isCurrentUser = !!(patient.patient_id && user?.id && patient.patient_id === user.id);
         // Fallback match: compare normalized full names when patient_id is unavailable (defensive)
@@ -522,6 +527,23 @@ const PatientDashboard = () => {
   const getTodayDate = () => {
     const today = new Date();
     return today.toISOString().split('T')[0];
+  };
+
+  // Remove duplicate patients from the waiting list (client-side only)
+  const removeDuplicatePatients = (patients) => {
+    const seenPatients = new Set();
+    const uniquePatients = [];
+    
+    patients.forEach(patient => {
+      if (!seenPatients.has(patient.patient_id)) {
+        seenPatients.add(patient.patient_id);
+        uniquePatients.push(patient);
+      } else {
+        console.log(`🚫 Removed duplicate patient from patient dashboard: ${patient.profiles?.full_name || 'Unknown'}`);
+      }
+    });
+    
+    return uniquePatients;
   };
 
   const cleanupDuplicateQueueEntries = async () => {
