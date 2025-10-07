@@ -608,20 +608,35 @@ const PatientAppointments = () => {
 
     let filtered;
     switch (filterStatus) {
+      case 'today':
+        filtered = appointments.filter(appointment => {
+          const appointmentDate = new Date(appointment.appointment_date);
+          const todayDate = new Date();
+          return appointmentDate.toDateString() === todayDate.toDateString();
+        });
+        break;
       case 'upcoming':
         filtered = appointments.filter(appointment => {
           const appointmentDate = new Date(appointment.appointment_date);
           return appointmentDate >= today && 
                 appointment.status !== 'cancelled' && 
-                appointment.status !== 'completed';
+                appointment.status !== 'completed' &&
+                appointment.status !== 'rejected';
         });
         break;
-      case 'past':
+      case 'completed':
         filtered = appointments.filter(appointment => {
-          const appointmentDate = new Date(appointment.appointment_date);
-          return appointmentDate < today || 
-                appointment.status === 'cancelled' || 
-                appointment.status === 'completed';
+          return appointment.status === 'completed';
+        });
+        break;
+      case 'cancelled':
+        filtered = appointments.filter(appointment => {
+          return appointment.status === 'cancelled';
+        });
+        break;
+      case 'rejected':
+        filtered = appointments.filter(appointment => {
+          return appointment.status === 'rejected';
         });
         break;
       default:
@@ -1686,6 +1701,8 @@ const PatientAppointments = () => {
         return 'bg-red-100 text-red-800';
       case 'completed':
         return 'bg-blue-100 text-blue-800';
+      case 'rejected':
+        return 'bg-red-100 text-red-800';
       case 'no-show':
         return 'bg-gray-100 text-gray-800';
       default:
@@ -2505,20 +2522,30 @@ const PatientAppointments = () => {
           
           {/* Filter Tabs - Mobile Responsive */}
           <div className="border-b border-gray-200 mb-3 sm:mb-4">
-            <nav className="-mb-px flex space-x-2 sm:space-x-6 overflow-x-auto scrollbar-hide">
+            <nav className="-mb-px flex space-x-1 sm:space-x-2 overflow-x-auto scrollbar-hide">
               <button
                 onClick={() => setFilterStatus('all')}
-                className={`pb-2 sm:pb-3 px-1 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap ${
+                className={`pb-2 sm:pb-3 px-2 sm:px-3 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap ${
                   filterStatus === 'all'
                     ? 'border-primary-500 text-primary-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                All Appointments
+                All
+              </button>
+              <button
+                onClick={() => setFilterStatus('today')}
+                className={`pb-2 sm:pb-3 px-2 sm:px-3 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap ${
+                  filterStatus === 'today'
+                    ? 'border-primary-500 text-primary-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Today
               </button>
               <button
                 onClick={() => setFilterStatus('upcoming')}
-                className={`pb-2 sm:pb-3 px-1 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap ${
+                className={`pb-2 sm:pb-3 px-2 sm:px-3 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap ${
                   filterStatus === 'upcoming'
                     ? 'border-primary-500 text-primary-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -2527,14 +2554,34 @@ const PatientAppointments = () => {
                 Upcoming
               </button>
               <button
-                onClick={() => setFilterStatus('past')}
-                className={`pb-2 sm:pb-3 px-1 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap ${
-                  filterStatus === 'past'
+                onClick={() => setFilterStatus('completed')}
+                className={`pb-2 sm:pb-3 px-2 sm:px-3 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap ${
+                  filterStatus === 'completed'
                     ? 'border-primary-500 text-primary-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                Past
+                Completed
+              </button>
+              <button
+                onClick={() => setFilterStatus('cancelled')}
+                className={`pb-2 sm:pb-3 px-2 sm:px-3 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap ${
+                  filterStatus === 'cancelled'
+                    ? 'border-primary-500 text-primary-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Cancelled
+              </button>
+              <button
+                onClick={() => setFilterStatus('rejected')}
+                className={`pb-2 sm:pb-3 px-2 sm:px-3 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap ${
+                  filterStatus === 'rejected'
+                    ? 'border-primary-500 text-primary-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Rejected
               </button>
             </nav>
           </div>
@@ -2554,7 +2601,14 @@ const PatientAppointments = () => {
                   )}
                 </>
               ) : (
-                <p className="text-sm sm:text-base text-gray-500">No {filterStatus} appointments found.</p>
+                <p className="text-sm sm:text-base text-gray-500">
+                  {filterStatus === 'all' && 'No appointments found.'}
+                  {filterStatus === 'today' && 'No appointments scheduled for today.'}
+                  {filterStatus === 'upcoming' && 'No upcoming appointments.'}
+                  {filterStatus === 'completed' && 'No completed appointments.'}
+                  {filterStatus === 'cancelled' && 'No cancelled appointments.'}
+                  {filterStatus === 'rejected' && 'No rejected appointments.'}
+                </p>
               )}
             </div>
           ) : (
