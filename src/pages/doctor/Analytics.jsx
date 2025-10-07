@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import supabase from '../../config/supabaseClient';
-import { FiUsers, FiCalendar, FiBarChart2, FiPrinter } from 'react-icons/fi';
+import { FiUsers, FiCalendar, FiBarChart2, FiPrinter, FiRefreshCw } from 'react-icons/fi';
 import { Chart, registerables } from 'chart.js';
 import { useUniversalAudit } from '../../hooks/useUniversalAudit';
 Chart.register(...registerables);
@@ -45,51 +45,149 @@ const DoctorAnalytics = () => {
   }, [user]);
 
   useEffect(() => {
-    if (patientsPerDay.length > 0 && chartRef.current) {
-      const ctx = chartRef.current.getContext('2d');
-      if (window.doctorLineChart) window.doctorLineChart.destroy();
-      window.doctorLineChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: patientsPerDay.map(a => a.date),
-          datasets: [{
-            label: 'Patients',
-            data: patientsPerDay.map(a => a.count),
-            backgroundColor: '#6366f1',
-            borderColor: '#6366f1',
-            fill: false,
-            tension: 0.3
-          }]
-        },
-        options: {
-          plugins: { legend: { display: false } },
-          scales: { y: { beginAtZero: true } }
+    console.log('📊 Doctor Line Chart useEffect triggered:', { 
+      patientsPerDayLength: patientsPerDay.length,
+      chartRefCurrent: !!chartRef.current,
+      loading 
+    });
+    
+    const renderLineChart = () => {
+      if (patientsPerDay.length > 0 && chartRef.current) {
+        console.log('📊 Rendering line chart with data:', patientsPerDay);
+        
+        try {
+          const ctx = chartRef.current.getContext('2d');
+          if (window.doctorLineChart) {
+            console.log('📊 Destroying existing line chart');
+            window.doctorLineChart.destroy();
+          }
+          
+          window.doctorLineChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+              labels: patientsPerDay.map(a => a.date),
+              datasets: [{
+                label: 'Patients',
+                data: patientsPerDay.map(a => a.count),
+                backgroundColor: '#6366f1',
+                borderColor: '#6366f1',
+                fill: false,
+                tension: 0.3
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: true,
+              aspectRatio: 2.2,
+              plugins: { 
+                legend: { display: false } 
+              },
+              scales: { 
+                y: { 
+                  beginAtZero: true,
+                  ticks: {
+                    font: { size: 10 }
+                  }
+                },
+                x: {
+                  ticks: {
+                    font: { size: 10 }
+                  }
+                }
+              }
+            }
+          });
+          console.log('📊 Line chart created successfully');
+        } catch (error) {
+          console.error('📊 Error creating line chart:', error);
         }
-      });
+      } else {
+        console.log('📊 Line chart conditions not met:', { 
+          hasData: patientsPerDay.length > 0, 
+          hasCanvas: !!chartRef.current 
+        });
+      }
+    };
+
+    // Add delay to ensure DOM is ready
+    if (patientsPerDay.length > 0) {
+      const timeoutId = setTimeout(() => {
+        console.log('📊 Attempting to render line chart after timeout');
+        renderLineChart();
+      }, 300);
+      return () => clearTimeout(timeoutId);
+    } else {
+      renderLineChart();
     }
-  }, [patientsPerDay]);
+  }, [patientsPerDay, loading]);
 
   useEffect(() => {
-    if (procedureBreakdown.length > 0 && pieRef.current) {
-      const ctx = pieRef.current.getContext('2d');
-      if (window.doctorPieChart) window.doctorPieChart.destroy();
-      window.doctorPieChart = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-          labels: procedureBreakdown.map(p => p.name),
-          datasets: [{
-            data: procedureBreakdown.map(p => p.count),
-            backgroundColor: ['#6366f1', '#22c55e', '#f59e42', '#f43f5e', '#a21caf', '#0ea5e9'],
-            borderWidth: 0
-          }]
-        },
-        options: {
-          cutout: '70%',
-          plugins: { legend: { display: true, position: 'bottom' } }
+    console.log('📊 Doctor Pie Chart useEffect triggered:', { 
+      procedureBreakdownLength: procedureBreakdown.length,
+      pieRefCurrent: !!pieRef.current,
+      loading 
+    });
+    
+    const renderPieChart = () => {
+      if (procedureBreakdown.length > 0 && pieRef.current) {
+        console.log('📊 Rendering pie chart with data:', procedureBreakdown);
+        
+        try {
+          const ctx = pieRef.current.getContext('2d');
+          if (window.doctorPieChart) {
+            console.log('📊 Destroying existing pie chart');
+            window.doctorPieChart.destroy();
+          }
+          
+          window.doctorPieChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+              labels: procedureBreakdown.map(p => p.name),
+              datasets: [{
+                data: procedureBreakdown.map(p => p.count),
+                backgroundColor: ['#6366f1', '#22c55e', '#f59e42', '#f43f5e', '#a21caf', '#0ea5e9'],
+                borderWidth: 0
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: true,
+              aspectRatio: 1.3,
+              cutout: '70%',
+              plugins: { 
+                legend: { 
+                  display: true, 
+                  position: 'bottom',
+                  labels: {
+                    font: { size: 10 }
+                  }
+                } 
+              }
+            }
+          });
+          console.log('📊 Pie chart created successfully');
+        } catch (error) {
+          console.error('📊 Error creating pie chart:', error);
         }
-      });
+      } else {
+        console.log('📊 Pie chart conditions not met:', { 
+          hasData: procedureBreakdown.length > 0, 
+          hasCanvas: !!pieRef.current 
+        });
+      }
+    };
+
+    // Add delay to ensure DOM is ready
+    if (procedureBreakdown.length > 0) {
+      const timeoutId = setTimeout(() => {
+        console.log('📊 Attempting to render pie chart after timeout');
+        renderPieChart();
+      }, 300);
+      return () => clearTimeout(timeoutId);
+    } else {
+      renderPieChart();
     }
-  }, [procedureBreakdown]);
+  }, [procedureBreakdown, loading]);
 
   useEffect(() => {
     if (gaugeRef.current) {
@@ -119,6 +217,13 @@ const DoctorAnalytics = () => {
 
   const fetchAnalytics = async () => {
     setLoading(true);
+    console.log('🚀 Starting doctor analytics fetch...');
+    
+    // Clear existing data to force re-render
+    setPatientsPerDay([]);
+    setProcedureBreakdown([]);
+    setEfficiency(0);
+    
     let debugLog = `\n=== Doctor Analytics Fetch Started at ${new Date().toLocaleTimeString()} ===`;
     debugLog += `\nUser ID: ${user?.id}`;
     
@@ -404,7 +509,16 @@ const DoctorAnalytics = () => {
       <div className="max-w-7xl mx-auto bg-white rounded-xl shadow-lg p-8 border border-blue-100">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-indigo-700">Doctor Analytics</h1>
-          
+          <div className="flex space-x-3">
+            <button
+              onClick={fetchAnalytics}
+              disabled={loading}
+              className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
+            >
+              <FiRefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              {loading ? 'Loading...' : 'Refresh'}
+            </button>
+          </div>
         </div>
 
         
@@ -437,7 +551,9 @@ const DoctorAnalytics = () => {
             <div className="bg-white rounded-lg shadow-md p-6">
               <h2 className="text-lg font-bold text-gray-700 mb-4">Patients Per Day</h2>
               {patientsPerDay.length > 0 ? (
-                <canvas ref={chartRef} height={200}></canvas>
+                <div className="h-64">
+                  <canvas ref={chartRef}></canvas>
+                </div>
               ) : (
                 <div className="flex items-center justify-center h-48 text-gray-500">
                   No patient activity data available
@@ -447,7 +563,9 @@ const DoctorAnalytics = () => {
             <div className="bg-white rounded-lg shadow-md p-6">
               <h2 className="text-lg font-bold text-gray-700 mb-4">Procedures Breakdown</h2>
               {procedureBreakdown.length > 0 ? (
-                <canvas ref={pieRef} height={200}></canvas>
+                <div className="h-64">
+                  <canvas ref={pieRef}></canvas>
+                </div>
               ) : (
                 <div className="flex items-center justify-center h-48 text-gray-500">
                   No procedure data available
@@ -458,8 +576,10 @@ const DoctorAnalytics = () => {
           
           <div className="bg-white rounded-lg shadow-md p-6 mb-8">
             <h2 className="text-lg font-bold text-gray-700 mb-4 text-center">Treatment Completion Rate</h2>
-            <div className="relative w-48 h-48 mx-auto flex items-center justify-center">
-              <canvas ref={gaugeRef} width={192} height={192}></canvas>
+            <div className="relative w-64 h-64 mx-auto flex items-center justify-center">
+              <div className="h-64 flex items-center justify-center">
+                <canvas ref={gaugeRef} width={180} height={180}></canvas>
+              </div>
               <div className="absolute inset-0 flex items-center justify-center">
                 <span className="text-4xl font-bold text-green-600">{efficiency}%</span>
               </div>
