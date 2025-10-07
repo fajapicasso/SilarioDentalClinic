@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import supabase from '../../config/supabaseClient';
-import { FiUsers, FiCalendar, FiBarChart2, FiPrinter, FiCreditCard } from 'react-icons/fi';
+import { FiUsers, FiCalendar, FiBarChart2, FiPrinter, FiCreditCard, FiRefreshCw } from 'react-icons/fi';
 import { Chart, registerables } from 'chart.js';
 Chart.register(...registerables);
 
@@ -31,78 +31,226 @@ const AdminAnalytics = () => {
   }, []);
 
   useEffect(() => {
-    Object.keys(revenueByMonthByBranch || {}).forEach((b) => {
-      const canvas = revenueChartRefs.current[b];
-      const series = revenueByMonthByBranch[b] || [];
-      if (!canvas || series.length === 0) return;
-      const key = `adminRevenueChart_${b}`;
-      if (window[key]) window[key].destroy();
-      const ctx = canvas.getContext('2d');
-      window[key] = new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: series.map((a) => a.month),
-          datasets: [{
-            label: 'Revenue (₱)',
-            data: series.map((a) => a.amount),
-            backgroundColor: '#059669',
-          }],
-        },
-        options: {
-          plugins: { legend: { display: false } },
-          scales: { y: { beginAtZero: true } },
-        },
-      });
+    console.log('📊 Admin Revenue Chart useEffect triggered:', { 
+      revenueByMonthByBranchKeys: Object.keys(revenueByMonthByBranch || {}),
+      loading 
     });
-  }, [revenueByMonthByBranch]);
-
-  useEffect(() => {
-    Object.keys(statusByBranch || {}).forEach((b) => {
-      const canvas = statusChartRefs.current[b];
-      const series = statusByBranch[b] || [];
-      if (!canvas || series.length === 0) return;
-      const key = `adminStatusChart_${b}`;
-      if (window[key]) window[key].destroy();
-      const ctx = canvas.getContext('2d');
-      window[key] = new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: series.map((a) => a.status),
-          datasets: [{
-            label: 'Appointments',
-            data: series.map((a) => a.count),
-            backgroundColor: '#2563eb',
-          }],
-        },
-        options: {
-          plugins: { legend: { display: false } },
-          scales: { y: { beginAtZero: true } },
-        },
-      });
-    });
-  }, [statusByBranch]);
-
-  useEffect(() => {
-    if (topServices.length > 0 && pieRef.current) {
-      const ctx = pieRef.current.getContext('2d');
-      if (window.adminPieChart) window.adminPieChart.destroy();
-      window.adminPieChart = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-          labels: topServices.map((s) => s.name),
-          datasets: [{
-            data: topServices.map((s) => s.count),
-            backgroundColor: ['#6366f1', '#22c55e', '#f59e42', '#f43f5e', '#a21caf', '#0ea5e9'],
-            borderWidth: 0
-          }]
-        },
-        options: {
-          cutout: '70%',
-          plugins: { legend: { display: true, position: 'bottom' } }
+    
+    const renderRevenueCharts = () => {
+      Object.keys(revenueByMonthByBranch || {}).forEach((b) => {
+        const canvas = revenueChartRefs.current[b];
+        const series = revenueByMonthByBranch[b] || [];
+        
+        if (!canvas || series.length === 0) {
+          console.log(`📊 Revenue chart for ${b}: Canvas or data not available`);
+          return;
+        }
+        
+        console.log(`📊 Rendering revenue chart for branch ${b}:`, series);
+        
+        const key = `adminRevenueChart_${b}`;
+        if (window[key]) {
+          console.log(`📊 Destroying existing chart for ${b}`);
+          window[key].destroy();
+        }
+        
+        try {
+          const ctx = canvas.getContext('2d');
+          window[key] = new Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels: series.map((a) => a.month),
+              datasets: [{
+                label: 'Revenue (₱)',
+                data: series.map((a) => a.amount),
+                backgroundColor: '#059669',
+              }],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: true,
+              aspectRatio: 2.5,
+              plugins: { 
+                legend: { display: false } 
+              },
+              scales: { 
+                y: { 
+                  beginAtZero: true,
+                  ticks: {
+                    font: { size: 10 }
+                  }
+                },
+                x: {
+                  ticks: {
+                    font: { size: 10 }
+                  }
+                }
+              }
+            },
+          });
+          console.log(`📊 Revenue chart for ${b} created successfully`);
+        } catch (error) {
+          console.error(`📊 Error creating revenue chart for ${b}:`, error);
         }
       });
+    };
+
+    // Add delay to ensure DOM is ready
+    if (Object.keys(revenueByMonthByBranch || {}).length > 0) {
+      const timeoutId = setTimeout(() => {
+        console.log('📊 Attempting to render revenue charts after timeout');
+        renderRevenueCharts();
+      }, 300);
+      return () => clearTimeout(timeoutId);
+    } else {
+      renderRevenueCharts();
     }
-  }, [topServices]);
+  }, [revenueByMonthByBranch, loading]);
+
+  useEffect(() => {
+    console.log('📊 Admin Status Chart useEffect triggered:', { 
+      statusByBranchKeys: Object.keys(statusByBranch || {}),
+      loading 
+    });
+    
+    const renderStatusCharts = () => {
+      Object.keys(statusByBranch || {}).forEach((b) => {
+        const canvas = statusChartRefs.current[b];
+        const series = statusByBranch[b] || [];
+        
+        if (!canvas || series.length === 0) {
+          console.log(`📊 Status chart for ${b}: Canvas or data not available`);
+          return;
+        }
+        
+        console.log(`📊 Rendering status chart for branch ${b}:`, series);
+        
+        const key = `adminStatusChart_${b}`;
+        if (window[key]) {
+          console.log(`📊 Destroying existing status chart for ${b}`);
+          window[key].destroy();
+        }
+        
+        try {
+          const ctx = canvas.getContext('2d');
+          window[key] = new Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels: series.map((a) => a.status),
+              datasets: [{
+                label: 'Appointments',
+                data: series.map((a) => a.count),
+                backgroundColor: '#2563eb',
+              }],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: true,
+              aspectRatio: 2.5,
+              plugins: { 
+                legend: { display: false } 
+              },
+              scales: { 
+                y: { 
+                  beginAtZero: true,
+                  ticks: {
+                    font: { size: 10 }
+                  }
+                },
+                x: {
+                  ticks: {
+                    font: { size: 10 }
+                  }
+                }
+              }
+            },
+          });
+          console.log(`📊 Status chart for ${b} created successfully`);
+        } catch (error) {
+          console.error(`📊 Error creating status chart for ${b}:`, error);
+        }
+      });
+    };
+
+    // Add delay to ensure DOM is ready
+    if (Object.keys(statusByBranch || {}).length > 0) {
+      const timeoutId = setTimeout(() => {
+        console.log('📊 Attempting to render status charts after timeout');
+        renderStatusCharts();
+      }, 300);
+      return () => clearTimeout(timeoutId);
+    } else {
+      renderStatusCharts();
+    }
+  }, [statusByBranch, loading]);
+
+  useEffect(() => {
+    console.log('📊 Admin Pie Chart useEffect triggered:', { 
+      topServicesLength: topServices.length,
+      pieRefCurrent: !!pieRef.current,
+      loading 
+    });
+    
+    const renderPieChart = () => {
+      if (topServices.length > 0 && pieRef.current) {
+        console.log('📊 Rendering pie chart with data:', topServices);
+        
+        try {
+          const ctx = pieRef.current.getContext('2d');
+          if (window.adminPieChart) {
+            console.log('📊 Destroying existing pie chart');
+            window.adminPieChart.destroy();
+          }
+          
+          window.adminPieChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+              labels: topServices.map((s) => s.name),
+              datasets: [{
+                data: topServices.map((s) => s.count),
+                backgroundColor: ['#6366f1', '#22c55e', '#f59e42', '#f43f5e', '#a21caf', '#0ea5e9'],
+                borderWidth: 0
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: true,
+              aspectRatio: 1.5,
+              cutout: '70%',
+              plugins: { 
+                legend: { 
+                  display: true, 
+                  position: 'bottom',
+                  labels: {
+                    font: { size: 10 }
+                  }
+                } 
+              }
+            }
+          });
+          console.log('📊 Pie chart created successfully');
+        } catch (error) {
+          console.error('📊 Error creating pie chart:', error);
+        }
+      } else {
+        console.log('📊 Pie chart conditions not met:', { 
+          hasData: topServices.length > 0, 
+          hasCanvas: !!pieRef.current 
+        });
+      }
+    };
+
+    // Add delay to ensure DOM is ready
+    if (topServices.length > 0) {
+      const timeoutId = setTimeout(() => {
+        console.log('📊 Attempting to render pie chart after timeout');
+        renderPieChart();
+      }, 300);
+      return () => clearTimeout(timeoutId);
+    } else {
+      renderPieChart();
+    }
+  }, [topServices, loading]);
 
   // Removed gauge chart; we'll show efficiency per-branch as a number
 
@@ -139,6 +287,13 @@ const AdminAnalytics = () => {
 
   const fetchAnalytics = async () => {
     setLoading(true);
+    console.log('🚀 Starting admin analytics fetch...');
+    
+    // Clear existing data to force re-render
+    setRevenueByMonthByBranch({});
+    setStatusByBranch({});
+    setTopServices([]);
+    
     let debugLog = `\n=== Analytics Fetch Started at ${new Date().toLocaleTimeString()} ===`;
     
     try {
@@ -397,7 +552,14 @@ const AdminAnalytics = () => {
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-green-700">Admin Analytics</h1>
           <div className="flex items-center gap-4">
-           
+            <button
+              onClick={fetchAnalytics}
+              disabled={loading}
+              className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
+            >
+              <FiRefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              {loading ? 'Loading...' : 'Refresh'}
+            </button>
           </div>
         </div>
 
@@ -440,17 +602,21 @@ const AdminAnalytics = () => {
                       <div className="bg-white rounded-lg shadow-md p-6">
                         <h2 className="text-lg font-bold text-gray-700 mb-4">Revenue by Month</h2>
                         {revSeries.length > 0 ? (
-                          <canvas ref={(el) => (revenueChartRefs.current[b] = el)} height={200}></canvas>
+                          <div className="h-48">
+                            <canvas ref={(el) => (revenueChartRefs.current[b] = el)}></canvas>
+                          </div>
                         ) : (
-                          <div className="flex items-center justify-center h-48 text-gray-500">No revenue data available</div>
+                          <div className="flex items-center justify-center h-32 text-gray-500">No revenue data available</div>
                         )}
                       </div>
                       <div className="bg-white rounded-lg shadow-md p-6">
                         <h2 className="text-lg font-bold text-gray-700 mb-4">Appointments by Status</h2>
                         {statusRows.length > 0 ? (
-                          <canvas ref={(el) => (statusChartRefs.current[b] = el)} height={200}></canvas>
+                          <div className="h-48">
+                            <canvas ref={(el) => (statusChartRefs.current[b] = el)}></canvas>
+                          </div>
                         ) : (
-                          <div className="flex items-center justify-center h-48 text-gray-500">No appointment data available</div>
+                          <div className="flex items-center justify-center h-32 text-gray-500">No appointment data available</div>
                         )}
                       </div>
                     </div>
@@ -495,7 +661,9 @@ const AdminAnalytics = () => {
                   <div className="bg-white rounded-lg shadow-md p-6">
                     <h2 className="text-lg font-bold text-gray-700 mb-4">Top Services</h2>
                     {topServices.length > 0 ? (
-                      <canvas ref={pieRef} height={200}></canvas>
+                      <div className="h-48">
+                        <canvas ref={pieRef}></canvas>
+                      </div>
                     ) : (
                       <div className="flex items-center justify-center h-48 text-gray-500">No service data available</div>
                     )}
