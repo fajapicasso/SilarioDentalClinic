@@ -12,7 +12,7 @@ import { getNextQueueNumberForToday } from '../../utils/philippineTime';
 
 const QueueManagement = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, userRole } = useAuth();
   const { logPageView, logQueueView, logQueueAdd, logQueueStatusUpdate } = useUniversalAudit();
   const [selectedPatient, setSelectedPatient] = useState(null); // Keep for backward compatibility
   const [servingPatients, setServingPatients] = useState([]); // New: multiple serving patients
@@ -524,7 +524,7 @@ const QueueManagement = () => {
       const todayDate = getTodayDate();
       console.log('=== FETCHING QUEUE DATA ===');
       console.log('Today date:', todayDate);
-      console.log('User role:', user?.role);
+      console.log('User role:', userRole);
       
       // Check if auto-add has already been processed today globally
       const globalAutoAddKey = `globalAutoAddProcessed_${todayDate}`;
@@ -861,7 +861,7 @@ const QueueManagement = () => {
        // Auto-add missing confirmed/appointed appointments to queue
        // ONLY DOCTORS can auto-add appointments to prevent duplication
        // Staff and Admin roles will only see the queue, not add to it
-       if (missingAppointments.length > 0 && !isAutoAddingRef.current && !hasAutoAddBeenProcessed && !skipAutoAdd && user?.role === 'doctor') {
+       if (missingAppointments.length > 0 && !isAutoAddingRef.current && !hasAutoAddBeenProcessed && !skipAutoAdd && userRole === 'doctor') {
          console.log(`👨‍⚕️ DOCTOR ROLE: Auto-adding ${missingAppointments.length} confirmed/appointed appointments to queue`);
          
          // Mark that auto-add is being processed globally
@@ -899,8 +899,8 @@ const QueueManagement = () => {
            }
            return;
          }
-       } else if (missingAppointments.length > 0 && user?.role !== 'doctor') {
-         console.log(`🚫 ${user?.role?.toUpperCase()} ROLE: Auto-add blocked - only doctors can auto-add appointments to prevent duplication`);
+       } else if (missingAppointments.length > 0 && userRole !== 'doctor') {
+         console.log(`🚫 ${userRole?.toUpperCase()} ROLE: Auto-add blocked - only doctors can auto-add appointments to prevent duplication`);
        }
       
       // Fetch patient profiles for queue entries
@@ -1706,8 +1706,26 @@ const QueueManagement = () => {
       
       fetchQueueData();
       
-      // Redirect to invoices page
-      navigate('/doctor/billing');
+      // Redirect based on user role with small delay to ensure proper navigation
+      console.log('🔀 Navigation Debug - User role:', userRole);
+      console.log('🔀 Navigation Debug - User object:', user);
+      
+      setTimeout(() => {
+        if (userRole === 'doctor') {
+          console.log('🔀 Redirecting doctor to /doctor/billing');
+          navigate('/doctor/billing');
+        } else if (userRole === 'staff') {
+          console.log('🔀 Redirecting staff to /staff/payments');
+          navigate('/staff/payments');
+        } else if (userRole === 'admin') {
+          console.log('🔀 Redirecting admin to /admin/billing');
+          navigate('/admin/billing');
+        } else {
+          console.log('🔀 Fallback redirect to /doctor/billing for role:', userRole);
+          // Fallback to doctor billing for other roles
+          navigate('/doctor/billing');
+        }
+      }, 100); // Small delay to ensure navigation works properly
       
     } catch (error) {
       console.error('Error generating invoice:', error);
@@ -2004,7 +2022,7 @@ const QueueManagement = () => {
                              <div className="flex items-center text-sm text-blue-600">
                  <FiInfo className="h-4 w-4 mr-1" />
                  <span>
-                   {user?.role === 'doctor' 
+                   {userRole === 'doctor' 
                      ? "Today's confirmed/appointed appointments auto-added to queue. Click complete button to generate invoice."
                      : "Queue management view. Only doctors can auto-add appointments to prevent duplication."
                    }
