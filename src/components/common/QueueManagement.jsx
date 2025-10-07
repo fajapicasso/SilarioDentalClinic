@@ -45,6 +45,8 @@ const QueueManagement = () => {
   const autoAddToastKeyRef = useRef('');
   const processedAppointmentsRef = useRef(new Set()); // Track processed appointments to prevent duplicates
   const duplicateBlockerRef = useRef(new Set()); // Block duplicate patients from being added
+  const autoAddLockRef = useRef(false); // Atomic lock for auto-add process
+  const autoAddPromiseRef = useRef(null); // Promise to prevent multiple concurrent auto-adds
 
   const formatTime = (timeStr) => {
     if (!timeStr) return '';
@@ -178,9 +180,12 @@ const QueueManagement = () => {
     // Clean up duplicate blocker entries from previous days
     cleanupDuplicateBlocker();
     
-    fetchQueueData();
-    fetchPatients();
-    fetchAvailableDoctors(); // Fetch doctors on mount
+    // Clean up existing duplicates first, then fetch data
+    cleanupExistingDuplicates().then(() => {
+      fetchQueueData();
+      fetchPatients();
+      fetchAvailableDoctors(); // Fetch doctors on mount
+    });
     
     // Set up real-time subscription for queue changes
     const queueSubscription = supabase
@@ -241,20 +246,221 @@ const QueueManagement = () => {
     return `${year}-${month}-${day}`;
   };
 
-  // Duplicate blocker function - prevents same patient from being added multiple times
-  const isDuplicatePatient = (patientId) => {
+  // Atomic auto-add function that prevents race conditions
+  const atomicAutoAdd = async (missingAppointments, todayDate) => {
+    // Check if auto-add is already in progress
+    if (autoAddLockRef.current) {
+      console.log('🚫 AUTO-ADD BLOCKED: Another auto-add process is already running');
+      return { success: false, reason: 'already_running' };
+    }
+
+    // Check if auto-add has been processed today
+    const globalAutoAddKey = `globalAutoAddProcessed_${todayDate}`;
+    const hasAutoAddBeenProcessed = sessionStorage.getItem(globalAutoAddKey);
+    
+    if (hasAutoAddBeenProcessed === 'true') {
+      console.log('🚫 AUTO-ADD BLOCKED: Auto-add already processed today');
+      return { success: false, reason: 'already_processed' };
+    }
+
+    // Set atomic lock
+    autoAddLockRef.current = true;
+    sessionStorage.setItem(globalAutoAddKey, 'true');
+    
+    try {
+      console.log(`🔒 ATOMIC AUTO-ADD: Processing ${missingAppointments.length} appointments`);
+      
+      let addedCount = 0;
+      const processedPatients = new Set();
+      
+      // Process appointments with atomic duplicate checking
+      for (const appointment of missingAppointments) {
+        try {
+          // Atomic duplicate check with database lock
+          const isDuplicate = await atomicDuplicateCheck(appointment.patient_id, todayDate);
+          if (isDuplicate) {
+            console.log(`🚫 ATOMIC DUPLICATE BLOCKED: Patient ${appointment.patient_id} already processed`);
+            continue;
+          }
+          
+          // Mark as processed immediately to prevent race conditions
+          processedPatients.add(appointment.patient_id);
+          
+          const result = await QueueService.addAppointmentToQueue(appointment, { 
+            source: 'atomic_auto_add',
+            timestamp: Date.now()
+          });
+          
+          if (result.success) {
+            addedCount++;
+            console.log(`✅ ATOMIC ADD: Added appointment ${appointment.id} as #${result.queueNumber}`);
+          } else {
+            console.error(`❌ ATOMIC ADD FAILED: ${appointment.id} - ${result.error}`);
+          }
+        } catch (error) {
+          console.error(`❌ ATOMIC ADD ERROR for appointment ${appointment.id}:`, error);
+        }
+      }
+      
+      console.log(`🔓 ATOMIC AUTO-ADD COMPLETE: Added ${addedCount} appointments`);
+      return { success: true, addedCount, processedPatients: Array.from(processedPatients) };
+      
+    } catch (error) {
+      console.error('❌ ATOMIC AUTO-ADD ERROR:', error);
+      return { success: false, error: error.message };
+    } finally {
+      // Always release the lock
+      autoAddLockRef.current = false;
+    }
+  };
+
+  // Atomic duplicate check with database-level locking
+  const atomicDuplicateCheck = async (patientId, todayDate) => {
+    const duplicateKey = `${patientId}_${todayDate}`;
+    
+    // Check in-memory first (fastest)
+    if (duplicateBlockerRef.current.has(duplicateKey)) {
+      console.log(`🚫 ATOMIC DUPLICATE (Memory): Patient ${patientId} already processed`);
+      return true;
+    }
+    
+    // Check database with atomic operation
+    try {
+      const { data: existingEntries, error } = await supabase
+        .from('queue')
+        .select('id, status, created_at')
+        .eq('patient_id', patientId)
+        .in('status', ['waiting', 'serving'])
+        .gte('created_at', `${todayDate}T00:00:00.000Z`)
+        .lt('created_at', `${todayDate}T23:59:59.999Z`)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      
+      if (error) {
+        console.error('Error in atomic duplicate check:', error);
+        return false; // Allow if we can't check
+      }
+      
+      if (existingEntries && existingEntries.length > 0) {
+        console.log(`🚫 ATOMIC DUPLICATE (Database): Patient ${patientId} already in queue with status: ${existingEntries[0].status}`);
+        return true;
+      }
+      
+      // Mark as processed atomically
+      duplicateBlockerRef.current.add(duplicateKey);
+      console.log(`✅ ATOMIC MARK: Patient ${patientId} marked as processed`);
+      return false;
+      
+    } catch (error) {
+      console.error('Error in atomic duplicate check:', error);
+      return false; // Allow if we can't check
+    }
+  };
+
+  // Enhanced duplicate blocker function - prevents same patient from being added multiple times
+  const isDuplicatePatient = async (patientId) => {
     const todayKey = getTodayDate();
     const duplicateKey = `${patientId}_${todayKey}`;
     
+    // Check in-memory first
     if (duplicateBlockerRef.current.has(duplicateKey)) {
-      console.log(`🚫 DUPLICATE BLOCKED: Patient ${patientId} already processed today`);
+      console.log(`🚫 DUPLICATE BLOCKED (Memory): Patient ${patientId} already processed today`);
       return true;
+    }
+    
+    // Check database for existing queue entries
+    try {
+      const { data: existingEntries, error } = await supabase
+        .from('queue')
+        .select('id, status')
+        .eq('patient_id', patientId)
+        .in('status', ['waiting', 'serving'])
+        .gte('created_at', `${todayKey}T00:00:00.000Z`)
+        .lt('created_at', `${todayKey}T23:59:59.999Z`);
+      
+      if (error) {
+        console.error('Error checking for duplicates:', error);
+        return false; // Allow if we can't check
+      }
+      
+      if (existingEntries && existingEntries.length > 0) {
+        console.log(`🚫 DUPLICATE BLOCKED (Database): Patient ${patientId} already in queue today with status: ${existingEntries[0].status}`);
+        return true;
+      }
+    } catch (error) {
+      console.error('Error in duplicate check:', error);
+      return false; // Allow if we can't check
     }
     
     // Mark this patient as processed
     duplicateBlockerRef.current.add(duplicateKey);
     console.log(`✅ Patient ${patientId} marked as processed for today`);
     return false;
+  };
+
+  // Clean up existing duplicates in the database
+  const cleanupExistingDuplicates = async () => {
+    try {
+      const todayKey = getTodayDate();
+      console.log('🧹 Cleaning up existing duplicates for today:', todayKey);
+      
+      // Get all queue entries for today
+      const { data: todayEntries, error } = await supabase
+        .from('queue')
+        .select('id, patient_id, status, created_at')
+        .gte('created_at', `${todayKey}T00:00:00.000Z`)
+        .lt('created_at', `${todayKey}T23:59:59.999Z`)
+        .order('created_at', { ascending: true });
+      
+      if (error) {
+        console.error('Error fetching today entries:', error);
+        return;
+      }
+      
+      if (!todayEntries || todayEntries.length === 0) {
+        console.log('🧹 No entries found for today');
+        return;
+      }
+      
+      // Group by patient_id to find duplicates
+      const patientGroups = {};
+      todayEntries.forEach(entry => {
+        if (!patientGroups[entry.patient_id]) {
+          patientGroups[entry.patient_id] = [];
+        }
+        patientGroups[entry.patient_id].push(entry);
+      });
+      
+      // Remove duplicates, keeping only the first entry for each patient
+      const entriesToDelete = [];
+      Object.keys(patientGroups).forEach(patientId => {
+        const entries = patientGroups[patientId];
+        if (entries.length > 1) {
+          console.log(`🧹 Found ${entries.length} entries for patient ${patientId}, removing duplicates`);
+          // Keep the first entry, mark others for deletion
+          for (let i = 1; i < entries.length; i++) {
+            entriesToDelete.push(entries[i].id);
+          }
+        }
+      });
+      
+      // Delete duplicate entries
+      if (entriesToDelete.length > 0) {
+        console.log(`🧹 Deleting ${entriesToDelete.length} duplicate entries`);
+        const { error: deleteError } = await supabase
+          .from('queue')
+          .delete()
+          .in('id', entriesToDelete);
+        
+        if (deleteError) {
+          console.error('Error deleting duplicates:', deleteError);
+        } else {
+          console.log(`✅ Successfully deleted ${entriesToDelete.length} duplicate entries`);
+        }
+      }
+    } catch (error) {
+      console.error('Error in cleanupExistingDuplicates:', error);
+    }
   };
 
   // Clean up old duplicate blocker entries from previous days
@@ -668,7 +874,7 @@ const QueueManagement = () => {
          for (const appointment of missingAppointments) {
            try {
              // 🚫 DUPLICATE BLOCKER: Check if this patient has already been processed today
-             if (isDuplicatePatient(appointment.patient_id)) {
+             if (await isDuplicatePatient(appointment.patient_id)) {
                console.log(`🚫 Skipping duplicate patient ${appointment.patient_id} (${appointment.patientProfile?.full_name})`);
                continue;
              }
@@ -823,8 +1029,44 @@ const QueueManagement = () => {
       console.log('Date range start:', `${todayDate}T00:00:00`);
       console.log('Date range end:', `${todayDate}T23:59:59`);
       
+      // Get unique queue entries for today (remove duplicates by patient_id)
+      const { data: todayQueueEntries, error: queueError } = await supabase
+        .from('queue')
+        .select(`
+          id, 
+          patient_id,
+          queue_number,
+          status,
+          created_at,
+          profiles!queue_patient_id_fkey(id, full_name)
+        `)
+        .gte('created_at', `${todayDate}T00:00:00.000Z`)
+        .lt('created_at', `${todayDate}T23:59:59.999Z`)
+        .order('created_at', { ascending: false });
+      
+      if (queueError) {
+        console.error('Error fetching queue entries:', queueError);
+        setActivityLogs([]);
+        return;
+      }
+      
+      // Remove duplicates by patient_id, keeping only the first (most recent) entry
+      const uniqueEntries = [];
+      const seenPatients = new Set();
+      
+      if (todayQueueEntries) {
+        todayQueueEntries.forEach(entry => {
+          if (!seenPatients.has(entry.patient_id)) {
+            seenPatients.add(entry.patient_id);
+            uniqueEntries.push(entry);
+          }
+        });
+      }
+      
+      console.log(`Found ${todayQueueEntries?.length || 0} total entries, ${uniqueEntries.length} unique patients`);
+      
       // First, let's check if there are ANY queue entries at all
-      const { data: anyQueueEntries, error: queueError } = await supabase
+      const { data: anyQueueEntries, error: queueError2 } = await supabase
         .from('queue')
         .select(`
           id, 
@@ -848,7 +1090,7 @@ const QueueManagement = () => {
       }
       
       // Now try the specific date query with proper patient name fetching
-      const { data: todayQueueEntries, error: todayError } = await supabase
+      const { data: todayQueueEntries2, error: todayError } = await supabase
         .from('queue')
         .select(`
           id, 
@@ -867,14 +1109,14 @@ const QueueManagement = () => {
         .limit(200);
       
       console.log('=== DEBUG: Today-specific queue entries ===');
-      console.log('Today query result:', todayQueueEntries);
+      console.log('Today query result:', todayQueueEntries2);
       console.log('Today query error:', todayError);
-      console.log('Today entries found:', todayQueueEntries?.length || 0);
+      console.log('Today entries found:', todayQueueEntries2?.length || 0);
       
       // Debug patient data specifically
-      if (todayQueueEntries && todayQueueEntries.length > 0) {
+      if (todayQueueEntries2 && todayQueueEntries2.length > 0) {
         console.log('=== DEBUG: Patient data in today entries ===');
-        todayQueueEntries.forEach((entry, index) => {
+        todayQueueEntries2.forEach((entry, index) => {
           console.log(`Entry ${index}:`, {
             id: entry.id,
             patient_id: entry.patient_id,
@@ -891,7 +1133,7 @@ const QueueManagement = () => {
       }
       
       // Use today's entries if available, otherwise use all entries
-      let allQueueEntries = todayQueueEntries || [];
+      let allQueueEntries = todayQueueEntries2 || [];
       console.log('Using queue entries:', allQueueEntries);
       
       // If no data found, let's try a broader search
@@ -1559,7 +1801,7 @@ const QueueManagement = () => {
     
     try {
       // 🚫 DUPLICATE BLOCKER: Check if this patient has already been processed today
-      if (isDuplicatePatient(selectedPatientId)) {
+      if (await isDuplicatePatient(selectedPatientId)) {
         toast.error('This patient has already been added to the queue today');
         return;
       }
