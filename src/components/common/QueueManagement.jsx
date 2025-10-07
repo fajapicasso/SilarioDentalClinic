@@ -43,6 +43,8 @@ const QueueManagement = () => {
   const [appointmentModalData, setAppointmentModalData] = useState(null);
   const isAutoAddingRef = useRef(false);
   const autoAddToastKeyRef = useRef('');
+  const processedAppointmentsRef = useRef(new Set()); // Track processed appointments to prevent duplicates
+  const duplicateBlockerRef = useRef(new Set()); // Block duplicate patients from being added
 
   const formatTime = (timeStr) => {
     if (!timeStr) return '';
@@ -162,6 +164,20 @@ const QueueManagement = () => {
     // Log page view
     logPageView('Doctor Queue Management', 'queue', 'management');
     
+    // Clean up old sessionStorage entries from previous days
+    const todayDate = getTodayDate();
+    const globalAutoAddKey = `globalAutoAddProcessed_${todayDate}`;
+    
+    // Remove any old auto-add keys from previous days
+    Object.keys(sessionStorage).forEach(key => {
+      if (key.startsWith('globalAutoAddProcessed_') && key !== globalAutoAddKey) {
+        sessionStorage.removeItem(key);
+      }
+    });
+    
+    // Clean up duplicate blocker entries from previous days
+    cleanupDuplicateBlocker();
+    
     fetchQueueData();
     fetchPatients();
     fetchAvailableDoctors(); // Fetch doctors on mount
@@ -175,7 +191,8 @@ const QueueManagement = () => {
         table: 'queue' 
       }, () => {
         console.log('Queue changed, refreshing...');
-        fetchQueueData();
+        // Only refresh data, don't trigger auto-add logic
+        fetchQueueDataOnly();
       })
       .subscribe();
     
@@ -188,7 +205,8 @@ const QueueManagement = () => {
         table: 'appointments' 
       }, () => {
         console.log('Appointments changed, refreshing queue...');
-        fetchQueueData();
+        // Only refresh data, don't trigger auto-add logic
+        fetchQueueDataOnly();
       })
       .subscribe();
     
@@ -223,12 +241,104 @@ const QueueManagement = () => {
     return `${year}-${month}-${day}`;
   };
 
+  // Duplicate blocker function - prevents same patient from being added multiple times
+  const isDuplicatePatient = (patientId) => {
+    const todayKey = getTodayDate();
+    const duplicateKey = `${patientId}_${todayKey}`;
+    
+    if (duplicateBlockerRef.current.has(duplicateKey)) {
+      console.log(`🚫 DUPLICATE BLOCKED: Patient ${patientId} already processed today`);
+      return true;
+    }
+    
+    // Mark this patient as processed
+    duplicateBlockerRef.current.add(duplicateKey);
+    console.log(`✅ Patient ${patientId} marked as processed for today`);
+    return false;
+  };
+
+  // Clean up old duplicate blocker entries from previous days
+  const cleanupDuplicateBlocker = () => {
+    const todayKey = getTodayDate();
+    const entriesToRemove = [];
+    
+    duplicateBlockerRef.current.forEach(key => {
+      if (!key.endsWith(`_${todayKey}`)) {
+        entriesToRemove.push(key);
+      }
+    });
+    
+    entriesToRemove.forEach(key => {
+      duplicateBlockerRef.current.delete(key);
+    });
+    
+    if (entriesToRemove.length > 0) {
+      console.log(`🧹 Cleaned up ${entriesToRemove.length} old duplicate blocker entries`);
+    }
+  };
+
+  // Remove duplicate patients from the current queue display (client-side only)
+  const removeDuplicatePatients = (patients) => {
+    const seenPatients = new Set();
+    const uniquePatients = [];
+    
+    patients.forEach(patient => {
+      if (!seenPatients.has(patient.patient_id)) {
+        seenPatients.add(patient.patient_id);
+        uniquePatients.push(patient);
+      } else {
+        console.log(`🚫 Removed duplicate patient from display: ${patient.patient_name || patient.patientProfile?.full_name}`);
+      }
+    });
+    
+    return uniquePatients;
+  };
+
+  // Function to fetch queue data without auto-add logic (for real-time updates)
+  const fetchQueueDataOnly = async () => {
+    setIsLoading(true);
+    try {
+      const todayDate = getTodayDate();
+      console.log('=== FETCHING QUEUE DATA (NO AUTO-ADD) ===');
+      console.log('Today date:', todayDate);
+      
+      // Skip auto-add logic for real-time updates
+      await fetchQueueDataInternal(todayDate, true);
+    } catch (error) {
+      console.error('Error fetching queue data:', error);
+      toast.error('Failed to fetch queue data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const fetchQueueData = async () => {
     setIsLoading(true);
     try {
       const todayDate = getTodayDate();
       console.log('=== FETCHING QUEUE DATA ===');
       console.log('Today date:', todayDate);
+      console.log('User role:', user?.role);
+      
+      // Check if auto-add has already been processed today globally
+      const globalAutoAddKey = `globalAutoAddProcessed_${todayDate}`;
+      const hasAutoAddBeenProcessed = sessionStorage.getItem(globalAutoAddKey);
+      
+      console.log('Global auto-add check:', { globalAutoAddKey, hasAutoAddBeenProcessed });
+      
+      await fetchQueueDataInternal(todayDate, false, hasAutoAddBeenProcessed);
+    } catch (error) {
+      console.error('Error fetching queue data:', error);
+      toast.error('Failed to fetch queue data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Internal function that handles the actual queue data fetching
+  const fetchQueueDataInternal = async (todayDate, skipAutoAdd = false, hasAutoAddBeenProcessed = false) => {
+    try {
+      const globalAutoAddKey = `globalAutoAddProcessed_${todayDate}`;
       
       // Test database connection first
       console.log('=== TESTING DATABASE CONNECTION ===');
@@ -543,8 +653,13 @@ const QueueManagement = () => {
        }
        
        // Auto-add missing confirmed/appointed appointments to queue
-       if (missingAppointments.length > 0 && !isAutoAddingRef.current) {
-         console.log(`Auto-adding ${missingAppointments.length} confirmed/appointed appointments to queue`);
+       // ONLY DOCTORS can auto-add appointments to prevent duplication
+       // Staff and Admin roles will only see the queue, not add to it
+       if (missingAppointments.length > 0 && !isAutoAddingRef.current && !hasAutoAddBeenProcessed && !skipAutoAdd && user?.role === 'doctor') {
+         console.log(`👨‍⚕️ DOCTOR ROLE: Auto-adding ${missingAppointments.length} confirmed/appointed appointments to queue`);
+         
+         // Mark that auto-add is being processed globally
+         sessionStorage.setItem(globalAutoAddKey, 'true');
          
          let addedCount = 0;
          isAutoAddingRef.current = true;
@@ -552,15 +667,21 @@ const QueueManagement = () => {
          // Process appointments sequentially to prevent race conditions in queue numbering
          for (const appointment of missingAppointments) {
            try {
+             // 🚫 DUPLICATE BLOCKER: Check if this patient has already been processed today
+             if (isDuplicatePatient(appointment.patient_id)) {
+               console.log(`🚫 Skipping duplicate patient ${appointment.patient_id} (${appointment.patientProfile?.full_name})`);
+               continue;
+             }
+             
              const result = await QueueService.addAppointmentToQueue(appointment, { source: 'doctor_queue_management' });
              if (result.success) {
                addedCount++;
-               console.log(`Successfully added appointment ${appointment.id} to queue as #${result.queueNumber || 'unknown'}`);
+               console.log(`✅ Successfully added appointment ${appointment.id} to queue as #${result.queueNumber || 'unknown'}`);
              } else {
-               console.error(`Failed to add appointment ${appointment.id} to queue:`, result.error);
+               console.error(`❌ Failed to add appointment ${appointment.id} to queue:`, result.error);
              }
            } catch (error) {
-             console.error(`Error adding appointment ${appointment.id} to queue:`, error);
+             console.error(`❌ Error adding appointment ${appointment.id} to queue:`, error);
            }
          }
          isAutoAddingRef.current = false;
@@ -572,6 +693,8 @@ const QueueManagement = () => {
            }
            return;
          }
+       } else if (missingAppointments.length > 0 && user?.role !== 'doctor') {
+         console.log(`🚫 ${user?.role?.toUpperCase()} ROLE: Auto-add blocked - only doctors can auto-add appointments to prevent duplication`);
        }
       
       // Fetch patient profiles for queue entries
@@ -665,8 +788,12 @@ const QueueManagement = () => {
       const serving = formattedQueue.filter(p => p.status === 'serving');
       const waiting = formattedQueue.filter(p => p.status === 'waiting');
       
-      setServingPatients(serving);
-      setWaitingPatients(waiting);
+      // 🚫 Remove duplicate patients from display
+      const uniqueWaiting = removeDuplicatePatients(waiting);
+      const uniqueServing = removeDuplicatePatients(serving);
+      
+      setServingPatients(uniqueServing);
+      setWaitingPatients(uniqueWaiting);
       
       // Keep selectedPatient for backward compatibility (first serving patient)
       if (serving.length > 0) {
@@ -1431,6 +1558,12 @@ const QueueManagement = () => {
     }
     
     try {
+      // 🚫 DUPLICATE BLOCKER: Check if this patient has already been processed today
+      if (isDuplicatePatient(selectedPatientId)) {
+        toast.error('This patient has already been added to the queue today');
+        return;
+      }
+      
       // Check if patient is already in queue
       const { data: existingQueue, error: existingQueueError } = await supabase
         .from('queue')
@@ -1628,7 +1761,12 @@ const QueueManagement = () => {
               </span>
                              <div className="flex items-center text-sm text-blue-600">
                  <FiInfo className="h-4 w-4 mr-1" />
-                 <span>Today's confirmed/appointed appointments auto-added to queue. Click complete button to generate invoice.</span>
+                 <span>
+                   {user?.role === 'doctor' 
+                     ? "Today's confirmed/appointed appointments auto-added to queue. Click complete button to generate invoice."
+                     : "Queue management view. Only doctors can auto-add appointments to prevent duplication."
+                   }
+                 </span>
                </div>
             </div>
           </div>
