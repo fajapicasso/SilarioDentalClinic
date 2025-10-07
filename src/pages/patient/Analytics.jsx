@@ -52,51 +52,71 @@ const PatientAnalytics = () => {
   }, []);
 
   useEffect(() => {
-    if (appointmentsOverTime.length > 0 && chartRef.current) {
-      console.log('📊 Rendering appointments chart with data:', appointmentsOverTime);
-      const ctx = chartRef.current.getContext('2d');
-      
-      // Destroy existing chart if it exists
-      if (window.patientBarChart) {
-        window.patientBarChart.destroy();
-      }
-      
-      // Create new chart
-      window.patientBarChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: appointmentsOverTime.map(a => a.date),
-          datasets: [{
-            label: 'Appointments',
-            data: appointmentsOverTime.map(a => a.count),
-            backgroundColor: '#2563eb',
-            borderColor: '#1d4ed8',
-            borderWidth: 1
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { 
-            legend: { display: false } 
+    console.log('📊 Chart useEffect triggered:', { 
+      appointmentsOverTimeLength: appointmentsOverTime.length, 
+      chartRefCurrent: !!chartRef.current,
+      appointmentsOverTime 
+    });
+    
+    const renderChart = () => {
+      if (appointmentsOverTime.length > 0 && chartRef.current) {
+        console.log('📊 Rendering appointments chart with data:', appointmentsOverTime);
+        const ctx = chartRef.current.getContext('2d');
+        
+        // Destroy existing chart if it exists
+        if (window.patientBarChart) {
+          window.patientBarChart.destroy();
+        }
+        
+        // Create new chart
+        window.patientBarChart = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: appointmentsOverTime.map(a => a.date),
+            datasets: [{
+              label: 'Appointments',
+              data: appointmentsOverTime.map(a => a.count),
+              backgroundColor: '#2563eb',
+              borderColor: '#1d4ed8',
+              borderWidth: 1
+            }]
           },
-          scales: { 
-            y: { 
-              beginAtZero: true,
-              ticks: {
-                stepSize: 1
-              }
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { 
+              legend: { display: false } 
             },
-            x: {
-              ticks: {
-                maxRotation: 45
+            scales: { 
+              y: { 
+                beginAtZero: true,
+                ticks: {
+                  stepSize: 1
+                }
+              },
+              x: {
+                ticks: {
+                  maxRotation: 45
+                }
               }
             }
           }
-        }
-      });
-    } else if (chartRef.current) {
-      console.log('📊 No appointments data to render chart');
+        });
+        console.log('📊 Chart created successfully');
+      } else {
+        console.log('📊 Chart conditions not met:', { 
+          hasData: appointmentsOverTime.length > 0, 
+          hasCanvas: !!chartRef.current 
+        });
+      }
+    };
+
+    // Add a small delay to ensure DOM is ready
+    if (appointmentsOverTime.length > 0) {
+      const timeoutId = setTimeout(renderChart, 100);
+      return () => clearTimeout(timeoutId);
+    } else {
+      renderChart();
     }
   }, [appointmentsOverTime]);
 
@@ -210,7 +230,7 @@ const PatientAnalytics = () => {
             }
           });
 
-          const sortedMonths = Object.entries(byMonth)
+          let sortedMonths = Object.entries(byMonth)
             .map(([date, count]) => ({ date, count }))
             .sort((a, b) => {
               const dateA = new Date(a.date + ' 1');
@@ -218,6 +238,13 @@ const PatientAnalytics = () => {
               return dateA - dateB;
             })
             .slice(-6); // Last 6 months
+
+          // If no appointments found, show a message chart
+          if (sortedMonths.length === 0) {
+            sortedMonths = [
+              { date: 'No Data', count: 0 }
+            ];
+          }
 
           setAppointmentsOverTime(sortedMonths);
           console.log('📊 Appointments over time:', sortedMonths);
@@ -543,7 +570,11 @@ const PatientAnalytics = () => {
                 </div>
               ) : (
                 <div className="flex items-center justify-center h-48 text-gray-500">
-                  No appointment history available
+                  <div className="text-center">
+                    <FiCalendar className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                    <p>No appointment history available</p>
+                    <p className="text-sm text-gray-400 mt-1">Book your first appointment to see analytics</p>
+                  </div>
                 </div>
               )}
             </div>
