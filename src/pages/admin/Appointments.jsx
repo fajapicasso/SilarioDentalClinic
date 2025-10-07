@@ -228,6 +228,17 @@ const AdminAppointments = () => {
       filtered = filtered.filter(app => app.status === 'completed');
     } else if (activeTab === 'cancelled') {
       filtered = filtered.filter(app => app.status === 'cancelled' || app.status === 'rejected');
+      
+      // Sort to show rejected appointments first, then cancelled
+      filtered.sort((a, b) => {
+        if (a.status === 'rejected' && b.status === 'cancelled') return -1;
+        if (a.status === 'cancelled' && b.status === 'rejected') return 1;
+        
+        // If both have same status, sort by date (newest first)
+        const dateA = new Date(`${a.appointment_date}T${a.appointment_time}`);
+        const dateB = new Date(`${b.appointment_date}T${b.appointment_time}`);
+        return dateB - dateA;
+      });
     } else if (activeTab === 'emergency') {
       filtered = filtered.filter(app => app.is_emergency === true);
     } else if (activeTab === 'unassigned') {
