@@ -3434,7 +3434,7 @@ const Billing = () => {
                         className="flex-1 inline-flex items-center justify-center px-4 py-3 border border-transparent text-sm font-medium rounded-lg text-white bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-all duration-150"
                       >
                         <FiX className="mr-2 h-4 w-4" />
-                        Decline Last Payment
+                        Reject Pending Last Payment
                       </button>
                     </div>
                   )}
