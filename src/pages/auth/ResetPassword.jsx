@@ -36,10 +36,11 @@ const ResetPassword = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [cameFromEmail, setCameFromEmail] = useState(false);
 
-  // Check if user came from email link
+  // Check if user came from email link and extract token if present
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const fromEmail = urlParams.get('from') === 'email';
+    const token = urlParams.get('token');
     const referrer = document.referrer;
     const hasEmailReferrer = referrer.includes('gmail.com') || 
                             referrer.includes('outlook.com') || 
@@ -48,17 +49,30 @@ const ResetPassword = () => {
     
     console.log('URL params:', window.location.search);
     console.log('From email param:', fromEmail);
+    console.log('Token from URL:', token);
     console.log('Referrer:', referrer);
     console.log('Came from email:', hasEmailReferrer);
     
     if (hasEmailReferrer) {
       setCameFromEmail(true);
     }
+    
+    // If token is in URL, we can pre-fill it or handle it differently
+    if (token) {
+      console.log('Token found in URL:', token);
+      // You could pre-fill the token field or handle it automatically
+    }
   }, []);
 
   const handleSubmit = async (values, { setSubmitting, resetForm }) => {
     setIsLoading(true);
     try {
+      console.log("Reset password attempt:", {
+        email: values.email,
+        token: values.token,
+        tokenLength: values.token.length
+      });
+      
       const { success, error, role, message, autoLoginFailed } = await resetPasswordWithToken(
         values.email,
         values.token,

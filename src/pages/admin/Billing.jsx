@@ -2043,8 +2043,8 @@ const Billing = () => {
           <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
-                <h1 className="text-2xl sm:text-3xl font-bold text-white">Billing Management</h1>
-                <p className="text-blue-100 mt-1 text-sm sm:text-base">Create invoices and manage payments efficiently</p>
+                <h1 className="text-2xl sm:text-3xl font-bold text-white">Billing Management for Doctors</h1>
+                <p className="text-blue-100 mt-1 text-sm sm:text-base">Manage Invoices for Patients</p>
               </div>
               <div className="flex space-x-3 w-full sm:w-auto">
                 <button

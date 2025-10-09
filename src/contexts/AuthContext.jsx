@@ -341,9 +341,20 @@ export function AuthProvider({ children }) {
       console.log("Password reset token requested for:", email);
       
       // Use Supabase's built-in password reset functionality
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`
+      // This will send a 6-digit code via email
+      console.log("Requesting password reset for email:", email);
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/reset-password?from=email`
+        }
       });
+      
+      if (error) {
+        console.error("Password reset request error:", error);
+      } else {
+        console.log("Password reset email sent successfully");
+      }
       
       if (error) {
         console.error("Password reset error:", error);
@@ -368,40 +379,14 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const resetPasswordWithToken = async (email, token, newPassword) => {
+  // Helper function to handle password update after OTP verification
+  const handlePasswordUpdate = async (userId, email, newPassword) => {
     try {
-      setLoading(true);
-      console.log("Attempting to reset password with token for:", email);
-      
-      // First validate the token
-      const { data: validationData, error: validationError } = await supabase.rpc('validate_password_reset_token', {
-        user_email: email,
-        reset_token: token
-      });
-      
-      if (validationError) {
-        console.error("Token validation error:", validationError);
-        throw validationError;
-      }
-      
-      if (!validationData || validationData.length === 0) {
-        throw new Error('Invalid response from token validation');
-      }
-      
-      const validation = validationData[0];
-      
-      if (!validation.is_valid) {
-        console.error("Token validation failed:", validation.message);
-        throw new Error(validation.message);
-      }
-      
-      console.log("Token validated successfully for user:", validation.user_id);
-      
       // Get user profile data
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('role, full_name, email')
-        .eq('id', validation.user_id)
+        .eq('id', userId)
         .single();
       
       if (profileError) {
@@ -410,8 +395,7 @@ export function AuthProvider({ children }) {
       }
       
       // Update the user's password in Supabase Auth
-      // This requires admin privileges (service role key)
-      console.log("Attempting to update password for user:", validation.user_id);
+      console.log("Attempting to update password for user:", userId);
       
       if (!supabaseAdmin) {
         console.error("Service role key not available - cannot update password");
@@ -419,7 +403,7 @@ export function AuthProvider({ children }) {
       }
       
       const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
-        validation.user_id,
+        userId,
         { password: newPassword }
       );
       
@@ -429,7 +413,7 @@ export function AuthProvider({ children }) {
         throw new Error(`Failed to update password: ${updateError.message}`);
       }
       
-      console.log("Password updated successfully for user:", validation.user_id);
+      console.log("Password updated successfully for user:", userId);
       
       // Log the user in after successful password reset
       const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
@@ -442,6 +426,7 @@ export function AuthProvider({ children }) {
         // Password was updated successfully, but auto-login failed
         return { 
           success: true, 
+          role: profileData.role,
           message: 'Password reset successfully! Please login with your new password.',
           autoLoginFailed: true 
         };
@@ -452,11 +437,76 @@ export function AuthProvider({ children }) {
       setUserRole(profileData.role);
       
       console.log("Password reset and auto-login successful");
-      return { 
-        success: true, 
-        role: profileData.role,
-        message: 'Password reset successfully! You are now logged in.'
-      };
+      return { success: true, role: profileData.role };
+      
+    } catch (error) {
+      console.error("Password update error:", error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  const resetPasswordWithToken = async (email, token, newPassword) => {
+    try {
+      setLoading(true);
+      console.log("Attempting to reset password with token for:", email);
+      
+      // Use Supabase's built-in OTP verification for password reset
+      // For 6-digit codes from email, we need to use the correct approach
+      console.log("Attempting OTP verification with token:", token, "for email:", email);
+      
+      // For password reset with 6-digit codes, we need to use a different approach
+      // First, verify the OTP to get the user session
+      const { data: otpData, error: otpError } = await supabase.auth.verifyOtp({
+        token: token,
+        type: 'email',
+        email: email
+      });
+      
+      if (otpError) {
+        console.error("Email OTP failed:", otpError);
+        console.error("Token provided:", token);
+        console.error("Email provided:", email);
+        console.error("Error details:", otpError);
+        throw new Error(`Invalid reset code: ${otpError.message}. Please check the 6-digit code from your email.`);
+      }
+      
+      if (!otpData || !otpData.user) {
+        throw new Error('Invalid reset code or user not found');
+      }
+      
+      console.log("Email OTP verified successfully for user:", otpData.user.id);
+      
+      // Now we need to use the session to update the password
+      // This is different from the admin approach - we use the user's session
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+      
+      if (updateError) {
+        console.error("Password update error:", updateError);
+        throw new Error(`Failed to update password: ${updateError.message}`);
+      }
+      
+      console.log("Password updated successfully for user:", otpData.user.id);
+      
+      // Get user profile data
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('role, full_name, email')
+        .eq('id', otpData.user.id)
+        .single();
+      
+      if (profileError) {
+        console.error("Profile fetch error:", profileError);
+        throw new Error('Failed to fetch user profile');
+      }
+      
+      // Set user state
+      setUser(otpData.user);
+      setUserRole(profileData.role);
+      
+      console.log("Password reset and auto-login successful");
+      return { success: true, role: profileData.role };
       
     } catch (error) {
       console.error("Password reset with token failed:", error);

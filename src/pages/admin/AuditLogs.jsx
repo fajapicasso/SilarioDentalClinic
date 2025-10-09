@@ -334,7 +334,7 @@ const AuditLogs = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" style={{ minWidth: '1024px' }}>
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
@@ -600,7 +600,7 @@ const AuditLogs = () => {
         )}
 
         {/* Audit Logs Table */}
-        <div className="bg-white shadow overflow-hidden sm:rounded-md">
+        <div className="bg-white shadow overflow-hidden sm:rounded-md" style={{ minWidth: '800px' }}>
           <div className="px-4 py-5 sm:p-6">
             <h3 className="text-lg font-medium text-gray-900 mb-4">
               Audit Logs ({filteredLogs.length} records)
@@ -611,29 +611,30 @@ const AuditLogs = () => {
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
+              <div className="bg-white shadow-sm border border-gray-200 rounded-lg overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full divide-y divide-gray-200" style={{ minWidth: '800px' }}>
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-40">
                         Timestamp
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-48">
                         User
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
                         Action
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
                         Module
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-40">
                         Resource
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">
                         Status
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">
                         Actions
                       </th>
                     </tr>
@@ -641,52 +642,54 @@ const AuditLogs = () => {
                   <tbody className="bg-white divide-y divide-gray-200">
                     {filteredLogs.map((log) => (
                       <tr key={log.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-3 py-3 text-sm text-gray-900 w-40">
                           <div className="flex items-center">
-                            <FiClock className="w-4 h-4 text-gray-400 mr-2" />
-                            {formatTimestamp(log.timestamp)}
+                            <FiClock className="w-3 h-3 text-gray-400 mr-1 flex-shrink-0" />
+                            <span className="truncate">{formatTimestamp(log.timestamp)}</span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-3 py-3 text-sm text-gray-900 w-48">
                           <div className="flex items-center">
-                            <FiUser className="w-4 h-4 text-gray-400 mr-2" />
-                            <div>
-                              <div className="font-medium">{log.user_name}</div>
-                              <div className="text-gray-500">{log.user_role}</div>
+                            <FiUser className="w-3 h-3 text-gray-400 mr-1 flex-shrink-0" />
+                            <div className="min-w-0">
+                              <div className="font-medium truncate">{log.user_name}</div>
+                              <div className="text-gray-500 text-xs truncate">{log.user_role}</div>
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getActionColorClass(log.action)}`}>
+                        <td className="px-3 py-3 w-32">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getActionColorClass(log.action)} truncate`}>
                             {log.action.replace('_', ' ')}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-3 py-3 text-sm text-gray-900 w-24">
                           <div className="flex items-center">
                             {getModuleIcon(log.module)}
-                            <span className="ml-2">{log.module.replace('_', ' ')}</span>
+                            <span className="ml-1 truncate">{log.module.replace('_', ' ')}</span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {log.resource_name || '-'}
+                        <td className="px-3 py-3 text-sm text-gray-900 w-40">
+                          <span className="truncate block">{log.resource_name || '-'}</span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-3 py-3 w-20">
                           {log.success ? (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
                               <FiCheckCircle className="w-3 h-3 mr-1" />
-                              Success
+                              <span className="hidden sm:inline">Success</span>
+                              <span className="sm:hidden">✓</span>
                             </span>
                           ) : (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
                               <FiXCircle className="w-3 h-3 mr-1" />
-                              Failed
+                              <span className="hidden sm:inline">Failed</span>
+                              <span className="sm:hidden">✗</span>
                             </span>
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <td className="px-3 py-3 text-sm font-medium w-20">
                           <button
                             onClick={() => handleLogSelect(log)}
-                            className="text-primary-600 hover:text-primary-900"
+                            className="text-primary-600 hover:text-primary-900 p-1 rounded"
                           >
                             <FiEye className="w-4 h-4" />
                           </button>
@@ -694,7 +697,8 @@ const AuditLogs = () => {
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                  </table>
+                </div>
               </div>
             )}
 
