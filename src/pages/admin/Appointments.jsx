@@ -13,7 +13,7 @@ import {
 } from 'react-icons/fi';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import DatePicker from 'react-datepicker';
-import "react-datepicker/dist/react-datepicker.css";
+import "react-datepicker/dist/react-datepicker.css"; 
 
 const AdminAppointments = () => {
   const { user } = useAuth();

@@ -2916,7 +2916,7 @@ const Billing = () => {
                                             <button
                                               onClick={() => handleRejectPayment(payment.id)}
                                               className="p-1 sm:p-2 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg transition-colors duration-150"
-                                              title="Decline Last Payment"
+                                              title="Reject Pending Last Payment"
                                             >
                                               <FiX className="h-4 w-4" />
                                             </button>
