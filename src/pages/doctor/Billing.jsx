@@ -2491,7 +2491,7 @@ const Billing = () => {
                               type="number"
                               className="flex-1 border border-gray-300 rounded-l-lg shadow-sm py-2.5 px-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                               placeholder="0"
-                              value={discount}
+                              value={discount === 0 ? '' : discount}
                               onChange={(e) => handleDiscountChange(e.target.value)}
                               min="0"
                               max={discountType === 'percentage' ? 100 : undefined}

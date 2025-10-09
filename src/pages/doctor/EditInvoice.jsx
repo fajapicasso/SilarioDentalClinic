@@ -382,44 +382,57 @@ const EditInvoice = () => {
                 <option value="partial">Partially Paid</option>
               </select>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Discount Type</label>
-              <select
-                className="block w-full pl-3 pr-10 py-2.5 border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm rounded-lg"
-                value={discountType}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setDiscountType(val);
-                  if (val === 'pwd' || val === 'senior' || val === 'veteran') setDiscount(20);
-                  else if (val === 'student') setDiscount(10);
-                  else setDiscount(0);
-                }}
-              >
-                <option value="">Select Discount Type</option>
-                <option value="pwd">PWD (20%)</option>
-                <option value="senior">Senior Citizen (20%)</option>
-                <option value="student">Student (10%)</option>
-                <option value="veteran">Veteran (20%)</option>
-                <option value="percentage">Custom Percentage (%)</option>
-                <option value="amount">Custom Amount (₱)</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Discount Value</label>
-              <div className="flex rounded-lg shadow-sm">
-                <input
-                  type="number"
-                  className="flex-1 border border-gray-300 rounded-l-lg shadow-sm py-2.5 px-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="0"
-                  value={discount}
-                  onChange={(e) => setDiscount(e.target.value)}
-                  min="0"
-                  max={discountType === 'percentage' ? 100 : undefined}
-                  disabled={["pwd","senior","student","veteran"].includes(discountType)}
-                />
-                <span className="inline-flex items-center px-3 border border-l-0 border-gray-300 rounded-r-lg text-sm text-gray-500">
-                  {discountType === 'amount' || discountType === 'amount' ? '₱' : '%'}
-                </span>
+            {/* Payment Discount Section */}
+            <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+              <div className="flex items-center mb-4">
+                <div className="flex items-center justify-center w-8 h-8 bg-green-100 rounded-lg mr-3">
+                  <FiCreditCard className="w-4 h-4 text-green-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">Payment Discount</h3>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Discount Type</label>
+                  <select
+                    className="block w-full pl-3 pr-10 py-2.5 border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm rounded-lg"
+                    value={discountType}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setDiscountType(val);
+                      if (val === 'pwd' || val === 'senior' || val === 'veteran') setDiscount(20);
+                      else if (val === 'student') setDiscount(10);
+                      else setDiscount(0);
+                    }}
+                  >
+                    <option value="">Select Discount Type</option>
+                    <option value="pwd">PWD (20%)</option>
+                    <option value="senior">Senior Citizen (20%)</option>
+                    <option value="student">Student (10%)</option>
+                    <option value="veteran">Veteran (20%)</option>
+                    <option value="percentage">Custom Percentage (%)</option>
+                    <option value="amount">Custom Amount (₱)</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Discount Value</label>
+                  <div className="flex rounded-lg shadow-sm">
+                    <input
+                      type="number"
+                      className="flex-1 border border-gray-300 rounded-l-lg shadow-sm py-2.5 px-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      placeholder="0"
+                      value={discount === 0 ? '' : discount}
+                      onChange={(e) => setDiscount(e.target.value)}
+                      min="0"
+                      max={discountType === 'percentage' ? 100 : undefined}
+                      disabled={["pwd","senior","student","veteran"].includes(discountType)}
+                    />
+                    <span className="inline-flex items-center px-3 border border-l-0 border-gray-300 rounded-r-lg text-sm text-gray-500">
+                      {discountType === 'amount' ? '₱' : '%'}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
