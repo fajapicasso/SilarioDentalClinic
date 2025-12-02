@@ -823,14 +823,14 @@ const Register = () => {
           }}
         >
           {/* Professional Header */}
-          <div className="flex flex-col items-center mb-0">
+          <div className="flex flex-col items-center" style={{ marginBottom: '-0.5rem' }}>
               <div className="mb-0">
                 <img src={logo} alt="Silario Dental Clinic Logo" className="h-20 w-20 sm:h-24 sm:w-24 md:h-28 md:w-28 lg:h-32 lg:w-32 object-contain" />
               </div>
            
           </div>
 
-          <div className="text-center mb-2 sm:mb-3 -mt-2 sm:-mt-1.5">
+          <div className="text-center mb-2 sm:mb-3" style={{ marginTop: '-1.5rem' }}>
             <h2 className="mt-0 text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold text-gray-800">Create your account</h2>
             <p className="mt-1 text-xs sm:text-sm text-gray-600">
               Already have an account?{' '}
