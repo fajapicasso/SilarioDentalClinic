@@ -96,6 +96,7 @@ const Register = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const totalSteps = 4;
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
+  const [isTablet, setIsTablet] = useState(window.innerWidth >= 768 && window.innerWidth < 1024);
   
   // Philippine address cascading dropdowns
   const [provinces, setProvinces] = useState([]);
@@ -108,7 +109,9 @@ const Register = () => {
 
   useEffect(() => {
     const handleResize = () => {
-      setIsMobile(window.innerWidth < 640);
+      const width = window.innerWidth;
+      setIsMobile(width < 640);
+      setIsTablet(width >= 768 && width < 1024);
     };
     
     handleResize();
@@ -418,13 +421,40 @@ const Register = () => {
     <PublicLayout>
       <PublicNavbar />
       <style>{`
-        /* Ensure smooth scrolling on mobile */
-        @media (max-width: 640px) {
+        /* Ensure smooth scrolling on mobile and tablet */
+        @media (max-width: 1024px) {
           body {
             -webkit-overflow-scrolling: touch;
           }
           [data-modal-container] {
             overflow: visible !important;
+          }
+        }
+        /* Tablet-specific optimizations (768px - 1024px) */
+        @media (min-width: 768px) and (max-width: 1024px) {
+          [data-modal-container] {
+            max-width: 95vw !important;
+          }
+          [data-modal-container] input,
+          [data-modal-container] select,
+          [data-modal-container] textarea {
+            font-size: 1rem !important;
+            padding: 0.875rem 1rem !important;
+            min-height: 3rem !important;
+          }
+          [data-modal-container] button {
+            font-size: 1rem !important;
+            padding: 0.875rem 1.5rem !important;
+            min-height: 3rem !important;
+          }
+          [data-modal-container] select.address-select[size="5"] {
+            max-height: calc(3rem * 5) !important;
+            padding: 0.5rem 2.5rem 0.5rem 1rem !important;
+          }
+          [data-modal-container] select.address-select[size="5"] option {
+            padding: 0.625rem 0.75rem !important;
+            line-height: 1.75rem !important;
+            min-height: 2.5rem !important;
           }
         }
         /* Date picker positioning fixes */
@@ -776,9 +806,9 @@ const Register = () => {
         <div
           ref={cardRef}
           data-modal-container
-          className={`w-full bg-white rounded-xl sm:rounded-2xl shadow-2xl border border-gray-200 space-y-2 sm:space-y-3 md:space-y-4 will-change-transform relative my-auto ${isCompact ? 'px-3 pt-3 pb-3 sm:px-4 sm:pt-4 sm:pb-3' : 'px-4 pt-4 pb-3 sm:px-5 sm:pt-5 sm:pb-4 md:px-6 md:pt-6 md:pb-4'}`}
+          className={`w-full bg-white rounded-xl sm:rounded-2xl shadow-2xl border border-gray-200 space-y-2 sm:space-y-3 md:space-y-4 will-change-transform relative my-auto ${isCompact ? 'px-3 pt-3 pb-3 sm:px-4 sm:pt-4 sm:pb-3 md:px-5 md:pt-5 md:pb-4' : 'px-4 pt-4 pb-3 sm:px-5 sm:pt-5 sm:pb-4 md:px-6 md:pt-6 md:pb-4 lg:px-8 lg:pt-8 lg:pb-6'}`}
           style={{
-            maxWidth: 'min(98vw, 600px)',
+            maxWidth: isTablet ? 'min(95vw, 700px)' : 'min(98vw, 600px)',
             width: '100%',
             transform: isMobile ? 'none' : `scale(${scale})`,
             transformOrigin: 'center center',
@@ -795,13 +825,13 @@ const Register = () => {
           {/* Professional Header */}
           <div className="flex flex-col items-center mb-1 sm:mb-2">
               <div className="mb-0">
-                <img src={logo} alt="Silario Dental Clinic Logo" className="h-20 w-20 sm:h-24 sm:w-24 md:h-28 md:w-28 object-contain" />
+                <img src={logo} alt="Silario Dental Clinic Logo" className="h-20 w-20 sm:h-24 sm:w-24 md:h-28 md:w-28 lg:h-32 lg:w-32 object-contain" />
               </div>
            
           </div>
 
           <div className="text-center mb-2 sm:mb-3">
-            <h2 className="mt-0 text-lg sm:text-xl md:text-2xl font-bold text-gray-800">Create your account</h2>
+            <h2 className="mt-0 text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold text-gray-800">Create your account</h2>
             <p className="mt-1 text-xs sm:text-sm text-gray-600">
               Already have an account?{' '}
               <Link to="/login" className="font-medium text-blue-600 hover:text-blue-700">
@@ -909,7 +939,7 @@ const Register = () => {
                       <h3 className="text-base sm:text-lg font-semibold text-gray-800">Personal Information</h3>
                     </div>
                     
-                    <div className={`grid grid-cols-1 ${isCompact ? 'sm:grid-cols-2 md:grid-cols-3' : 'sm:grid-cols-2 md:grid-cols-3'} gap-2 sm:gap-2.5 md:gap-3`}>
+                    <div className={`grid grid-cols-1 ${isCompact ? 'sm:grid-cols-2 md:grid-cols-3' : 'sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3'} gap-2 sm:gap-2.5 md:gap-3 lg:gap-4`}>
                     {/* First Name */}
                   <div className="group">
                       <label htmlFor="first_name" className="block text-sm font-medium text-gray-700 mb-1">
@@ -923,7 +953,7 @@ const Register = () => {
                           id="first_name"
                           name="first_name"
                         type="text"
-                        className={`block w-full pl-10 pr-3 py-3 sm:py-2.5 md:py-3 border-2 rounded-lg text-sm sm:text-base touch-manipulation ${
+                        className={`block w-full pl-10 pr-3 py-3 sm:py-2.5 md:py-3 lg:py-3.5 border-2 rounded-lg text-sm sm:text-base md:text-base lg:text-lg touch-manipulation ${
                             errors.first_name && touched.first_name
                             ? 'border-red-400 text-red-600 placeholder-red-300 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 bg-red-50'
                             : 'border-gray-300 text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white'
@@ -1430,7 +1460,7 @@ const Register = () => {
                       <button
                         type="button"
                         onClick={handlePrevious}
-                        className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2 py-3 sm:py-4 px-4 sm:px-6 border-2 border-gray-300 text-sm sm:text-base font-semibold rounded-lg text-gray-700 bg-white hover:bg-gray-50 active:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all duration-200 shadow-md hover:shadow-lg touch-manipulation min-h-[44px]"
+                        className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2 md:gap-2.5 py-3 sm:py-4 md:py-4 lg:py-5 px-4 sm:px-6 md:px-8 lg:px-10 border-2 border-gray-300 text-sm sm:text-base md:text-lg font-semibold rounded-lg text-gray-700 bg-white hover:bg-gray-50 active:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all duration-200 shadow-md hover:shadow-lg touch-manipulation min-h-[44px] md:min-h-[52px]"
                       >
                         <FiChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" />
                         <span className="hidden xs:inline">Previous</span>
@@ -1443,7 +1473,7 @@ const Register = () => {
                       <button
                         type="button"
                         onClick={() => handleNext(errors, touched, values, validateForm, setTouched)}
-                        className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2 py-3 sm:py-4 px-4 sm:px-6 border border-transparent text-sm sm:text-base font-semibold rounded-lg text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 active:from-blue-800 active:to-purple-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 shadow-lg hover:shadow-xl touch-manipulation min-h-[44px]"
+                        className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2 md:gap-2.5 py-3 sm:py-4 md:py-4 lg:py-5 px-4 sm:px-6 md:px-8 lg:px-10 border border-transparent text-sm sm:text-base md:text-lg font-semibold rounded-lg text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 active:from-blue-800 active:to-purple-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 shadow-lg hover:shadow-xl touch-manipulation min-h-[44px] md:min-h-[52px]"
                       >
                         <span>Next</span>
                         <FiChevronRight className="h-4 w-4 sm:h-5 sm:w-5" />
