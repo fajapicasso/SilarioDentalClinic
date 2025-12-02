@@ -654,7 +654,7 @@ export const notifyPatientEvent = async (patientId, eventType, eventData) => {
         type: 'success',
         category: 'payment',
         priority: 'normal',
-        actionUrl: '/patient/billing',
+        actionUrl: '/patient/payments',
         actionLabel: 'View Receipt'
       },
       payment_pending: {
@@ -663,7 +663,7 @@ export const notifyPatientEvent = async (patientId, eventType, eventData) => {
         type: 'info',
         category: 'payment',
         priority: 'normal',
-        actionUrl: '/patient/billing',
+        actionUrl: '/patient/payments',
         actionLabel: 'Check Status'
       },
       payment_failed: {
@@ -672,7 +672,7 @@ export const notifyPatientEvent = async (patientId, eventType, eventData) => {
         type: 'error',
         category: 'payment',
         priority: 'high',
-        actionUrl: '/patient/billing',
+        actionUrl: '/patient/payments',
         actionLabel: 'Retry Payment'
       },
 

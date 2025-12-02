@@ -1,7 +1,7 @@
 // src/pages/patient/MyDentalRecords.jsx - Patient's own dental records and treatment history
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { FiArrowLeft, FiUpload, FiEye, FiTrash2, FiFileText, FiX, FiPrinter, FiPlus, FiEdit, FiSave, FiDownload, FiUser, FiCalendar, FiClock, FiMapPin } from 'react-icons/fi';
+import { useNavigate, useParams } from 'react-router-dom';
+import { FiArrowLeft, FiUpload, FiEye, FiTrash2, FiFileText, FiX, FiPrinter, FiPlus, FiEdit, FiSave, FiDownload, FiUser, FiCalendar, FiClock, FiMapPin, FiSearch } from 'react-icons/fi';
 import { toast } from 'react-toastify';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
@@ -118,8 +118,10 @@ const treatmentSchema = Yup.object().shape({
 
 const MyDentalRecords = () => {
   const navigate = useNavigate();
+  const { childId } = useParams();
   const { user } = useAuth();
   const { logPageView, logMedicalRecordView, logMedicalRecordUpdate, logTreatmentAdd } = useUniversalAudit();
+  const [viewingChildId, setViewingChildId] = useState(childId || null);
   const [patient, setPatient] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [uploadedFiles, setUploadedFiles] = useState([]);
@@ -170,6 +172,23 @@ const MyDentalRecords = () => {
   const [filePreview, setFilePreview] = useState(null);
   const [printWindow, setPrintWindow] = useState(null);
 
+  // Children records states
+  const [children, setChildren] = useState([]);
+  const [isLoadingChildren, setIsLoadingChildren] = useState(false);
+  const [allPatientsFileCounts, setAllPatientsFileCounts] = useState({});
+  const [patientsSearchQuery, setPatientsSearchQuery] = useState('');
+  const [allPatients, setAllPatients] = useState([]);
+  const [filteredAllPatients, setFilteredAllPatients] = useState([]);
+
+  useEffect(() => {
+    // Update viewingChildId when route param changes
+    if (childId) {
+      setViewingChildId(childId);
+    } else {
+      setViewingChildId(null);
+    }
+  }, [childId]);
+
   useEffect(() => {
     // Log page view
     logPageView('Patient Medical Records', 'medical_records', 'viewing');
@@ -177,12 +196,15 @@ const MyDentalRecords = () => {
     fetchPatientData();
     fetchTreatmentHistory();
     fetchDentalChart();
+    if (!viewingChildId) {
+      fetchChildren(); // Only fetch children list when viewing own records
+    }
     return () => {
       if (printWindow && !printWindow.closed) {
         printWindow.close();
       }
     };
-  }, [logPageView]);
+  }, [logPageView, viewingChildId]);
 
   useEffect(() => {
     if (selectedToothInChart) {
@@ -276,6 +298,122 @@ const MyDentalRecords = () => {
     setDateRangeFilter({ start: '', end: '' });
   };
 
+  // Fetch children for the current user (guardian)
+  const fetchChildren = async () => {
+    if (!user?.id) {
+      return;
+    }
+    
+    setIsLoadingChildren(true);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('guardian_id', user.id)
+        .eq('role', 'patient')
+        .order('full_name');
+      
+      if (error) {
+        // Check if guardian_id column doesn't exist
+        if (error.code === '42703' || error.message?.includes('guardian_id')) {
+          console.error('guardian_id column does not exist in profiles table.');
+          setChildren([]);
+          return;
+        }
+        throw error;
+      }
+      
+      setChildren(data || []);
+    } catch (error) {
+      console.error('Error fetching children:', error);
+      if (error.code !== '42703' && !error.message?.includes('guardian_id')) {
+        toast.error('Failed to load children records');
+      }
+    } finally {
+      setIsLoadingChildren(false);
+    }
+  };
+
+  // Fetch file counts for all patients (guardian + children)
+  const fetchAllPatientsFileCounts = async (patientsList) => {
+    if (!patientsList || patientsList.length === 0) return;
+    
+    try {
+      const patientIds = patientsList.map(p => p.id);
+      const { data, error } = await supabase
+        .from('patient_files')
+        .select('patient_id, id')
+        .in('patient_id', patientIds);
+      
+      if (error) throw error;
+      
+      // Create a map of patient ID to file count
+      const countMap = {};
+      
+      // Initialize all patients with 0 files
+      patientsList.forEach(patient => {
+        countMap[patient.id] = 0;
+      });
+      
+      // Count files for each patient
+      if (data) {
+        data.forEach(file => {
+          if (countMap[file.patient_id] !== undefined) {
+            countMap[file.patient_id]++;
+          }
+        });
+      }
+      
+      setAllPatientsFileCounts(countMap);
+    } catch (error) {
+      console.error('Error fetching file counts:', error);
+    }
+  };
+
+  // Combine patient and children into one list
+  useEffect(() => {
+    const combined = [];
+    
+    // Add the patient/guardian themselves first
+    if (patient) {
+      combined.push(patient);
+    }
+    
+    // Add children
+    if (children && children.length > 0) {
+      combined.push(...children);
+    }
+    
+    setAllPatients(combined);
+    setFilteredAllPatients(combined);
+    
+    // Fetch file counts for all patients
+    if (combined.length > 0) {
+      fetchAllPatientsFileCounts(combined);
+    }
+  }, [patient, children]);
+
+  // Filter all patients based on search query
+  useEffect(() => {
+    if (patientsSearchQuery.trim() === '') {
+      setFilteredAllPatients(allPatients);
+    } else {
+      const query = patientsSearchQuery.toLowerCase();
+      const filtered = allPatients.filter(
+        p => 
+          (p.full_name && p.full_name.toLowerCase().includes(query)) ||
+          (p.email && p.email.toLowerCase().includes(query)) ||
+          (p.phone && p.phone.includes(query))
+      );
+      setFilteredAllPatients(filtered);
+    }
+  }, [patientsSearchQuery, allPatients]);
+
+  // Handle view child records
+  const handleViewChildRecords = (childId) => {
+    navigate(`/patient/records/child/${childId}`);
+  };
+
   const fetchPatientData = async () => {
     setIsLoading(true);
     
@@ -284,21 +422,59 @@ const MyDentalRecords = () => {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError) throw userError;
       
+      // Determine which patient to fetch - if viewingChildId is set, fetch that child's data
+      const targetPatientId = viewingChildId || user.id;
+      
+      // If viewing a child (not themselves), verify the user is the guardian
+      if (viewingChildId && viewingChildId !== user.id) {
+        const { data: childData, error: childError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', viewingChildId)
+          .eq('guardian_id', user.id)
+          .single();
+        
+        if (childError) {
+          toast.error('You do not have permission to view this child\'s records');
+          navigate('/patient/records');
+          return;
+        }
+      }
+      
       // Fetch patient profile
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', user.id)
+        .eq('id', targetPatientId)
         .single();
       
       if (profileError) throw profileError;
+      
+      // Verify we're getting the correct patient's data
+      // If viewing a child, ensure the profile has guardian_id set (not null)
+      if (viewingChildId && viewingChildId !== user.id) {
+        if (!profileData.guardian_id || profileData.guardian_id !== user.id) {
+          console.error('Error: Child profile does not have correct guardian_id');
+          toast.error('Unable to load child records. Please verify the child profile is correctly linked.');
+          navigate('/patient/records');
+          return;
+        }
+        // Verify this is actually a child's profile, not the guardian's
+        if (profileData.id === user.id) {
+          console.error('Error: Fetched guardian profile instead of child profile');
+          toast.error('Error loading child records');
+          navigate('/patient/records');
+          return;
+        }
+      }
+      
       setPatient(profileData);
       
       // Fetch patient files
       const { data: filesData, error: filesError } = await supabase
         .from('patient_files')
         .select('*')
-        .eq('patient_id', user.id)
+        .eq('patient_id', targetPatientId)
         .order('uploaded_at', { ascending: false });
       
       if (filesError) throw filesError;
@@ -328,6 +504,9 @@ const MyDentalRecords = () => {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError) throw userError;
       
+      // Determine which patient to fetch - if viewingChildId is set, fetch that child's data
+      const targetPatientId = viewingChildId || user.id;
+      
       const { data, error } = await supabase
         .from('treatments')
         .select(`
@@ -340,7 +519,7 @@ const MyDentalRecords = () => {
           created_at,
           doctor:doctor_id (id, full_name)
         `)
-        .eq('patient_id', user.id)
+        .eq('patient_id', targetPatientId)
         .order('treatment_date', { ascending: false });
       
       if (error) throw error;
@@ -357,6 +536,9 @@ const MyDentalRecords = () => {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError) throw userError;
       
+      // Determine which patient to fetch - if viewingChildId is set, fetch that child's data
+      const targetPatientId = viewingChildId || user.id;
+      
       const { data, error } = await supabase
         .from('dental_charts')
         .select(`
@@ -368,7 +550,7 @@ const MyDentalRecords = () => {
           updated_at,
           doctor:created_by (id, full_name)
         `)
-        .eq('patient_id', user.id)
+        .eq('patient_id', targetPatientId)
         .single();
       
       if (error && error.code !== 'PGRST116') {
@@ -1182,8 +1364,19 @@ const MyDentalRecords = () => {
       </div>
 
       <div className="px-4 py-4 space-y-4">
-        {/* Patient Information Card - Mobile Optimized */}
-        {patient && (
+        {/* Back button when viewing child records */}
+        {viewingChildId && (
+          <button
+            onClick={() => navigate('/patient/records')}
+            className="flex items-center text-blue-600 hover:text-blue-700 mb-2"
+          >
+            <FiArrowLeft className="mr-2 h-4 w-4" />
+            Back to My Records
+          </button>
+        )}
+        
+        {/* Patient Information Card - Only show when viewing a specific record */}
+        {patient && viewingChildId && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             {/* Patient Header */}
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-4 border-b border-gray-200">
@@ -1209,47 +1402,85 @@ const MyDentalRecords = () => {
                 <div className="flex-1 min-w-0">
                   <h2 className="text-lg font-semibold text-gray-900 truncate">{patient.full_name}</h2>
                   <p className="text-sm text-gray-600">Patient ID: {patient.id && patient.id.substring(0, 8)}</p>
+                  {viewingChildId && viewingChildId !== user?.id && (
+                    <p className="text-xs text-blue-600 mt-1">Child's Record</p>
+                  )}
+                  {viewingChildId && viewingChildId === user?.id && (
+                    <p className="text-xs text-green-600 mt-1">Your Record</p>
+                  )}
                 </div>
               </div>
             </div>
 
             {/* Patient Details */}
             <div className="px-4 py-4">
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                {patient.birthday && (
-                  <div className="flex items-center space-x-2">
-                    <FiCalendar className="w-4 h-4 text-gray-400" />
-                    <div>
-                      <p className="text-xs text-gray-500">Age</p>
-                      <p className="text-sm font-medium">{calculateAge(patient.birthday)} years</p>
+              <div className="space-y-3 mb-4">
+                {/* Name and Basic Info */}
+                <div className="grid grid-cols-2 gap-3">
+                  {patient.birthday && (
+                    <div className="flex items-center space-x-2">
+                      <FiCalendar className="w-4 h-4 text-gray-400" />
+                      <div>
+                        <p className="text-xs text-gray-500">Age</p>
+                        <p className="text-sm font-medium">{calculateAge(patient.birthday)} years ({formatDate(patient.birthday)})</p>
+                      </div>
                     </div>
+                  )}
+                  {patient.gender && (
+                    <div className="flex items-center space-x-2">
+                      <FiUser className="w-4 h-4 text-gray-400" />
+                      <div>
+                        <p className="text-xs text-gray-500">Sex</p>
+                        <p className="text-sm font-medium">{patient.gender.charAt(0).toUpperCase() + patient.gender.slice(1)}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Address */}
+                {patient.address && (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Address</p>
+                    <p className="text-sm font-medium">{patient.address}</p>
                   </div>
                 )}
-                {patient.gender && (
-                  <div className="flex items-center space-x-2">
-                    <FiUser className="w-4 h-4 text-gray-400" />
+                
+                {/* Contact Information */}
+                <div className="grid grid-cols-2 gap-3">
+                  {patient.phone && (
                     <div>
-                      <p className="text-xs text-gray-500">Sex</p>
-                      <p className="text-sm font-medium">{patient.gender.charAt(0).toUpperCase()}/{patient.gender.charAt(0).toUpperCase()}</p>
-                    </div>
-                  </div>
-                )}
-                {patient.nationality && (
-                  <div className="flex items-center space-x-2">
-                    <FiMapPin className="w-4 h-4 text-gray-400" />
-                    <div>
-                      <p className="text-xs text-gray-500">Nationality</p>
-                      <p className="text-sm font-medium">{patient.nationality}</p>
-                    </div>
-                  </div>
-                )}
-                {patient.phone && (
-                  <div className="flex items-center space-x-2">
-                    <FiClock className="w-4 h-4 text-gray-400" />
-                    <div>
-                      <p className="text-xs text-gray-500">Phone</p>
+                      <p className="text-xs text-gray-500 mb-1">Phone</p>
                       <p className="text-sm font-medium">{patient.phone}</p>
                     </div>
+                  )}
+                  {patient.email && (
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Email</p>
+                      <p className="text-sm font-medium">{patient.email}</p>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Additional Info */}
+                <div className="grid grid-cols-2 gap-3">
+                  {patient.occupation && (
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Occupation</p>
+                      <p className="text-sm font-medium">{patient.occupation}</p>
+                    </div>
+                  )}
+                  {patient.nationality && (
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Nationality</p>
+                      <p className="text-sm font-medium">{patient.nationality}</p>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Debug info - show guardian_id to verify this is a child */}
+                {patient.guardian_id && (
+                  <div className="mt-2 p-2 bg-blue-50 rounded text-xs text-blue-700">
+                    <strong>Note:</strong> This is a child's record (Guardian ID: {patient.guardian_id.substring(0, 8)})
                   </div>
                 )}
               </div>
@@ -1257,14 +1488,26 @@ const MyDentalRecords = () => {
               {/* Action Buttons - Mobile Layout */}
               <div className="space-y-2">
                 <button
-                  onClick={() => navigate('/patient/dental-chart?mode=view')}
+                  onClick={() => {
+                    if (viewingChildId && viewingChildId !== user?.id) {
+                      navigate(`/patient/dental-chart/child/${viewingChildId}?mode=view`);
+                    } else {
+                      navigate('/patient/dental-chart?mode=view');
+                    }
+                  }}
                   className="w-full flex items-center justify-center px-4 py-3 bg-blue-50 text-blue-700 rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors"
                 >
                   <FiEye className="mr-2 h-4 w-4" />
                   View Chart
                 </button>
                 <button
-                  onClick={() => navigate('/patient/dental-chart?mode=edit')}
+                  onClick={() => {
+                    if (viewingChildId && viewingChildId !== user?.id) {
+                      navigate(`/patient/dental-chart/child/${viewingChildId}?mode=edit`);
+                    } else {
+                      navigate('/patient/dental-chart?mode=edit');
+                    }
+                  }}
                   className="w-full flex items-center justify-center px-4 py-3 bg-green-50 text-green-700 rounded-lg border border-green-200 hover:bg-green-100 transition-colors"
                 >
                   <FiEdit className="mr-2 h-4 w-4" />
@@ -1275,29 +1518,187 @@ const MyDentalRecords = () => {
           </div>
         )}
 
+        {/* Patients Record Section - Includes Guardian and Children */}
+        {!viewingChildId && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h1 className="text-2xl font-bold text-gray-900">Patients Record</h1>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <FiSearch className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="Search patients..."
+                  value={patientsSearchQuery}
+                  onChange={(e) => setPatientsSearchQuery(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {isLoadingChildren && allPatients.length === 0 ? (
+              <div className="bg-white shadow overflow-hidden sm:rounded-md">
+                <div className="p-8 text-center">
+                  <LoadingSpinner />
+                </div>
+              </div>
+            ) : filteredAllPatients.length > 0 ? (
+              <div className="bg-white shadow overflow-hidden sm:rounded-md">
+                <ul className="divide-y divide-gray-200">
+                  {filteredAllPatients.map((patientRecord) => (
+                    <li key={patientRecord.id}>
+                      <div className="px-4 py-4 sm:px-6 hover:bg-gray-50">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center">
+                            <div className="flex-shrink-0">
+                              <div className="h-10 w-10 rounded-full overflow-hidden border-2 border-gray-200 shadow-md">
+                                {patientRecord.profile_picture_url ? (
+                                  <img
+                                    src={`${patientRecord.profile_picture_url}?t=${Date.now()}`}
+                                    alt={patientRecord.full_name}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      e.target.style.display = 'none';
+                                      e.target.nextSibling.style.display = 'flex';
+                                    }} 
+                                  />
+                                ) : null}
+                                <div className={`w-full h-full flex items-center justify-center ${
+                                  patientRecord.profile_picture_url ? 'hidden' : ''
+                                } bg-primary-100 text-primary-600`}>
+                                  <span className="font-medium text-sm">
+                                    {patientRecord.full_name?.charAt(0).toUpperCase() || 'P'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="ml-4">
+                              <div className="text-sm font-medium text-primary-600">{patientRecord.full_name}</div>
+                              <div className="text-sm text-gray-500">
+                                {patientRecord.email}
+                                {patientRecord.phone && ` • ${patientRecord.phone}`}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            {allPatientsFileCounts[patientRecord.id] > 0 && (
+                              <div className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 flex items-center">
+                                <FiFileText className="mr-1 h-3 w-3" />
+                                {allPatientsFileCounts[patientRecord.id]} {allPatientsFileCounts[patientRecord.id] === 1 ? 'file' : 'files'}
+                              </div>
+                            )}
+                            <button
+                              onClick={() => {
+                                if (patientRecord.id === user?.id) {
+                                  // When clicking on themselves, show detailed view by setting viewingChildId to their own ID
+                                  setViewingChildId(user.id);
+                                  navigate(`/patient/records/child/${user.id}`);
+                                } else {
+                                  handleViewChildRecords(patientRecord.id);
+                                }
+                              }}
+                              className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                            >
+                              <FiEye className="mr-1 -ml-0.5 h-4 w-4" />
+                              View Records
+                            </button>
+                          </div>
+                        </div>
+                        <div className="mt-2 sm:flex sm:justify-between">
+                          <div className="sm:flex">
+                            {patientRecord.birthday && (
+                              <div className="flex items-center text-sm text-gray-500 mr-6">
+                                <FiCalendar className="flex-shrink-0 mr-1.5 h-4 w-4 text-gray-400" />
+                                <span>
+                                  Age: {calculateAge(patientRecord.birthday)}
+                                  <span className="hidden sm:inline"> ({formatDate(patientRecord.birthday)})</span>
+                                </span>
+                              </div>
+                            )}
+                            {patientRecord.gender && (
+                              <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
+                                <div className="flex-shrink-0 mr-1.5 h-4 w-4 text-gray-400">
+                                  {patientRecord.gender === 'male' ? '♂' : patientRecord.gender === 'female' ? '♀' : '⚥'}
+                                </div>
+                                <span>
+                                  {patientRecord.gender.charAt(0).toUpperCase() + patientRecord.gender.slice(1)}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
+                            <span>
+                              Patient ID: {patientRecord.id.substring(0, 8)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <div className="bg-white shadow overflow-hidden sm:rounded-md">
+                <div className="px-4 py-5 sm:p-6 text-center">
+                  <FiUser className="mx-auto h-12 w-12 text-gray-400" />
+                  {patientsSearchQuery.trim() !== '' ? (
+                    <>
+                      <h3 className="mt-2 text-sm font-medium text-gray-900">No patients match your search</h3>
+                      <p className="mt-1 text-sm text-gray-500">
+                        Try different keywords or clear the search field.
+                      </p>
+                      {allPatients.length > 0 && (
+                        <div className="mt-3">
+                          <button
+                            type="button"
+                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-primary-700 bg-primary-100 hover:bg-primary-200"
+                            onClick={() => setPatientsSearchQuery('')}
+                          >
+                            Clear search
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <h3 className="mt-2 text-sm font-medium text-gray-900">No patients yet</h3>
+                      <p className="mt-1 text-sm text-gray-500">
+                        There are no patient records available.
+                      </p>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
       {/* Treatment History removed from this page; view via the dedicated page */}
 
-      {/* Inline Full Dental Chart Form (View/Edit) */}
-      {showFullChart && (
-        <div ref={chartFormRef} className="bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">Comprehensive Dental Chart</h2>
-            <button
-              onClick={() => setShowFullChart(false)}
-              className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200"
-            >
-              <FiX className="mr-2 -ml-1 h-4 w-4" /> Close
-            </button>
-          </div>
-          <div className="p-0">
-            <PatientDentalChart />
-          </div>
-        </div>
-      )}
+      {/* Only show dental chart and patient files when viewing a specific record */}
+      {viewingChildId && (
+        <>
+          {/* Inline Full Dental Chart Form (View/Edit) */}
+          {showFullChart && (
+            <div ref={chartFormRef} className="bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden">
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-900">Comprehensive Dental Chart</h2>
+                <button
+                  onClick={() => setShowFullChart(false)}
+                  className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200"
+                >
+                  <FiX className="mr-2 -ml-1 h-4 w-4" /> Close
+                </button>
+              </div>
+              <div className="p-0">
+                <PatientDentalChart />
+              </div>
+            </div>
+          )}
 
-        {/* Interactive Dental Chart Section - Mobile Optimized */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          {/* Interactive Dental Chart Section - Mobile Optimized */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center text-white">
@@ -1327,7 +1728,7 @@ const MyDentalRecords = () => {
                   selectedTeeth={selectedToothInChart ? [selectedToothInChart] : []}
                   selectedTooth={selectedToothInChart}
                   role="patient"
-                  patientId={user?.id}
+                  patientId={viewingChildId || user?.id}
                   onDentalChartUpdate={(updatedChart) => {
                     setDentalChart(updatedChart);
                   }}
@@ -1345,10 +1746,10 @@ const MyDentalRecords = () => {
               </div>
             </div>
           )}
-        </div>
+          </div>
 
-        {/* Patient Files Section - Mobile Optimized */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          {/* Patient Files Section - Mobile Optimized */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-200">
             <div className="flex items-center justify-between mb-3">
               <div>
@@ -1476,7 +1877,9 @@ const MyDentalRecords = () => {
               </div>
             )}
           </div>
-      </div>
+        </div>
+        </>
+      )}
 
         {/* Tooth History Modal - Mobile Optimized */}
         {showToothHistoryModal && selectedToothInChart && (

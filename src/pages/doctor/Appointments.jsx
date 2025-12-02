@@ -194,6 +194,7 @@ const DoctorAppointments = () => {
           id, 
           patient_id,
           doctor_id,
+          guardian_id,
           appointment_date, 
           appointment_time, 
           status, 
@@ -254,6 +255,19 @@ const DoctorAppointments = () => {
         console.error('Error fetching doctor profiles:', doctorError);
       }
       
+      // Fetch guardian profiles for appointments with guardian_id
+      const guardianIds = [...new Set(appointmentData.map(a => a.guardian_id).filter(Boolean))];
+      const { data: guardianData, error: guardianError } = guardianIds.length > 0
+        ? await supabase
+            .from('profiles')
+            .select('id, full_name, email, phone')
+            .in('id', guardianIds)
+        : { data: [], error: null };
+      
+      if (guardianError) {
+        console.error('Error fetching guardian profiles:', guardianError);
+      }
+      
       // Create lookup maps
       const patientMap = {};
       if (patientData) {
@@ -266,6 +280,13 @@ const DoctorAppointments = () => {
       if (doctorData) {
         doctorData.forEach(doctor => {
           doctorMap[doctor.id] = doctor;
+        });
+      }
+      
+      const guardianMap = {};
+      if (guardianData) {
+        guardianData.forEach(guardian => {
+          guardianMap[guardian.id] = guardian;
         });
       }
       
@@ -325,6 +346,7 @@ const DoctorAppointments = () => {
       const formattedAppointments = appointmentData.map(appointment => {
         const patient = patientMap[appointment.patient_id] || { full_name: 'Unknown' };
         const doctor = doctorMap[appointment.doctor_id] || null;
+        const guardian = appointment.guardian_id ? guardianMap[appointment.guardian_id] : null;
         const services = appointmentServicesMap[appointment.id] || [];
         
         // Calculate total duration based on services
@@ -338,6 +360,9 @@ const DoctorAppointments = () => {
           patientName: patient.full_name,
           doctors: doctor,
           doctorName: doctor ? doctor.full_name : null,
+          guardian: guardian,
+          guardianName: guardian?.full_name || null,
+          isChildAppointment: !!appointment.guardian_id,
           services: services,
           serviceIds: services.map(s => s.service_id.id),
           serviceNames: services.map(s => s.service_id.name),
@@ -1662,6 +1687,12 @@ const DoctorAppointments = () => {
                           </div>
                           <span className="font-medium text-gray-800">{appointment.patientName}</span>
                         </div>
+                        {appointment.isChildAppointment && appointment.guardianName && (
+                          <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full flex items-center">
+                            <FiUser className="mr-1" />
+                            Guardian: {appointment.guardianName}
+                          </span>
+                        )}
                         <span className={`px-2 py-0.5 text-xs rounded-full ${getStatusBadgeClass(appointment.status)}`}>
                           {appointment.status}
                         </span>

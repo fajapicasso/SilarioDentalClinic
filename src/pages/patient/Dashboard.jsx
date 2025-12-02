@@ -17,6 +17,7 @@ import {
   getNextQueueNumberForToday, 
   isPatientInTodayQueue 
 } from '../../utils/philippineTime';
+import PatientAnalytics from '../../components/patient/PatientAnalytics';
 
 const PatientDashboard = () => {
   const { user } = useAuth();
@@ -841,7 +842,7 @@ const PatientDashboard = () => {
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-800">
-              Waiting List
+             In Queue
               {selectedBranch !== 'all' && (
                 <span className="ml-2 text-xs bg-primary-100 text-primary-700 px-2 py-1 rounded-full">
                   {selectedBranch === 'cabugao' ? 'Cabugao' : 'San Juan'} Branch
@@ -879,6 +880,9 @@ const PatientDashboard = () => {
           )}
         </div>
       </div>
+
+      {/* Patient Analytics Section */}
+      <PatientAnalytics />
 
       {/* Payment Redirect Alert */}
       {showPaymentRedirect && completedSession && (

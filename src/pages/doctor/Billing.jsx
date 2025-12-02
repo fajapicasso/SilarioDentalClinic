@@ -10,6 +10,9 @@ import { usePaymentNotifications } from '../../hooks/useNotificationIntegration'
 import { useUniversalAudit } from '../../hooks/useUniversalAudit';
 import InvoicePDF from '../../components/common/InvoicePDF';
 import UnifiedInvoicePrinter from '../../components/common/UnifiedInvoicePrinter';
+import logo from '../../assets/Logo.png';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 // IMPORTANT: To enable the Edit Invoice page, add the following route to your router:
 // <Route path="/doctor/billing/edit/:invoiceId" element={<EditInvoice />} />
@@ -60,6 +63,9 @@ const Billing = () => {
   const [filteredInvoices, setFilteredInvoices] = useState([]);
   const [invoiceFilter, setInvoiceFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all'); // New filter for status buttons
+  const [dateFilter, setDateFilter] = useState('all'); // Date filter: 'all', 'today', 'thisWeek', 'thisMonth', 'thisYear', 'custom'
+  const [dateFrom, setDateFrom] = useState(null);
+  const [dateTo, setDateTo] = useState(null);
   const [showInvoicePreview, setShowInvoicePreview] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [showUnifiedPrinter, setShowUnifiedPrinter] = useState(false);
@@ -70,6 +76,9 @@ const Billing = () => {
   const [filteredPayments, setFilteredPayments] = useState([]);
   const [paymentSearchQuery, setPaymentSearchQuery] = useState('');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('pending');
+  const [paymentDateFilter, setPaymentDateFilter] = useState('all'); // Date filter for payments
+  const [paymentDateFrom, setPaymentDateFrom] = useState(null);
+  const [paymentDateTo, setPaymentDateTo] = useState(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState(null);
   const [historyView, setHistoryView] = useState('invoices'); // 'invoices' or 'payments'
@@ -159,7 +168,85 @@ const Billing = () => {
     }
   }, [searchQuery, patients]);
   
-  // Filter invoices when search query changes
+  // Helper function to extract doctor name from invoice notes
+  const extractDoctorFromNotes = (notes) => {
+    if (!notes) return null;
+    const match = notes.match(/Dr\.\s+([A-Za-z\s.]+)/);
+    return match ? match[1].trim() : null;
+  };
+
+  // Helper function to check if date is within range
+  const isDateInRange = (date, filterType, fromDate = null, toDate = null) => {
+    if (!date) return false;
+    try {
+      // Normalize invoice date to local date (year, month, day only)
+      const invoiceDate = new Date(date);
+      const invoiceYear = invoiceDate.getFullYear();
+      const invoiceMonth = invoiceDate.getMonth();
+      const invoiceDay = invoiceDate.getDate();
+      const normalizedInvoiceDate = new Date(invoiceYear, invoiceMonth, invoiceDay);
+      normalizedInvoiceDate.setHours(0, 0, 0, 0);
+      
+      const today = new Date();
+      const todayYear = today.getFullYear();
+      const todayMonth = today.getMonth();
+      const todayDay = today.getDate();
+      const normalizedToday = new Date(todayYear, todayMonth, todayDay);
+      normalizedToday.setHours(0, 0, 0, 0);
+      
+      switch (filterType) {
+        case 'today': {
+          return normalizedInvoiceDate.getTime() === normalizedToday.getTime();
+        }
+        case 'thisWeek': {
+          const startOfWeek = new Date(normalizedToday);
+          startOfWeek.setDate(normalizedToday.getDate() - normalizedToday.getDay()); // Sunday
+          startOfWeek.setHours(0, 0, 0, 0);
+          const endOfWeek = new Date(startOfWeek);
+          endOfWeek.setDate(startOfWeek.getDate() + 6);
+          endOfWeek.setHours(23, 59, 59, 999);
+          return normalizedInvoiceDate >= startOfWeek && normalizedInvoiceDate <= endOfWeek;
+        }
+        case 'thisMonth': {
+          const startOfMonth = new Date(normalizedToday.getFullYear(), normalizedToday.getMonth(), 1);
+          startOfMonth.setHours(0, 0, 0, 0);
+          const endOfMonth = new Date(normalizedToday.getFullYear(), normalizedToday.getMonth() + 1, 0);
+          endOfMonth.setHours(23, 59, 59, 999);
+          return normalizedInvoiceDate >= startOfMonth && normalizedInvoiceDate <= endOfMonth;
+        }
+        case 'thisYear': {
+          const startOfYear = new Date(normalizedToday.getFullYear(), 0, 1);
+          startOfYear.setHours(0, 0, 0, 0);
+          const endOfYear = new Date(normalizedToday.getFullYear(), 11, 31);
+          endOfYear.setHours(23, 59, 59, 999);
+          return normalizedInvoiceDate >= startOfYear && normalizedInvoiceDate <= endOfYear;
+        }
+        case 'custom': {
+          if (!fromDate || !toDate) return true;
+          const from = fromDate instanceof Date ? new Date(fromDate) : new Date(fromDate);
+          const fromYear = from.getFullYear();
+          const fromMonth = from.getMonth();
+          const fromDay = from.getDate();
+          const normalizedFrom = new Date(fromYear, fromMonth, fromDay);
+          normalizedFrom.setHours(0, 0, 0, 0);
+          
+          const to = toDate instanceof Date ? new Date(toDate) : new Date(toDate);
+          const toYear = to.getFullYear();
+          const toMonth = to.getMonth();
+          const toDay = to.getDate();
+          const normalizedTo = new Date(toYear, toMonth, toDay);
+          normalizedTo.setHours(23, 59, 59, 999);
+          return normalizedInvoiceDate >= normalizedFrom && normalizedInvoiceDate <= normalizedTo;
+        }
+        default:
+          return true;
+      }
+    } catch {
+      return false;
+    }
+  };
+
+  // Filter invoices when search query, filters, or date range changes
   useEffect(() => {
     if (invoices.length === 0) return;
     
@@ -170,13 +257,22 @@ const Billing = () => {
       filtered = filtered.filter(invoice => invoice.status === invoiceFilter);
     }
     
-    // Apply search query
+    // Apply enhanced search query (invoice number, patient name, guardian name, doctor name, etc.)
     if (invoiceSearchQuery) {
       const lowercasedQuery = invoiceSearchQuery.toLowerCase();
-      filtered = filtered.filter(
-        invoice => invoice.invoice_number.toLowerCase().includes(lowercasedQuery) ||
-                  invoice.patientName.toLowerCase().includes(lowercasedQuery)
-      );
+      filtered = filtered.filter(invoice => {
+        const invoiceNumber = invoice.invoice_number?.toLowerCase() || '';
+        const patientName = invoice.patientName?.toLowerCase() || '';
+        const guardianName = invoice.guardianName?.toLowerCase() || '';
+        const doctorName = extractDoctorFromNotes(invoice.notes)?.toLowerCase() || '';
+        const notes = invoice.notes?.toLowerCase() || '';
+        
+        return invoiceNumber.includes(lowercasedQuery) ||
+               patientName.includes(lowercasedQuery) ||
+               guardianName.includes(lowercasedQuery) ||
+               doctorName.includes(lowercasedQuery) ||
+               notes.includes(lowercasedQuery);
+      });
     }
     
     // Apply status button filter
@@ -202,10 +298,17 @@ const Billing = () => {
       }
     }
     
+    // Apply date filter
+    if (dateFilter !== 'all') {
+      filtered = filtered.filter(invoice => 
+        isDateInRange(invoice.invoice_date, dateFilter, dateFrom, dateTo)
+      );
+    }
+    
     setFilteredInvoices(filtered);
-  }, [invoiceSearchQuery, invoiceFilter, statusFilter, invoices]);
+  }, [invoiceSearchQuery, invoiceFilter, statusFilter, dateFilter, dateFrom, dateTo, invoices]);
 
-  // Filter payments when search query or status filter changes
+  // Filter payments when search query, status filter, or date filter changes
   useEffect(() => {
     if (payments.length === 0) return;
     
@@ -228,8 +331,17 @@ const Billing = () => {
       );
     }
     
+    // Apply date filter to payments
+    if (paymentDateFilter !== 'all') {
+      filtered = filtered.filter(payment => {
+        // Use payment_date or created_at for date filtering
+        const paymentDate = payment.payment_date || payment.created_at;
+        return isDateInRange(paymentDate, paymentDateFilter, paymentDateFrom, paymentDateTo);
+      });
+    }
+    
     setFilteredPayments(filtered);
-  }, [paymentSearchQuery, paymentStatusFilter, payments]);
+  }, [paymentSearchQuery, paymentStatusFilter, paymentDateFilter, paymentDateFrom, paymentDateTo, payments]);
   
   // Direct Print function for invoices
   const printInvoice = (invoice) => {
@@ -248,9 +360,10 @@ const Billing = () => {
     const printStyles = `
       body {
         font-family: Arial, sans-serif;
-        margin: 20px;
+        margin: 10px;
         color: #333;
-        line-height: 1.6;
+        line-height: 1.3;
+        font-size: 10px;
       }
       .invoice-container {
         max-width: 800px;
@@ -259,77 +372,104 @@ const Billing = () => {
       .invoice-header {
         display: flex;
         justify-content: space-between;
-        margin-bottom: 30px;
+        margin-bottom: 10px;
         border-bottom: 2px solid #2563eb;
-        padding-bottom: 20px;
+        padding-bottom: 8px;
+        min-height: 55px;
+      }
+      .invoice-header-left {
+        flex: 1;
+      }
+      .title-with-logo {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 5px;
+        margin-top: 3px;
+      }
+      .logo-container {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+      }
+      .logo-img {
+        width: 65px;
+        height: 52px;
+        object-fit: contain;
+        background: #fff;
+        border: none;
+        display: block;
       }
       .invoice-title {
-        font-size: 32px;
+        font-size: 26px;
         font-weight: bold;
-        color: #2563eb;
-        margin-bottom: 10px;
+        color: #1f2937;
+        margin: 0;
+        text-transform: uppercase;
+        line-height: 1.1;
       }
       .clinic-info {
-        margin-bottom: 5px;
+        margin-bottom: 2px;
         color: #6b7280;
+        font-size: 9px;
       }
       .clinic-name {
-        font-size: 18px;
+        font-size: 12px;
         font-weight: 600;
         color: #1f2937;
-        margin-bottom: 5px;
+        margin-bottom: 3px;
       }
       .invoice-info {
         text-align: right;
-        margin-bottom: 5px;
+        margin-bottom: 2px;
+        font-size: 9px;
       }
       .invoice-number {
-        font-size: 20px;
+        font-size: 13px;
         font-weight: bold;
         color: #2563eb;
-        margin-bottom: 10px;
+        margin-bottom: 4px;
       }
       .bill-section {
         display: flex;
         justify-content: space-between;
         background-color: #f8fafc;
-        padding: 25px;
-        margin: 25px 0;
-        border-radius: 8px;
+        padding: 10px;
+        margin: 10px 0;
+        border-radius: 5px;
         border: 1px solid #e5e7eb;
       }
       .bill-to, .payment-info {
         flex: 1;
       }
       .bill-to h2, .payment-info h2 {
-        font-size: 16px;
+        font-size: 10px;
         font-weight: bold;
         color: #374151;
-        margin-bottom: 15px;
+        margin-bottom: 5px;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.3px;
       }
       .patient-info, .payment-details {
         color: #6b7280;
-        line-height: 1.5;
+        line-height: 1.3;
+        font-size: 9px;
       }
       .patient-name {
         font-weight: 600;
         color: #1f2937;
-        font-size: 16px;
-        margin-bottom: 5px;
+        font-size: 10px;
+        margin-bottom: 2px;
       }
       table {
         width: 100%;
         border-collapse: collapse;
-        margin: 25px 0;
+        margin: 10px 0;
         background-color: white;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        border-radius: 8px;
-        overflow: hidden;
+        font-size: 9px;
       }
       th, td {
-        padding: 15px;
+        padding: 5px;
         text-align: left;
         border-bottom: 1px solid #e5e7eb;
       }
@@ -338,8 +478,8 @@ const Billing = () => {
         font-weight: 600;
         color: #374151;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
-        font-size: 12px;
+        letter-spacing: 0.3px;
+        font-size: 8px;
       }
       .amount-right {
         text-align: right;
@@ -347,17 +487,17 @@ const Billing = () => {
       }
       .summary {
         margin-left: auto;
-        width: 350px;
+        width: 260px;
         background-color: #f8fafc;
-        padding: 25px;
-        border-radius: 8px;
+        padding: 10px;
+        border-radius: 5px;
         border: 1px solid #e5e7eb;
       }
       .summary-row {
         display: flex;
         justify-content: space-between;
-        padding: 8px 0;
-        font-size: 14px;
+        padding: 3px 0;
+        font-size: 9px;
       }
       .summary-label {
         color: #6b7280;
@@ -370,9 +510,9 @@ const Billing = () => {
       .total-row {
         font-weight: bold;
         border-top: 2px solid #2563eb;
-        padding-top: 15px;
-        margin-top: 10px;
-        font-size: 18px;
+        padding-top: 5px;
+        margin-top: 4px;
+        font-size: 11px;
       }
       .total-row .summary-label {
         color: #2563eb;
@@ -383,44 +523,46 @@ const Billing = () => {
         font-weight: bold;
       }
       .notes {
-        margin-top: 30px;
+        margin-top: 10px;
         border-top: 1px solid #e5e7eb;
-        padding-top: 20px;
+        padding-top: 6px;
       }
       .notes h2 {
-        font-size: 16px;
+        font-size: 10px;
         font-weight: 600;
         color: #374151;
-        margin-bottom: 10px;
+        margin-bottom: 3px;
       }
       .notes p {
         color: #6b7280;
-        line-height: 1.6;
+        line-height: 1.3;
+        font-size: 9px;
+        margin: 0;
       }
       .footer {
-        margin-top: 50px;
+        margin-top: 12px;
         text-align: center;
         color: #9ca3af;
-        font-size: 14px;
+        font-size: 9px;
         border-top: 1px solid #e5e7eb;
-        padding-top: 25px;
+        padding-top: 6px;
       }
       .footer p {
-        margin: 5px 0;
+        margin: 2px 0;
       }
       .thank-you {
         font-weight: 600;
         color: #2563eb;
-        font-size: 16px;
+        font-size: 10px;
       }
       .badge {
         display: inline-block;
-        padding: 4px 10px;
-        border-radius: 20px;
-        font-size: 11px;
+        padding: 2px 5px;
+        border-radius: 10px;
+        font-size: 8px;
         font-weight: 600;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.3px;
       }
       .badge-green {
         background-color: #d1fae5;
@@ -461,7 +603,13 @@ const Billing = () => {
 
     // Format currency function
     const formatCurrency = (amount) => {
-      return `₱${parseFloat(amount).toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,')}`;
+      return `PHP ${parseFloat(amount).toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,')}`;
+    };
+
+    // Clean notes to remove DoctorId
+    const cleanNotes = (notes) => {
+      if (!notes) return '';
+      return notes.replace(/\s*\|\s*DoctorId:\s*[\w-]+/gi, '').trim();
     };
 
     // Generate HTML content for the print window
@@ -477,11 +625,18 @@ const Billing = () => {
       <body>
         <div class="invoice-container">
           <div class="invoice-header">
-            <div>
-              <div class="invoice-title">INVOICE</div>
-              <div class="clinic-name">Silario Dental Clinic</div>
-              <div class="clinic-info">Cabugao/San Juan, Ilocos Sur</div>
-              <div class="clinic-info">silaroidentalclinic@gmail.com</div>
+            <div class="invoice-header-left">
+              <div class="title-with-logo">
+                <div class="logo-container">
+                  <img src="${logo}" alt="Silario Dental Clinic Logo" class="logo-img" />
+                </div>
+                <div class="invoice-title">INVOICE</div>
+              </div>
+              <div class="clinic-info">
+                <div class="clinic-name">Silario Dental Clinic</div>
+                <div class="clinic-info">Cabugao/San Juan, Ilocos Sur</div>
+                <div class="clinic-info">silaroidentalclinic@gmail.com</div>
+              </div>
             </div>
             <div>
               <div class="invoice-number">#${invoice.invoice_number}</div>
@@ -495,6 +650,8 @@ const Billing = () => {
               <h2>Billed To</h2>
               <div class="patient-info">
                 <div class="patient-name">${invoice.patientName}</div>
+                ${invoice.isMinor && invoice.guardianName ? `<div class="guardian-name" style="font-weight: 500; color: #6b7280; margin-top: 4px;">Guardian: ${invoice.guardianName}</div>` : ''}
+                ${invoice.isMinor && invoice.guardianPhone ? `<div style="color: #6b7280; margin-top: 2px; font-size: 12px;">Guardian Phone: ${invoice.guardianPhone}</div>` : ''}
                 ${invoice.profiles?.address ? `<div>${invoice.profiles.address}</div>` : ''}
                 ${invoice.profiles?.phone ? `<div>${invoice.profiles.phone}</div>` : ''}
                 ${invoice.profiles?.email ? `<div>${invoice.profiles.email}</div>` : ''}
@@ -504,7 +661,6 @@ const Billing = () => {
             <div class="payment-info">
               <h2>Payment Information</h2>
               <div class="payment-details">
-                <div><strong>Method:</strong> ${invoice.payment_method || 'Not specified'}</div>
                 <div><strong>Status:</strong> <span class="${getStatusBadgeClass(invoice.status)}">${invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}</span></div>
               </div>
             </div>
@@ -571,7 +727,7 @@ const Billing = () => {
           ${invoice.notes ? `
             <div class="notes">
               <h2>Notes</h2>
-              <p>${invoice.notes}</p>
+              <p>${cleanNotes(invoice.notes)}</p>
             </div>
           ` : ''}
           
@@ -603,7 +759,7 @@ const Billing = () => {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, full_name, phone, email, address, disabled')
+        .select('id, full_name, phone, email, address, disabled, guardian_id')
         .eq('role', 'patient')
         .neq('disabled', true)
         .order('full_name');
@@ -637,7 +793,7 @@ const Billing = () => {
     setIsLoading(true);
     try {
       // Get completed appointments for the patient
-      const { data, error } = await supabase
+      const { data: appointmentsData, error: appointmentsError } = await supabase
         .from('appointments')
         .select(`
           id, 
@@ -654,7 +810,50 @@ const Billing = () => {
         .eq('status', 'completed')
         .order('appointment_date', { ascending: false });
       
-      if (error) throw error;
+      if (appointmentsError) throw appointmentsError;
+      
+      // Get all invoices for this patient to check which appointments have been invoiced
+      const { data: invoicesData, error: invoicesError } = await supabase
+        .from('invoices')
+        .select('id, notes, invoice_date')
+        .eq('patient_id', patientId)
+        .eq('created_by', user.id);
+      
+      if (invoicesError) throw invoicesError;
+      
+      // Create a set of appointment dates that have been invoiced
+      const invoicedAppointmentDates = new Set();
+      
+      if (invoicesData) {
+        invoicesData.forEach(invoice => {
+          if (invoice.notes) {
+            // Check if the invoice notes contain appointment date information
+            // Look for patterns like "Appointment on 10/17/2025" or similar
+            const appointmentDateMatch = invoice.notes.match(/Appointment on (\d{1,2}\/\d{1,2}\/\d{4})/);
+            if (appointmentDateMatch) {
+              invoicedAppointmentDates.add(appointmentDateMatch[1]);
+            }
+            
+            // Also check for ISO date format in notes
+            const isoDateMatch = invoice.notes.match(/(\d{4}-\d{2}-\d{2})/);
+            if (isoDateMatch) {
+              const isoDate = isoDateMatch[1];
+              const formattedDate = new Date(isoDate).toLocaleDateString();
+              invoicedAppointmentDates.add(formattedDate);
+            }
+          }
+        });
+      }
+      
+      console.log('Invoiced appointment dates:', Array.from(invoicedAppointmentDates));
+      
+      // Filter out appointments that have been invoiced
+      const availableAppointments = appointmentsData?.filter(appointment => {
+        const appointmentDate = new Date(appointment.appointment_date).toLocaleDateString();
+        return !invoicedAppointmentDates.has(appointmentDate);
+      }) || [];
+      
+      console.log(`Found ${appointmentsData?.length || 0} completed appointments, ${invoicedAppointmentDates.size} already invoiced, ${availableAppointments.length} available for invoicing`);
       
       // Helper to format 24h time string to 12h with AM/PM
       const to12Hour = (timeStr) => {
@@ -670,7 +869,7 @@ const Billing = () => {
       };
 
       // Format appointment data
-      const formattedAppointments = data.map(appointment => ({
+      const formattedAppointments = availableAppointments.map(appointment => ({
         ...appointment,
         formattedDate: new Date(appointment.appointment_date).toLocaleDateString(),
         formattedTime: to12Hour(appointment.appointment_time),
@@ -763,7 +962,7 @@ const Billing = () => {
           tax,
           created_at,
           created_by,
-          profiles:patient_id(full_name, phone, email, address),
+          profiles:patient_id(full_name, phone, email, address, guardian_id),
           invoice_items(
             id,
             service_name,
@@ -791,15 +990,61 @@ const Billing = () => {
       
       console.log('Raw invoice data:', data);
       
+      // Fetch guardian information for all minors
+      const guardianIds = [...new Set(
+        data
+          .map(inv => inv.profiles?.guardian_id)
+          .filter(Boolean)
+      )];
+      
+      let guardianMap = {};
+      if (guardianIds.length > 0) {
+        const { data: guardianData } = await supabase
+          .from('profiles')
+          .select('id, full_name, phone')
+          .in('id', guardianIds);
+        
+        if (guardianData) {
+          guardianMap = guardianData.reduce((acc, guardian) => {
+            acc[guardian.id] = {
+              name: guardian.full_name,
+              phone: guardian.phone || null
+            };
+            return acc;
+          }, {});
+        }
+      }
+      
       const formattedInvoices = data.map(invoice => {
+        // Extract guardian information from notes or fetch from guardianMap
+        let guardianName = null;
+        let guardianPhone = null;
+        if (invoice.profiles?.guardian_id) {
+          const guardianInfo = guardianMap[invoice.profiles.guardian_id];
+          if (guardianInfo) {
+            guardianName = guardianInfo.name;
+            guardianPhone = guardianInfo.phone;
+          }
+          // Also check notes as fallback
+          if (!guardianName && invoice.notes) {
+            const guardianMatch = invoice.notes.match(/Guardian: ([^|\n]+)/);
+            if (guardianMatch) {
+              guardianName = guardianMatch[1].trim();
+            }
+          }
+        }
+        
         const formatted = {
           ...invoice,
           patientName: invoice.profiles?.full_name || 'Unknown Patient',
+          guardianName: guardianName,
+          guardianPhone: guardianPhone,
+          isMinor: !!invoice.profiles?.guardian_id,
           formattedDate: new Date(invoice.invoice_date).toLocaleDateString(),
           formattedTotal: formatCurrency(invoice.total_amount),
           invoice_items: invoice.invoice_items || []
         };
-        console.log('Fetched invoice in history:', { id: invoice.id, items: formatted.invoice_items });
+        console.log('Fetched invoice in history:', { id: invoice.id, items: formatted.invoice_items, guardian: guardianName });
         return formatted;
       });
       
@@ -932,13 +1177,16 @@ const Billing = () => {
         });
         // Get patient information for these payments
         const patientIds = [...new Set(pendingPayments.map(p => p.created_by).filter(Boolean))];
+        // Also get patient IDs from invoices
+        const invoicePatientIds = [...new Set(doctorInvoices.map(inv => inv.patient_id).filter(Boolean))];
+        const allPatientIds = [...new Set([...patientIds, ...invoicePatientIds])];
         let patientData = {};
         
-        if (patientIds.length > 0) {
+        if (allPatientIds.length > 0) {
           const { data: patientProfiles, error: patientError } = await supabase
             .from('profiles')
-            .select('id, full_name, phone, email')
-            .in('id', patientIds);
+            .select('id, full_name, phone, email, guardian_id')
+            .in('id', allPatientIds);
             
           if (!patientError && patientProfiles) {
             patientProfiles.forEach(profile => {
@@ -947,15 +1195,39 @@ const Billing = () => {
           }
         }
         
+        // Get guardian information for minors
+        const guardianIds = [...new Set(Object.values(patientData).filter(p => p.guardian_id).map(p => p.guardian_id).filter(Boolean))];
+        let guardianData = {};
+        
+        if (guardianIds.length > 0) {
+          const { data: guardianProfiles, error: guardianError } = await supabase
+            .from('profiles')
+            .select('id, full_name')
+            .in('id', guardianIds);
+            
+          if (!guardianError && guardianProfiles) {
+            guardianProfiles.forEach(profile => {
+              guardianData[profile.id] = profile;
+            });
+          }
+        }
+        
         // Combine all data safely
         const formattedPending = pendingPayments.map(payment => {
           const invoice = doctorInvoices.find(inv => inv.id === payment.invoice_id) || {};
-          const patient = patientData[payment.created_by] || {};
+          // Use invoice's patient_id (the actual patient/child) instead of payment.created_by (guardian)
+          const invoicePatient = invoice.patient_id ? patientData[invoice.patient_id] : null;
+          const patient = invoicePatient || {};
+          const isMinor = !!patient.guardian_id;
+          const guardianName = isMinor && patient.guardian_id ? (guardianData[patient.guardian_id]?.full_name || null) : null;
           
           return {
             ...payment,
             approval_status: payment.approval_status || 'pending',
             patientName: patient.full_name || 'Unknown Patient',
+            childName: isMinor ? patient.full_name : null,
+            guardianName: guardianName,
+            isMinor: isMinor,
             invoiceNumber: invoice.invoice_number || 'Unknown',
             formattedAmount: formatCurrency(payment.amount || 0),
             formattedDate: new Date(payment.payment_date || payment.created_at).toLocaleDateString(),
@@ -1185,7 +1457,7 @@ const Billing = () => {
   };
   
   const formatCurrency = (amount) => {
-    return `₱${parseFloat(amount).toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,')}`;
+    return `PHP ${parseFloat(amount).toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,')}`;
   };
   
   const generateInvoiceNumber = () => {
@@ -1224,10 +1496,26 @@ const Billing = () => {
       doctorName = profileData?.full_name || '';
     } catch {}
 
+    // Check if patient is a minor (has guardian_id) and fetch guardian information
+    let guardianName = null;
+    if (selectedPatient.guardian_id) {
+      try {
+        const { data: guardianData } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', selectedPatient.guardian_id)
+          .single();
+        guardianName = guardianData?.full_name || null;
+      } catch (error) {
+        console.error('Error fetching guardian information:', error);
+      }
+    }
+
     const updatedNotes = [
       notes && notes.trim().length > 0 ? notes.trim() : null,
       doctorName ? `Doctor: Dr. ${doctorName}` : null,
-      user?.id ? `DoctorId: ${user.id}` : null
+      user?.id ? `DoctorId: ${user.id}` : null,
+      guardianName ? `Guardian: ${guardianName}` : null
     ].filter(Boolean).join(' | ');
 
     // Generate invoice - without appointment_id field since it doesn't exist in the schema
@@ -1301,19 +1589,38 @@ const Billing = () => {
         // Continue even if audit logging fails
       }
       
-      // Reset form
-      setSelectedPatient(null);
-      setSearchQuery('');
-      setLineItems([]);
-      setPaymentMethod('');
-      setPaymentStatus('pending');
-      setNotes('');
-      setDiscount(0);
-      setTax(0);
-      setSelectedAppointment(null);
-      setPatientAppointments([]);
-      
-      toast.success('Invoice generated successfully');
+      // Reset form but keep patient selected if an appointment was invoiced
+      if (selectedAppointment) {
+        // Keep patient selected and refresh appointment list to hide the invoiced appointment
+        setLineItems([]);
+        setPaymentMethod('');
+        setPaymentStatus('pending');
+        setNotes('');
+        setDiscount(0);
+        setTax(0);
+        setSelectedAppointment(null);
+        
+        // Refresh appointment list to hide the invoiced appointment
+        if (selectedPatient) {
+          fetchPatientAppointments(selectedPatient.id);
+        }
+        
+        toast.success(`Invoice generated successfully! Appointment ${selectedAppointment.formattedDate} at ${selectedAppointment.formattedTime} has been invoiced.`);
+      } else {
+        // No appointment selected, reset everything
+        setSelectedPatient(null);
+        setSearchQuery('');
+        setLineItems([]);
+        setPaymentMethod('');
+        setPaymentStatus('pending');
+        setNotes('');
+        setDiscount(0);
+        setTax(0);
+        setSelectedAppointment(null);
+        setPatientAppointments([]);
+        
+        toast.success('Invoice generated successfully');
+      }
       
       // Reload invoices
       fetchInvoices();
@@ -2243,7 +2550,7 @@ const Billing = () => {
                   </div>
 
                   {/* Appointment Selection */}
-                  {selectedPatient && patientAppointments.length > 0 && (
+                  {selectedPatient && (
                     <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 border border-green-100">
                       <div className="flex items-center mb-4">
                         <FiCalendar className="h-5 w-5 text-green-600 mr-2" />
@@ -2251,45 +2558,62 @@ const Billing = () => {
                         <span className="ml-2 text-sm text-gray-500">(Optional)</span>
                       </div>
                       
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <FiClock className="h-5 w-5 text-gray-400" />
-                        </div>
-                        <button
-                          type="button"
-                          className="block w-full pl-10 pr-3 py-3 text-left border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm bg-white hover:bg-gray-50 transition-colors duration-150"
-                          onClick={() => setShowAppointmentDropdown(!showAppointmentDropdown)}
-                        >
-                          {selectedAppointment 
-                            ? `${selectedAppointment.formattedDate} at ${selectedAppointment.formattedTime}` 
-                            : 'Select a completed appointment...'}
-                        </button>
-                        {showAppointmentDropdown && (
-                          <div className="absolute z-10 mt-1 w-full bg-white shadow-xl rounded-lg overflow-hidden border border-gray-200">
-                            <ul className="max-h-60 overflow-y-auto py-1">
-                              {patientAppointments.map((appointment) => (
-                                <li
-                                  key={appointment.id}
-                                  className="px-4 py-3 hover:bg-green-50 cursor-pointer transition-colors duration-150 border-b border-gray-100 last:border-b-0"
-                                  onClick={() => handleAppointmentSelect(appointment)}
-                                >
-                                  <div className="font-medium text-gray-900">
-                                    {appointment.formattedDate} at {appointment.formattedTime}
-                                  </div>
-                                  <div className="text-sm text-gray-500">
-                                    {appointment.branch} {appointment.teeth_involved && `- Teeth: ${appointment.teeth_involved}`}
-                                  </div>
-                                  {appointment.notes && (
-                                    <div className="text-xs text-gray-500 mt-1 truncate">
-                                      {appointment.notes}
-                                    </div>
-                                  )}
-                                </li>
-                              ))}
-                            </ul>
+                      {patientAppointments.length > 0 ? (
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <FiClock className="h-5 w-5 text-gray-400" />
                           </div>
-                        )}
-                      </div>
+                          <button
+                            type="button"
+                            className="block w-full pl-10 pr-3 py-3 text-left border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm bg-white hover:bg-gray-50 transition-colors duration-150"
+                            onClick={() => setShowAppointmentDropdown(!showAppointmentDropdown)}
+                          >
+                            {selectedAppointment 
+                              ? `${selectedAppointment.formattedDate} at ${selectedAppointment.formattedTime}` 
+                              : 'Select a completed appointment...'}
+                          </button>
+                          {showAppointmentDropdown && (
+                            <div className="absolute z-10 mt-1 w-full bg-white shadow-xl rounded-lg overflow-hidden border border-gray-200">
+                              <ul className="max-h-60 overflow-y-auto py-1">
+                                {patientAppointments.map((appointment) => (
+                                  <li
+                                    key={appointment.id}
+                                    className="px-4 py-3 hover:bg-green-50 cursor-pointer transition-colors duration-150 border-b border-gray-100 last:border-b-0"
+                                    onClick={() => handleAppointmentSelect(appointment)}
+                                  >
+                                    <div className="font-medium text-gray-900">
+                                      {appointment.formattedDate} at {appointment.formattedTime}
+                                    </div>
+                                    <div className="text-sm text-gray-500">
+                                      {appointment.branch} {appointment.teeth_involved && `- Teeth: ${appointment.teeth_involved}`}
+                                    </div>
+                                    {appointment.notes && (
+                                      <div className="text-xs text-gray-500 mt-1 truncate">
+                                        {appointment.notes}
+                                      </div>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                          <div className="flex items-center">
+                            <FiCalendar className="h-5 w-5 text-blue-600 mr-2" />
+                            <div>
+                              <p className="text-sm text-blue-700 font-medium">
+                                No completed appointments available
+                              </p>
+                              <p className="text-xs text-blue-600 mt-1">
+                                All completed appointments have been invoiced
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
                       {selectedAppointment && (
                         <div className="mt-3 p-3 bg-white rounded-lg border border-green-200">
                           <p className="text-sm text-green-700 font-medium">
@@ -2320,10 +2644,10 @@ const Billing = () => {
                                 key={service.id}
                                 type="button"
                                 onClick={() => handleAddService(service)}
-                                className="px-4 py-3 border border-gray-300 text-sm rounded-lg hover:bg-blue-50 hover:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500 flex justify-between items-center transition-all duration-150 group"
+                                className="px-4 py-3 border border-gray-300 text-sm rounded-lg hover:bg-blue-50 hover:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center transition-all duration-150 group"
                               >
-                                <span className="truncate pr-2 group-hover:text-blue-700">{service.name}</span>
-                                <span className="text-gray-600 font-medium group-hover:text-blue-600">{formatCurrency(service.price)}</span>
+                                <span className="flex-1 truncate pr-2 group-hover:text-blue-700 text-left">{service.name}</span>
+                                <span className="text-gray-600 font-medium group-hover:text-blue-600 whitespace-nowrap flex-shrink-0">{formatCurrency(service.price)}</span>
                               </button>
                             ))}
                           </div>
@@ -2343,7 +2667,7 @@ const Billing = () => {
                           />
                         </div>
                         <div className="col-span-12 md:col-span-3">
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Unit Price (₱)</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Unit Price (PHP)</label>
                           <input 
                             type="number" 
                             placeholder="0.00"
@@ -2480,7 +2804,7 @@ const Billing = () => {
                             <option value="student">Student (10%)</option>
                             <option value="veteran">Veteran (20%)</option>
                             <option value="percentage">Custom Percentage (%)</option>
-                            <option value="amount">Custom Amount (₱)</option>
+                            <option value="amount">Custom Amount (PHP)</option>
                           </select>
                         </div>
                         
@@ -2498,7 +2822,7 @@ const Billing = () => {
                               disabled={['pwd', 'senior', 'student', 'veteran'].includes(discountType)}
                             />
                             <div className="border-l-0 border-gray-300 rounded-r-lg shadow-sm py-2.5 px-3 text-sm bg-gray-50 flex items-center">
-                              {discountType === 'percentage' || ['pwd', 'senior', 'student', 'veteran'].includes(discountType) ? '%' : '₱'}
+                              {discountType === 'percentage' || ['pwd', 'senior', 'student', 'veteran'].includes(discountType) ? '%' : 'PHP'}
                           </div>
                           </div>
                           {['pwd', 'senior', 'student', 'veteran'].includes(discountType) && (
@@ -2634,19 +2958,161 @@ const Billing = () => {
                   {/* Content for Invoices View */}
                   {historyView === 'invoices' && (
                     <>
+                      {/* Search and Filter Section */}
                       <div className="flex flex-col gap-4 mb-6">
+                        {/* Search Bar */}
                         <div className="relative w-full">
                           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <FiSearch className="h-5 w-5 text-gray-400" />
                           </div>
                           <input
                             type="text"
-                            placeholder="Search invoices by number or patient..."
+                            placeholder="Search by invoice number, patient name, guardian name, doctor name, or notes..."
                             className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
                             value={invoiceSearchQuery}
                             onChange={(e) => setInvoiceSearchQuery(e.target.value)}
                           />
                         </div>
+
+                        {/* Date Filter Buttons */}
+                        <div className="flex flex-wrap items-center gap-3">
+                          <div className="flex items-center gap-2">
+                            <FiFilter className="h-4 w-4 text-gray-500" />
+                            <span className="text-sm font-medium text-gray-700">Date Filter:</span>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              onClick={() => {
+                                setDateFilter('all');
+                                setDateFrom(null);
+                                setDateTo(null);
+                              }}
+                              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                                dateFilter === 'all'
+                                  ? 'bg-blue-600 text-white shadow-md'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              }`}
+                            >
+                              All Invoices
+                            </button>
+                            <button
+                              onClick={() => {
+                                setDateFilter('today');
+                                setDateFrom(null);
+                                setDateTo(null);
+                              }}
+                              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                                dateFilter === 'today'
+                                  ? 'bg-blue-600 text-white shadow-md'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              }`}
+                            >
+                              Today
+                            </button>
+                            <button
+                              onClick={() => {
+                                setDateFilter('thisWeek');
+                                setDateFrom(null);
+                                setDateTo(null);
+                              }}
+                              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                                dateFilter === 'thisWeek'
+                                  ? 'bg-blue-600 text-white shadow-md'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              }`}
+                            >
+                              This Week
+                            </button>
+                            <button
+                              onClick={() => {
+                                setDateFilter('thisMonth');
+                                setDateFrom(null);
+                                setDateTo(null);
+                              }}
+                              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                                dateFilter === 'thisMonth'
+                                  ? 'bg-blue-600 text-white shadow-md'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              }`}
+                            >
+                              This Month
+                            </button>
+                            <button
+                              onClick={() => {
+                                setDateFilter('thisYear');
+                                setDateFrom(null);
+                                setDateTo(null);
+                              }}
+                              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                                dateFilter === 'thisYear'
+                                  ? 'bg-blue-600 text-white shadow-md'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              }`}
+                            >
+                              This Year
+                            </button>
+                            <button
+                              onClick={() => {
+                                setDateFilter(dateFilter === 'custom' ? 'all' : 'custom');
+                              }}
+                              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                                dateFilter === 'custom'
+                                  ? 'bg-blue-600 text-white shadow-md'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              }`}
+                            >
+                              <FiCalendar className="inline h-4 w-4 mr-1" />
+                              Custom Range
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Custom Date Range Inputs */}
+                        {dateFilter === 'custom' && (
+                          <div className="flex flex-wrap items-center gap-4 p-4 bg-blue-50 rounded-lg border-2 border-blue-200 shadow-sm">
+                            <div className="flex items-center space-x-2">
+                              <label className="text-sm font-medium text-gray-700">From:</label>
+                              <DatePicker
+                                selected={dateFrom}
+                                onChange={(date) => setDateFrom(date)}
+                                selectsStart
+                                startDate={dateFrom}
+                                endDate={dateTo}
+                                maxDate={dateTo || new Date()}
+                                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                dateFormat="yyyy-MM-dd"
+                                placeholderText="Start Date"
+                              />
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <label className="text-sm font-medium text-gray-700">To:</label>
+                              <DatePicker
+                                selected={dateTo}
+                                onChange={(date) => setDateTo(date)}
+                                selectsEnd
+                                startDate={dateFrom}
+                                endDate={dateTo}
+                                minDate={dateFrom}
+                                maxDate={new Date()}
+                                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                dateFormat="yyyy-MM-dd"
+                                placeholderText="End Date"
+                              />
+                            </div>
+                            {(dateFrom || dateTo) && (
+                              <button
+                                onClick={() => {
+                                  setDateFrom(null);
+                                  setDateTo(null);
+                                }}
+                                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors flex items-center gap-2"
+                              >
+                                <FiX className="h-4 w-4" />
+                                Clear
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       <div id="invoice-history" className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
@@ -2740,6 +3206,11 @@ const Billing = () => {
                                     </td>
                                     <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
                                       <div className="text-sm font-medium text-gray-900">{invoice.patientName}</div>
+                                      {invoice.isMinor && invoice.guardianName && (
+                                        <div className="text-xs text-gray-500 mt-1">
+                                          Guardian: {invoice.guardianName}
+                                        </div>
+                                      )}
                                     </td>
                                     <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm text-gray-500 hidden sm:table-cell">
                                       {invoice.formattedDate}
@@ -2830,6 +3301,147 @@ const Billing = () => {
                             onChange={(e) => setPaymentSearchQuery(e.target.value)}
                           />
                         </div>
+                        
+                        {/* Date Filter Buttons for Payments */}
+                        <div className="flex flex-wrap items-center gap-3">
+                          <div className="flex items-center gap-2">
+                            <FiFilter className="h-4 w-4 text-gray-500" />
+                            <span className="text-sm font-medium text-gray-700">Date Filter:</span>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              onClick={() => {
+                                setPaymentDateFilter('all');
+                                setPaymentDateFrom(null);
+                                setPaymentDateTo(null);
+                              }}
+                              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                                paymentDateFilter === 'all'
+                                  ? 'bg-blue-600 text-white shadow-md'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              }`}
+                            >
+                              All Payments
+                            </button>
+                            <button
+                              onClick={() => {
+                                setPaymentDateFilter('today');
+                                setPaymentDateFrom(null);
+                                setPaymentDateTo(null);
+                              }}
+                              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                                paymentDateFilter === 'today'
+                                  ? 'bg-blue-600 text-white shadow-md'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              }`}
+                            >
+                              Today
+                            </button>
+                            <button
+                              onClick={() => {
+                                setPaymentDateFilter('thisWeek');
+                                setPaymentDateFrom(null);
+                                setPaymentDateTo(null);
+                              }}
+                              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                                paymentDateFilter === 'thisWeek'
+                                  ? 'bg-blue-600 text-white shadow-md'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              }`}
+                            >
+                              This Week
+                            </button>
+                            <button
+                              onClick={() => {
+                                setPaymentDateFilter('thisMonth');
+                                setPaymentDateFrom(null);
+                                setPaymentDateTo(null);
+                              }}
+                              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                                paymentDateFilter === 'thisMonth'
+                                  ? 'bg-blue-600 text-white shadow-md'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              }`}
+                            >
+                              This Month
+                            </button>
+                            <button
+                              onClick={() => {
+                                setPaymentDateFilter('thisYear');
+                                setPaymentDateFrom(null);
+                                setPaymentDateTo(null);
+                              }}
+                              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                                paymentDateFilter === 'thisYear'
+                                  ? 'bg-blue-600 text-white shadow-md'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              }`}
+                            >
+                              This Year
+                            </button>
+                            <button
+                              onClick={() => {
+                                setPaymentDateFilter(paymentDateFilter === 'custom' ? 'all' : 'custom');
+                              }}
+                              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                                paymentDateFilter === 'custom'
+                                  ? 'bg-blue-600 text-white shadow-md'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              }`}
+                            >
+                              <FiCalendar className="inline h-4 w-4 mr-1" />
+                              Custom Range
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Custom Date Range Inputs for Payments */}
+                        {paymentDateFilter === 'custom' && (
+                          <div className="flex flex-wrap items-center gap-4 p-4 bg-blue-50 rounded-lg border-2 border-blue-200 shadow-sm">
+                            <div className="flex items-center space-x-2">
+                              <label className="text-sm font-medium text-gray-700">From:</label>
+                              <DatePicker
+                                selected={paymentDateFrom}
+                                onChange={(date) => setPaymentDateFrom(date)}
+                                selectsStart
+                                startDate={paymentDateFrom}
+                                endDate={paymentDateTo}
+                                maxDate={paymentDateTo || new Date()}
+                                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                dateFormat="yyyy-MM-dd"
+                                placeholderText="Start Date"
+                              />
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <label className="text-sm font-medium text-gray-700">To:</label>
+                              <DatePicker
+                                selected={paymentDateTo}
+                                onChange={(date) => setPaymentDateTo(date)}
+                                selectsEnd
+                                startDate={paymentDateFrom}
+                                endDate={paymentDateTo}
+                                minDate={paymentDateFrom}
+                                maxDate={new Date()}
+                                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                dateFormat="yyyy-MM-dd"
+                                placeholderText="End Date"
+                              />
+                            </div>
+                            {(paymentDateFrom || paymentDateTo) && (
+                              <button
+                                onClick={() => {
+                                  setPaymentDateFrom(null);
+                                  setPaymentDateTo(null);
+                                }}
+                                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors flex items-center gap-2"
+                              >
+                                <FiX className="h-4 w-4" />
+                                Clear
+                              </button>
+                            )}
+                          </div>
+                        )}
+
                         <div className="flex flex-col sm:flex-row gap-3">
                           <select
                             className="flex-1 block pl-3 pr-10 py-2.5 border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm rounded-lg"
@@ -2892,7 +3504,16 @@ const Billing = () => {
                                 {filteredPayments.map((payment) => (
                                   <tr key={payment.id} className="hover:bg-gray-50 transition-colors duration-150">
                                     <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
-                                      <div className="text-sm font-medium text-gray-900">{payment.patientName}</div>
+                                      {payment.isMinor && payment.childName ? (
+                                        <>
+                                          <div className="text-base font-bold text-gray-900">{payment.childName}</div>
+                                          {payment.guardianName && (
+                                            <div className="text-xs text-gray-500 mt-1">{payment.guardianName}</div>
+                                          )}
+                                        </>
+                                      ) : (
+                                        <div className="text-base font-bold text-gray-900">{payment.patientName}</div>
+                                      )}
                                     </td>
                                     <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
                                       <div className="text-sm font-semibold text-blue-600">#{payment.invoiceNumber}</div>
@@ -2916,8 +3537,8 @@ const Billing = () => {
                                         <>
                                           <div className="text-xs text-gray-500">Remaining:</div>
                                           <div className="text-sm text-gray-900">{formatCurrency(Math.max((parseFloat(payment.invoices.total_amount || 0)) - (parseFloat(payment.invoices.amount_paid || 0)), 0))}</div>
-                                          <div className="text-xs text-gray-500 mt-1">Paid: ₱{parseFloat(payment.invoices.amount_paid || 0).toFixed(2)}</div>
-                                          <div className="text-xs text-gray-500">Total: ₱{parseFloat(payment.invoices.total_amount || 0).toFixed(2)}</div>
+                                          <div className="text-xs text-gray-500 mt-1">Paid: PHP {parseFloat(payment.invoices.amount_paid || 0).toFixed(2)}</div>
+                                          <div className="text-xs text-gray-500">Total: PHP {parseFloat(payment.invoices.total_amount || 0).toFixed(2)}</div>
                                         </>
                                       ) : (
                                         <div className="text-sm text-gray-900">{payment.formattedAmount}</div>
@@ -3094,6 +3715,12 @@ const Billing = () => {
                       </h2>
                       <div className="text-gray-700 space-y-1">
                         <p className="font-semibold text-lg">{selectedInvoice.patientName}</p>
+                        {selectedInvoice.isMinor && selectedInvoice.guardianName && (
+                          <p className="font-medium text-gray-600 mt-1">Guardian: {selectedInvoice.guardianName}</p>
+                        )}
+                        {selectedInvoice.isMinor && selectedInvoice.guardianPhone && (
+                          <p className="text-gray-600">Guardian Phone: {selectedInvoice.guardianPhone}</p>
+                        )}
                         {selectedInvoice.profiles?.address && (
                           <p>{selectedInvoice.profiles.address}</p>
                         )}
@@ -3298,7 +3925,7 @@ const Billing = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-4 flex justify-between items-center">
+            <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-4 flex justify-between items-center">
               <h3 className="text-xl font-semibold text-white">
                 Payment Review
               </h3>
@@ -3664,7 +4291,7 @@ const Billing = () => {
                       placeholder="Discount"
                     />
                     <div className="col-span-1 text-right font-semibold text-gray-700">
-                      ₱{(item.price * item.quantity - (item.discount || 0)).toFixed(2)}
+                      PHP {(item.price * item.quantity - (item.discount || 0)).toFixed(2)}
                     </div>
                     <button
                       className="col-span-1 text-red-600 hover:text-red-900 p-1 rounded-full hover:bg-red-50 transition-colors duration-150"
@@ -3787,22 +4414,22 @@ const Billing = () => {
                       <div className="space-y-3">
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Subtotal:</span>
-                          <span className="font-medium text-gray-900">₱{subtotal.toFixed(2)}</span>
+                          <span className="font-medium text-gray-900">PHP {subtotal.toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Discount:</span>
-                          <span className="font-medium text-gray-900">-₱{discount.toFixed(2)}</span>
+                          <span className="font-medium text-gray-900">-PHP {discount.toFixed(2)}</span>
                         </div>
                         {tax > 0 && (
                           <div className="flex justify-between text-sm">
                             <span className="text-gray-600">Tax ({tax}%):</span>
-                            <span className="font-medium text-gray-900">₱{taxAmount.toFixed(2)}</span>
+                            <span className="font-medium text-gray-900">PHP {taxAmount.toFixed(2)}</span>
                           </div>
                         )}
                         <div className="border-t border-blue-200 pt-3">
                           <div className="flex justify-between text-lg font-bold">
                             <span className="text-blue-700">Total Amount:</span>
-                            <span className="text-blue-700">₱{total.toFixed(2)}</span>
+                            <span className="text-blue-700">PHP {total.toFixed(2)}</span>
                           </div>
                         </div>
                       </div>

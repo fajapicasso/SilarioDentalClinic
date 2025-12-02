@@ -14,7 +14,7 @@ import { useUniversalAudit } from '../../hooks/useUniversalAudit';
 const DentalChart = ({ editMode: propEditMode }) => {
   const { pathname } = useLocation();
   const routeEditMode = propEditMode !== undefined ? propEditMode : pathname.endsWith('/edit');
-  const { patientId } = useParams();
+  const { patientId, childId } = useParams();
   const navigate = useNavigate();
   const { logPageView, logMedicalRecordView, logMedicalRecordUpdate, logTreatmentAdd } = useUniversalAudit();
   const [patient, setPatient] = useState(null);
@@ -193,13 +193,34 @@ const dentalHistory = [
         return false;
       }
 
-      // For patients, verify they can only access their own chart
-      if (patientId && patientId !== user.id) {
-        console.error('Patient trying to access another patient\'s chart:', patientId, 'vs', user.id);
-        setConnectionStatus('unauthorized');
-        toast.error('You can only access your own dental chart.');
-        navigate('/dashboard');
-        return false;
+      // For patients, verify they can only access their own chart or their child's chart
+      const targetPatientId = childId || patientId;
+      
+      if (targetPatientId && targetPatientId !== user.id) {
+        // If viewing a child's chart, verify the user is the guardian
+        if (childId) {
+          const { data: childProfile, error: childError } = await supabase
+            .from('profiles')
+            .select('guardian_id')
+            .eq('id', childId)
+            .eq('guardian_id', user.id)
+            .single();
+          
+          if (childError || !childProfile) {
+            console.error('Patient trying to access a child\'s chart without permission:', childId);
+            setConnectionStatus('unauthorized');
+            toast.error('You do not have permission to access this child\'s dental chart.');
+            navigate('/patient/records');
+            return false;
+          }
+        } else {
+          // Not a child, so must be their own chart
+          console.error('Patient trying to access another patient\'s chart:', patientId, 'vs', user.id);
+          setConnectionStatus('unauthorized');
+          toast.error('You can only access your own dental chart.');
+          navigate('/dashboard');
+          return false;
+        }
       }
 
       setUserProfile(profile);
@@ -227,7 +248,7 @@ const dentalHistory = [
     };
 
     initializeConnection();
-  }, [logPageView]); // Remove patientId dependency since patients always use their own ID
+  }, [logPageView, childId]); // Include childId to refetch when viewing different child
 
   // Filter treatments based on search and filters
   useEffect(() => {
@@ -267,14 +288,14 @@ const dentalHistory = [
 
   const fetchPatientData = async (retryCount = 0) => {
     try {
-      // For patients, always fetch their own data
+      // For patients, fetch their own data or child's data if childId is provided
       const currentUser = await getCurrentUser();
-      const userId = currentUser?.id || patientId;
+      const targetPatientId = childId || currentUser?.id || patientId;
       
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', userId)
+        .eq('id', targetPatientId)
         .single();
       
       if (error) {
@@ -303,14 +324,14 @@ const dentalHistory = [
   const fetchDentalChart = async (retryCount = 0) => {
     setIsLoading(true);
     try {
-      // For patients, always fetch their own chart
+      // For patients, fetch their own chart or child's chart if childId is provided
       const currentUser = await getCurrentUser();
-      const userId = currentUser?.id || patientId;
+      const targetPatientId = childId || currentUser?.id || patientId;
       
       const { data, error } = await supabase
         .from('dental_charts')
         .select('*')
-        .eq('patient_id', userId)
+        .eq('patient_id', targetPatientId)
         .single();
       
       if (error) {
@@ -342,9 +363,9 @@ const dentalHistory = [
 
   const fetchTreatmentHistory = async (retryCount = 0) => {
     try {
-      // For patients, always fetch their own treatment history
+      // For patients, fetch their own treatment history or child's if childId is provided
       const currentUser = await getCurrentUser();
-      const userId = currentUser?.id || patientId;
+      const targetPatientId = childId || currentUser?.id || patientId;
       
       const { data, error } = await supabase
         .from('treatments')
@@ -358,7 +379,7 @@ const dentalHistory = [
           created_at,
           doctor:doctor_id (id, full_name)
         `)
-        .eq('patient_id', userId)
+        .eq('patient_id', targetPatientId)
         .order('treatment_date', { ascending: false });
       
       if (error) {
@@ -430,10 +451,13 @@ const dentalHistory = [
         return;
       }
       
+      // Determine which patient's chart to save - use childId if provided, otherwise use user's ID
+      const targetPatientId = childId || user.id;
+      
       const chartData = {
-        patient_id: user.id, // Always use current user's ID for patients
+        patient_id: targetPatientId, // Use child's ID if editing child's chart, otherwise use current user's ID
         chart_data: dentalChart,
-        created_by: user.id,
+        created_by: user.id, // Always track who created/updated (the guardian)
         updated_at: new Date().toISOString()
       };
 
@@ -452,6 +476,44 @@ const dentalHistory = [
         throw error;
       }
       
+      // Also update the patient profile if patient information was edited
+      if (patient && originalPatient) {
+        const patientChanged = JSON.stringify(patient) !== JSON.stringify(originalPatient);
+        if (patientChanged) {
+          try {
+            // Prepare profile update data
+            const profileUpdateData = {
+              full_name: patient.full_name,
+              nickname: patient.nickname || null,
+              address: patient.address || null,
+              nationality: patient.nationality || null,
+              gender: patient.gender || null,
+              phone: patient.phone || null,
+              mobile: patient.mobile || patient.phone || null,
+              occupation: patient.occupation || null,
+              office_no: patient.office_no || null,
+              birthday: patient.birthday || null,
+              updated_at: new Date().toISOString()
+            };
+            
+            // Update the patient's profile
+            const { error: profileError } = await supabase
+              .from('profiles')
+              .update(profileUpdateData)
+              .eq('id', targetPatientId);
+            
+            if (profileError) {
+              console.error('Error updating patient profile:', profileError);
+              // Don't throw - chart was saved successfully, profile update is secondary
+              toast.warning('Dental chart saved, but profile update failed');
+            }
+          } catch (profileUpdateError) {
+            console.error('Error updating patient profile:', profileUpdateError);
+            // Don't throw - chart was saved successfully
+          }
+        }
+      }
+      
       toast.success('Dental chart saved successfully');
       setEditMode(false);
       // Update original data after successful save
@@ -459,6 +521,8 @@ const dentalHistory = [
       setOriginalPatient(patient);
       // Refresh the dental chart data to ensure latest data is displayed
       fetchDentalChart();
+      // Refresh patient data to show updated information
+      fetchPatientData();
     } catch (error) {
       console.error('Error saving dental chart:', error);
       const errorMessage = handleSupabaseError(error, 'Failed to save dental chart');

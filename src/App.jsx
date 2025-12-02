@@ -1,7 +1,7 @@
 // src/App.jsx - Updated with NotificationProvider and routes
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+// import { ToastContainer } from 'react-toastify';
+// import 'react-toastify/dist/ReactToastify.css';
 import { useState, useEffect } from 'react';
 import { AuthProvider } from './contexts/AuthContext';
 import { ClinicProvider } from './contexts/ClinicContext';
@@ -38,6 +38,7 @@ import AuditLogs from './pages/admin/AuditLogs';
 // Private Pages - Doctor
 import DoctorDashboard from './pages/doctor/Dashboard';
 import DoctorAppointments from './pages/doctor/Appointments';
+import AppointmentCalendar from './pages/doctor/AppointmentCalendar';
 import DoctorPatientRecords from './pages/doctor/PatientRecords';
 import PatientsList from './pages/doctor/PatientsList';
 import DoctorEmergencyCases from './pages/doctor/EmergencyCases';
@@ -59,6 +60,7 @@ import StaffDentalChart from './pages/staff/DentalChart';
 import StaffEditInvoice from './pages/staff/EditInvoice';
 import StaffPaymentsPage from './pages/staff/ManagePayments';
 import StaffTreatmentHistory from './pages/staff/TreatmentHistory';
+import StaffBilling from './pages/staff/Billing';
 
 // Private Pages - Patient
 import PatientDashboard from './pages/patient/Dashboard';
@@ -188,6 +190,7 @@ function App() {
                 <Route index element={<Navigate to="/doctor/dashboard" replace />} />
                 <Route path="dashboard" element={<DoctorDashboard />} />
                 <Route path="appointments" element={<DoctorAppointments />} />
+                <Route path="calendar" element={<AppointmentCalendar />} />
                 <Route path="patients" element={<PatientsList />} />
                 <Route path="patients/:patientId" element={<DoctorPatientRecords />} />
                 <Route path="patients/:patientId/dental-chart" element={<DentalChart />} />
@@ -212,6 +215,7 @@ function App() {
                 <Route path="patients/:patientId" element={<StaffPatientRecords />} />
                 <Route path="patients/:patientId/dental-chart" element={<StaffDentalChart />} />
                 <Route path="patients/:patientId/dental-chart/edit" element={<StaffDentalChart editMode={true} />} />
+                <Route path="billing" element={<StaffBilling />} />
                 <Route path="billing/edit/:invoiceId" element={<StaffEditInvoice />} />
                 <Route path="settings" element={<StaffSettings />} />
                 <Route path="payments" element={<StaffPaymentsPage />} />
@@ -234,9 +238,11 @@ function App() {
                 <Route path="treatments" element={<PatientTreatmentHistory />} />
                 {/* My dental records (combined view) */}
                 <Route path="records" element={<MyDentalRecords />} />
+                <Route path="records/child/:childId" element={<MyDentalRecords />} />
                 <Route path="patient-records" element={<MyDentalRecords />} />
                 {/* Interactive chart editor */}
                 <Route path="dental-chart" element={<PatientDentalChart />} />
+                <Route path="dental-chart/child/:childId" element={<PatientDentalChart />} />
                 <Route path="settings" element={<PatientSettings />} />
                 <Route path="analytics" element={<PatientAnalytics />} />
                 {/* Patient notification routes */}
@@ -247,7 +253,7 @@ function App() {
               {/* 404 Route */}
               <Route path="*" element={<NotFound />} />
             </Routes>
-            <ToastContainer position="top-right" autoClose={3000} />
+            {/* ToastContainer removed globally to disable slide notifications */}
           </Router>
         </NotificationProvider>
       </ClinicProvider>

@@ -340,36 +340,27 @@ export function AuthProvider({ children }) {
       setLoading(true);
       console.log("Password reset token requested for:", email);
       
-      // Use Supabase's built-in password reset functionality
-      // This will send a 6-digit code via email
-      console.log("Requesting password reset for email:", email);
-      const { error } = await supabase.auth.signInWithOtp({
-        email: email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/reset-password?from=email`
-        }
+      // Use Supabase's built-in password reset email system
+      console.log("Requesting password reset via Supabase for email:", email);
+      
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
       });
       
       if (error) {
-        console.error("Password reset request error:", error);
-      } else {
-        console.log("Password reset email sent successfully");
-      }
-      
-      if (error) {
         console.error("Password reset error:", error);
-        if (error.message.includes('User not found')) {
+        if (error.message.includes('User not found') || error.message.includes('not found')) {
           throw new Error('No account found with this email address.');
-        } else if (error.message.includes('Account is disabled')) {
+        } else if (error.message.includes('disabled')) {
           throw new Error('This account has been disabled. Please contact an administrator.');
         }
         throw error;
       }
       
-      console.log("Password reset email sent successfully");
+      console.log("Password reset email sent successfully via Supabase");
       return { 
         success: true, 
-        message: 'Password reset instructions sent to your email.'
+        message: 'Password reset instructions have been sent to your email. Please check your inbox.'
       };
     } catch (error) {
       console.error("Password reset token request failed:", error);
@@ -449,51 +440,56 @@ export function AuthProvider({ children }) {
     try {
       setLoading(true);
       console.log("Attempting to reset password with token for:", email);
+      console.log("Token provided:", token);
       
-      // Use Supabase's built-in OTP verification for password reset
-      // For 6-digit codes from email, we need to use the correct approach
-      console.log("Attempting OTP verification with token:", token, "for email:", email);
+      // Validate the custom token using database function
+      const { data: validationData, error: validationError } = await supabase
+        .rpc('validate_password_reset_token', {
+          user_email: email.toLowerCase().trim(),
+          reset_token: token.trim()
+        });
       
-      // For password reset with 6-digit codes, we need to use a different approach
-      // First, verify the OTP to get the user session
-      const { data: otpData, error: otpError } = await supabase.auth.verifyOtp({
-        token: token,
-        type: 'email',
-        email: email
-      });
-      
-      if (otpError) {
-        console.error("Email OTP failed:", otpError);
-        console.error("Token provided:", token);
-        console.error("Email provided:", email);
-        console.error("Error details:", otpError);
-        throw new Error(`Invalid reset code: ${otpError.message}. Please check the 6-digit code from your email.`);
+      if (validationError) {
+        console.error("Token validation error:", validationError);
+        throw new Error(`Token validation failed: ${validationError.message}`);
       }
       
-      if (!otpData || !otpData.user) {
-        throw new Error('Invalid reset code or user not found');
+      if (!validationData || validationData.length === 0) {
+        throw new Error('Invalid reset code. Please check the 6-digit code from your email.');
       }
       
-      console.log("Email OTP verified successfully for user:", otpData.user.id);
+      const validationResult = validationData[0];
       
-      // Now we need to use the session to update the password
-      // This is different from the admin approach - we use the user's session
-      const { error: updateError } = await supabase.auth.updateUser({
-        password: newPassword
-      });
+      if (!validationResult.is_valid) {
+        throw new Error(validationResult.message || 'Invalid or expired reset code.');
+      }
+      
+      const userId = validationResult.user_id;
+      console.log("Token validated successfully for user:", userId);
+      
+      // Update password using admin client (requires service role key)
+      if (!supabaseAdmin) {
+        console.error("Service role key not available - cannot update password");
+        throw new Error('Password reset is not properly configured. Please contact support.');
+      }
+      
+      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+        userId,
+        { password: newPassword }
+      );
       
       if (updateError) {
         console.error("Password update error:", updateError);
         throw new Error(`Failed to update password: ${updateError.message}`);
       }
       
-      console.log("Password updated successfully for user:", otpData.user.id);
+      console.log("Password updated successfully for user:", userId);
       
       // Get user profile data
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('role, full_name, email')
-        .eq('id', otpData.user.id)
+        .eq('id', userId)
         .single();
       
       if (profileError) {
@@ -501,8 +497,25 @@ export function AuthProvider({ children }) {
         throw new Error('Failed to fetch user profile');
       }
       
+      // Log the user in after successful password reset
+      const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
+        email: profileData.email,
+        password: newPassword,
+      });
+      
+      if (loginError) {
+        console.error("Auto-login after password reset failed:", loginError);
+        // Password was updated successfully, but auto-login failed
+        return { 
+          success: true, 
+          role: profileData.role,
+          message: 'Password reset successfully! Please login with your new password.',
+          autoLoginFailed: true 
+        };
+      }
+      
       // Set user state
-      setUser(otpData.user);
+      setUser(loginData.user);
       setUserRole(profileData.role);
       
       console.log("Password reset and auto-login successful");

@@ -14,9 +14,10 @@ import "react-datepicker/dist/react-datepicker.css";
 import { 
   FiCalendar, FiClock, FiMapPin, FiUser, FiCheck, 
   FiX, FiEdit, FiTrash2, FiAlertTriangle, FiArrowLeft,
-  FiBell, FiInfo, FiDownload, FiDollarSign, FiUsers,
+  FiBell, FiInfo, FiDownload, FiUsers,
   FiNavigation, FiTarget, FiGlobe
 } from 'react-icons/fi';
+import { RiWalletLine } from 'react-icons/ri';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import ScheduleService from '../../services/scheduleService';
 import ScheduleUtils from '../../services/scheduleUtils';
@@ -34,6 +35,24 @@ if (typeof window !== 'undefined') {
 }
 import { useAppointmentNotifications } from '../../hooks/useNotificationIntegration';
 import { useUniversalAudit } from '../../hooks/useUniversalAudit';
+
+// Helper function to format date as YYYY-MM-DD without timezone conversion
+// This ensures dates are stored/retrieved consistently in local time
+const formatDateLocal = (date) => {
+  if (!date) return null;
+  const d = date instanceof Date ? date : new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+// Helper function to parse YYYY-MM-DD string as local date (not UTC)
+const parseDateLocal = (dateString) => {
+  if (!dateString) return null;
+  const [year, month, day] = dateString.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
 
 // Branch coordinates for distance calculation
 const BRANCH_COORDINATES = {
@@ -122,6 +141,12 @@ const PatientAppointments = () => {
   const [locationError, setLocationError] = useState(null);
   const [branchDistances, setBranchDistances] = useState({});
   const [showLocationSuggestion, setShowLocationSuggestion] = useState(false);
+  
+  // Children management for booking appointments
+  const [children, setChildren] = useState([]);
+  const [isLoadingChildren, setIsLoadingChildren] = useState(false);
+  const [selectedPatientType, setSelectedPatientType] = useState('self'); // 'self' or 'child'
+  const [selectedChildId, setSelectedChildId] = useState(null);
 
   // Calculate distance between two coordinates using Haversine formula
   const calculateDistance = (lat1, lng1, lat2, lng2) => {
@@ -211,6 +236,37 @@ const PatientAppointments = () => {
     }
   };
 
+  // Fetch children when component loads
+  useEffect(() => {
+    if (user?.id) {
+      fetchChildren();
+    }
+  }, [user]);
+
+  // Fetch children for appointment booking
+  // Children are stored in profiles table with guardian_id set
+  const fetchChildren = async () => {
+    if (!user?.id) return;
+    
+    setIsLoadingChildren(true);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('guardian_id', user.id)
+        .eq('is_active', true)
+        .order('first_name', { ascending: true });
+      
+      if (error) throw error;
+      setChildren(data || []);
+    } catch (error) {
+      console.error('Error fetching children:', error);
+      // Don't show error toast, just log it - children are optional
+    } finally {
+      setIsLoadingChildren(false);
+    }
+  };
+
   // Auto-suggest branch when form opens
   useEffect(() => {
     if (showForm && !editingAppointment && !userLocation && !locationError) {
@@ -219,12 +275,12 @@ const PatientAppointments = () => {
     }
   }, [showForm, editingAppointment]);
 
-  // Load unavailable dates when form opens
+  // Load unavailable dates when form opens or patient type/child changes
   useEffect(() => {
     if (showForm && !editingAppointment) {
-      loadUnavailableDates();
+      loadUnavailableDates(selectedPatientType, selectedChildId);
     }
-  }, [showForm, editingAppointment]);
+  }, [showForm, editingAppointment, selectedPatientType, selectedChildId, children]);
 
   // Check if patient has existing appointment on a specific date
   const checkExistingAppointment = async (date) => {
@@ -249,18 +305,39 @@ const PatientAppointments = () => {
     }
   };
 
-  // Load unavailable dates for the date picker
-  const loadUnavailableDates = async () => {
+  // Load unavailable dates for the date picker - only checks the selected patient
+  // This allows user and children to book on the same day, but each person can only have one appointment per day
+  const loadUnavailableDates = async (patientType = selectedPatientType, childId = selectedChildId) => {
     try {
+      // Determine which patient to check based on selection
+      let patientIdToCheck = null;
+      
+      if (patientType === 'child' && childId) {
+        // If booking for a specific child, only check that child's appointments
+        patientIdToCheck = childId;
+      } else if (patientType === 'self') {
+        // If booking for self, only check user's appointments
+        patientIdToCheck = user.id;
+      } else {
+        // Default: check user's appointments if no selection made yet
+        patientIdToCheck = user.id;
+      }
+      
+      if (!patientIdToCheck) {
+        setUnavailableDates(new Set());
+        return new Set();
+      }
+      
+      // Fetch appointments only for the selected patient
       const { data, error } = await supabase
         .from('appointments')
-        .select('appointment_date')
-        .eq('patient_id', user.id)
+        .select('appointment_date, patient_id')
+        .eq('patient_id', patientIdToCheck)
         .in('status', ['pending', 'confirmed']); // Only check active appointments
       
       if (error) {
         console.error('Error loading unavailable dates:', error);
-        return;
+        return new Set();
       }
       
       const unavailableSet = new Set();
@@ -270,11 +347,53 @@ const PatientAppointments = () => {
         });
       }
       
-      console.log('Loaded unavailable dates:', Array.from(unavailableSet));
+      console.log(`Loaded unavailable dates for patient ${patientIdToCheck}:`, Array.from(unavailableSet));
       setUnavailableDates(unavailableSet);
+      return unavailableSet;
     } catch (error) {
       console.error('Error loading unavailable dates:', error);
+      return new Set();
     }
+  };
+
+  // Find the first available date based on branch restrictions and unavailable dates
+  // Appointments must be booked at least 1 day in advance (tomorrow or later)
+  const findFirstAvailableDate = (branch, unavailableDatesSet = unavailableDates) => {
+    if (!branch) return null;
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    
+    // Start checking from tomorrow (appointments must be booked in advance)
+    // Check up to 60 days ahead
+    for (let i = 1; i <= 60; i++) {
+      const checkDate = new Date(today);
+      checkDate.setDate(today.getDate() + i);
+      
+      const day = checkDate.getDay();
+      const year = checkDate.getFullYear();
+      const month = String(checkDate.getMonth() + 1).padStart(2, '0');
+      const dayOfMonth = String(checkDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${dayOfMonth}`;
+      
+      // Check branch-specific day restrictions
+      let isAllowed = true;
+      if (branch === 'Cabugao') {
+        isAllowed = day !== 0; // Not Sunday
+      } else if (branch === 'San Juan') {
+        isAllowed = day !== 6; // Not Saturday
+      }
+      
+      // Check if date is unavailable (user or child already has appointment)
+      if (isAllowed && !unavailableDatesSet.has(dateStr)) {
+        return checkDate;
+      }
+    }
+    
+    // If no available date found in 60 days, return tomorrow as fallback
+    return tomorrow;
   };
 
   // Enhanced fetchAppointmentDurations function
@@ -475,7 +594,7 @@ const PatientAppointments = () => {
         });
         setServiceDurations(durationMap);
         
-        // Fetch appointments
+        // Fetch appointments - include both user's own appointments and child appointments
         const { data: appointmentsData, error: appointmentsError } = await supabase
           .from('appointments')
           .select(`
@@ -488,9 +607,11 @@ const PatientAppointments = () => {
             notes,
             is_emergency,
             created_at,
-            doctor_id
+            doctor_id,
+            patient_id,
+            guardian_id
           `)
-          .eq('patient_id', user.id)
+          .or(`patient_id.eq.${user.id},guardian_id.eq.${user.id}`)
           .order('appointment_date', { ascending: false });
         
         if (appointmentsError) throw appointmentsError;
@@ -498,7 +619,7 @@ const PatientAppointments = () => {
         // Auto-cleanup duplicates before processing (silent)
         await cleanupDuplicateAppointments(false);
         
-        // Fetch appointments again after cleanup
+        // Fetch appointments again after cleanup - include both user's own and child appointments
         const { data: cleanedAppointmentsData, error: cleanedAppointmentsError } = await supabase
           .from('appointments')
           .select(`
@@ -511,9 +632,11 @@ const PatientAppointments = () => {
             notes,
             is_emergency,
             created_at,
-            doctor_id
+            doctor_id,
+            patient_id,
+            guardian_id
           `)
-          .eq('patient_id', user.id)
+          .or(`patient_id.eq.${user.id},guardian_id.eq.${user.id}`)
           .order('appointment_date', { ascending: false });
         
         if (cleanedAppointmentsError) throw cleanedAppointmentsError;
@@ -535,6 +658,26 @@ const PatientAppointments = () => {
           if (!doctorError && doctorData) {
             doctorData.forEach(doctor => {
               doctorMap[doctor.id] = doctor;
+            });
+          }
+        }
+        
+        // Fetch child profile information for appointments where user is guardian
+        const childPatientIds = [...new Set(
+          cleanedAppointmentsData
+            .filter(a => a.guardian_id === user.id && a.patient_id !== user.id)
+            .map(a => a.patient_id)
+        )];
+        let childMap = {};
+        if (childPatientIds.length > 0) {
+          const { data: childData, error: childError } = await supabase
+            .from('profiles')
+            .select('id, full_name, first_name, last_name')
+            .in('id', childPatientIds);
+          
+          if (!childError && childData) {
+            childData.forEach(child => {
+              childMap[child.id] = child;
             });
           }
         }
@@ -573,12 +716,18 @@ const PatientAppointments = () => {
           // Get doctor information
           const assignedDoctor = appointment.doctor_id ? doctorMap[appointment.doctor_id] : null;
           
+          // Check if this is a child appointment
+          const isChildAppointment = appointment.guardian_id === user.id && appointment.patient_id !== user.id;
+          const childInfo = isChildAppointment ? childMap[appointment.patient_id] : null;
+          
           return {
             ...appointment,
             serviceIds,
             serviceNames,
             duration: finalDuration,
-            assignedDoctor
+            assignedDoctor,
+            isChildAppointment,
+            childName: childInfo?.full_name || (childInfo ? `${childInfo.first_name} ${childInfo.last_name}` : null)
           };
         });
         
@@ -690,7 +839,13 @@ const PatientAppointments = () => {
     
     console.log('🔍 fetchAvailableTimeSlots called with:', { date, branch, durationMinutes });
     
-    const formattedDate = date.toISOString().split('T')[0];
+    // Use formatDateLocal to avoid timezone conversion issues
+    // Both API calls and localStorage should use local date format (YYYY-MM-DD)
+    const dateForAPI = date instanceof Date ? date : new Date(date);
+    
+    // Normalize to ensure we're working with a clean date at midnight
+    const normalizedDate = new Date(dateForAPI.getFullYear(), dateForAPI.getMonth(), dateForAPI.getDate());
+    const formattedDate = formatDateLocal(normalizedDate);
     
     localStorage.setItem('temp_selected_branch', branch);
     localStorage.setItem('temp_selected_date', formattedDate);
@@ -886,10 +1041,50 @@ const PatientAppointments = () => {
       // Prevent double submission
       setSubmitting(true);
       
+      // Validate child selection if booking for a child
+      if (selectedPatientType === 'child' && !selectedChildId) {
+        toast.error('Please select a child to book the appointment for');
+        setSubmitting(false);
+        return;
+      }
+      
       // Validate availability using schedule service
+      // Ensure appointment_date is a Date object
+      let appointmentDate;
+      try {
+        appointmentDate = values.appointment_date instanceof Date 
+          ? values.appointment_date 
+          : parseDateLocal(values.appointment_date) || new Date(values.appointment_date);
+        
+        if (!appointmentDate || isNaN(appointmentDate.getTime())) {
+          throw new Error('Invalid date');
+        }
+      } catch (error) {
+        console.error('Date parsing error:', error, 'values.appointment_date:', values.appointment_date);
+        toast.error('Invalid appointment date. Please select a valid date.');
+        setSubmitting(false);
+        return;
+      }
+      
+      // Normalize the date to ensure it's at midnight local time
+      const normalizedDate = new Date(appointmentDate.getFullYear(), appointmentDate.getMonth(), appointmentDate.getDate());
+      const dateString = formatDateLocal(normalizedDate);
+      
+      if (!values.appointment_time) {
+        toast.error('Please select an appointment time.');
+        setSubmitting(false);
+        return;
+      }
+      
+      if (!values.branch) {
+        toast.error('Please select a branch.');
+        setSubmitting(false);
+        return;
+      }
+      
       const isAvailable = await ScheduleService.isTimeSlotAvailable(
         values.branch, 
-        values.appointment_date.toISOString().split('T')[0], 
+        dateString, 
         values.appointment_time, 
         calculateAppointmentDuration(values.service_id)
       );
@@ -902,10 +1097,34 @@ const PatientAppointments = () => {
       
       const duration = calculateAppointmentDuration(values.service_id);
       
+      // Determine patient_id and guardian_id based on selected patient type
+      let patientId = user.id;
+      let guardianId = null;
+      let patientName = user.user_metadata?.full_name || user.email;
+      
+      if (selectedPatientType === 'child' && selectedChildId) {
+        // Booking for a child - child is stored in profiles table
+        const selectedChild = children.find(c => c.id === selectedChildId);
+        if (!selectedChild) {
+          toast.error('Selected child not found. Please try again.');
+          setSubmitting(false);
+          return;
+        }
+        // Child is a profile, so use child's profile ID as patient_id
+        patientId = selectedChildId; // Child's profile ID
+        guardianId = user.id; // Guardian who is booking
+        patientName = selectedChild.full_name || `${selectedChild.first_name} ${selectedChild.last_name}`;
+      } else {
+        // Booking for self
+        patientId = user.id;
+        guardianId = null;
+      }
+
       const appointmentData = {
-        patient_id: user.id,
+        patient_id: patientId,
+        guardian_id: guardianId,
         branch: values.branch,
-        appointment_date: values.appointment_date.toISOString().split('T')[0],
+        appointment_date: dateString,
         appointment_time: values.appointment_time,
         teeth_involved: values.teeth_involved || '',
         notes: values.notes || '',
@@ -942,12 +1161,22 @@ const PatientAppointments = () => {
         await cleanupDuplicateAppointments(false);
         
         // Check for existing appointment on the same date (one appointment per day rule)
-        const { data: existingAppointments, error: checkError } = await supabase
+        // Check for both guardian and child if booking for a child
+        let checkQuery = supabase
           .from('appointments')
-          .select('id, appointment_time, status')
-          .eq('patient_id', user.id)
+          .select('id, appointment_time, status, guardian_id')
           .eq('appointment_date', appointmentData.appointment_date)
           .in('status', ['pending', 'confirmed']); // Only check active appointments
+        
+        if (guardianId && patientId !== user.id) {
+          // If booking for a child, check for existing appointments for that child (patient_id)
+          checkQuery = checkQuery.eq('patient_id', patientId);
+        } else {
+          // If booking for self, check for existing appointments for the guardian
+          checkQuery = checkQuery.eq('patient_id', user.id).is('guardian_id', null);
+        }
+        
+        const { data: existingAppointments, error: checkError } = await checkQuery;
         
         if (checkError) throw checkError;
         
@@ -956,6 +1185,45 @@ const PatientAppointments = () => {
           toast.error(`You already have an appointment scheduled for ${formatDate(appointmentData.appointment_date)} at ${formatTime(existingAppointment.appointment_time)}. You can only have one appointment per day. Please choose a different date.`);
           setSubmitting(false);
           return;
+        }
+        
+        // Automatic doctor assignment
+        let assignedDoctorId = null;
+        let assignmentMessage = '';
+        
+        try {
+          console.log('🤖 Starting automatic doctor assignment...');
+          const AutoDoctorAssignmentService = (await import('../../services/autoDoctorAssignmentService.js')).default;
+          
+          const assignmentData = {
+            branch: appointmentData.branch,
+            appointment_date: appointmentData.appointment_date,
+            appointment_time: appointmentData.appointment_time,
+            services: values.service_id ? [values.service_id] : [],
+            duration_minutes: duration
+          };
+          
+          console.log('📋 Assignment data:', assignmentData);
+          
+          const assignmentResult = await AutoDoctorAssignmentService.assignDoctorAutomatically(assignmentData);
+          
+          console.log('📊 Assignment result:', assignmentResult);
+          
+          if (assignmentResult.success) {
+            assignedDoctorId = assignmentResult.doctor_id;
+            assignmentMessage = assignmentResult.message;
+            console.log('✅ Automatic doctor assignment successful:', assignmentMessage);
+          } else {
+            console.log('⚠️ Automatic doctor assignment failed:', assignmentResult.message);
+          }
+        } catch (assignmentError) {
+          console.error('❌ Error in automatic doctor assignment:', assignmentError);
+          // Continue with appointment creation even if auto-assignment fails
+        }
+        
+        // Add assigned doctor to appointment data
+        if (assignedDoctorId) {
+          appointmentData.doctor_id = assignedDoctorId;
         }
         
         // Insert new appointment
@@ -971,47 +1239,59 @@ const PatientAppointments = () => {
         try {
           await logAppointmentCreate({
             id: appointmentId,
-            patient_id: user.id,
-            patient_name: user.user_metadata?.full_name || user.email,
-            doctor_id: values.doctor_id,
+            patient_id: patientId,
+            patient_name: patientName,
+            doctor_id: assignedDoctorId || values.doctor_id,
             branch: values.branch,
-            appointment_date: values.appointment_date.toISOString().split('T')[0],
+            appointment_date: dateString,
             appointment_time: values.appointment_time,
             service_id: values.service_id,
             notes: values.notes,
             is_emergency: values.is_emergency || false,
-            status: 'pending'
+            status: 'pending',
+            auto_assigned: !!assignedDoctorId
           });
         } catch (auditError) {
           console.error('Error logging appointment creation audit event:', auditError);
           // Continue even if audit logging fails
         }
         
-        // Send notification for new appointment if createAppointment function is available
-        if (createAppointment && typeof createAppointment === 'function') {
-          try {
-            const notificationResult = await createAppointment({
-              patientId: user.id,
-              appointmentId: appointmentId,
-              date: values.appointment_date.toISOString().split('T')[0],
-              time: values.appointment_time,
-              branch: values.branch,
-              notes: values.notes || '',
-              services: values.service_id,
-              isEmergency: values.is_emergency || false
-            });
-            
-            if (notificationResult?.success) {
-              toast.success('Appointment booked successfully - notified!');
-            } else {
-              toast.success('Appointment booked successfully!');
-            }
-          } catch (notificationError) {
-            console.error('Error sending notification:', notificationError);
-            toast.success('Appointment booked successfully! (Notification may have failed)');
+        // Send notification for new appointment
+        // Note: The appointment is already created above, so we just send notifications directly
+        try {
+          // Get patient data for notifications
+          const { data: patientData, error: patientError } = await supabase
+            .from('profiles')
+            .select('id, full_name, email')
+            .eq('id', patientId)
+            .single();
+          
+          if (!patientError && patientData) {
+            // Import notification service and send notifications
+            const notificationService = (await import('../../services/notificationService.js')).default;
+            await notificationService.notifyAppointmentCreated(
+              {
+                patientId: patientId,
+                appointmentId: appointmentId,
+                date: dateString,
+                time: values.appointment_time,
+                branch: values.branch
+              },
+              patientData
+            );
           }
-        } else {
-          toast.success('Appointment booked successfully!');
+          
+          const successMsg = assignedDoctorId 
+            ? `Appointment booked successfully! ${assignmentMessage}`
+            : 'Appointment booked successfully!';
+          toast.success(successMsg);
+        } catch (notificationError) {
+          console.error('Error sending notification:', notificationError);
+          // Don't fail the appointment creation if notification fails
+          const successMsg = assignedDoctorId 
+            ? `Appointment booked successfully! ${assignmentMessage} (Notification may have failed)`
+            : 'Appointment booked successfully! (Notification may have failed)';
+          toast.success(successMsg);
         }
       }
 
@@ -1049,10 +1329,10 @@ const PatientAppointments = () => {
       await cleanupDuplicateAppointments(false);
 
       // Check if appointment is for today and auto-join queue if confirmed
-      const appointmentDate = values.appointment_date.toISOString().split('T')[0];
-      const today = new Date().toISOString().split('T')[0];
+      const appointmentDateStr = dateString;
+      const today = formatDateLocal(new Date());
       
-      if (appointmentDate === today && autoJoinQueue) {
+      if (appointmentDateStr === today && autoJoinQueue) {
         setShowQueueJoinOptions(true);
         localStorage.setItem('pending_queue_appointment', appointmentId);
       }
@@ -1127,7 +1407,7 @@ const PatientAppointments = () => {
       // First, clean up any duplicates automatically
       await cleanupDuplicateAppointments(false);
       
-      // Then fetch the cleaned appointments
+      // Then fetch the cleaned appointments - include both user's own and child appointments
       const { data: appointmentsData, error: appointmentsError } = await supabase
         .from('appointments')
         .select(`
@@ -1140,9 +1420,11 @@ const PatientAppointments = () => {
           notes,
           is_emergency,
           created_at,
-          doctor_id
+          doctor_id,
+          patient_id,
+          guardian_id
         `)
-        .eq('patient_id', user.id)
+        .or(`patient_id.eq.${user.id},guardian_id.eq.${user.id}`)
         .order('appointment_date', { ascending: false });
       
       if (appointmentsError) throw appointmentsError;
@@ -1164,6 +1446,26 @@ const PatientAppointments = () => {
         if (!doctorError && doctorData) {
           doctorData.forEach(doctor => {
             doctorMap[doctor.id] = doctor;
+          });
+        }
+      }
+      
+      // Fetch child profile information for appointments where user is guardian
+      const childPatientIds = [...new Set(
+        appointmentsData
+          .filter(a => a.guardian_id === user.id && a.patient_id !== user.id)
+          .map(a => a.patient_id)
+      )];
+      let childMap = {};
+      if (childPatientIds.length > 0) {
+        const { data: childData, error: childError } = await supabase
+          .from('profiles')
+          .select('id, full_name, first_name, last_name')
+          .in('id', childPatientIds);
+        
+        if (!childError && childData) {
+          childData.forEach(child => {
+            childMap[child.id] = child;
           });
         }
       }
@@ -1206,12 +1508,18 @@ const PatientAppointments = () => {
         // Get doctor information
         const assignedDoctor = appointment.doctor_id ? doctorMap[appointment.doctor_id] : null;
         
+        // Check if this is a child appointment
+        const isChildAppointment = appointment.guardian_id === user.id && appointment.patient_id !== user.id;
+        const childInfo = isChildAppointment ? childMap[appointment.patient_id] : null;
+        
         return {
           ...appointment,
           serviceIds,
           serviceNames,
           duration: finalDuration,
-          assignedDoctor
+          assignedDoctor,
+          isChildAppointment,
+          childName: childInfo?.full_name || (childInfo ? `${childInfo.first_name} ${childInfo.last_name}` : null)
         };
       });
       
@@ -1260,13 +1568,33 @@ const PatientAppointments = () => {
     
     try {
       if (actionType === 'cancel') {
+        // First verify the appointment belongs to the user (as patient or guardian)
+        const { data: verifyAppointment, error: verifyError } = await supabase
+          .from('appointments')
+          .select('id, patient_id, guardian_id')
+          .eq('id', selectedAppointmentForAction.id)
+          .or(`patient_id.eq.${user.id},guardian_id.eq.${user.id}`)
+          .single();
+        
+        if (verifyError || !verifyAppointment) {
+          console.error('Error verifying appointment ownership:', verifyError);
+          toast.error('You do not have permission to cancel this appointment.');
+          setShowActionModal(false);
+          setSelectedAppointmentForAction(null);
+          setActionType('');
+          return;
+        }
+        
+        // Now update without ownership check since we verified above
         const { error } = await supabase
           .from('appointments')
           .update({ status: 'cancelled' })
-          .eq('id', selectedAppointmentForAction.id)
-          .eq('patient_id', user.id);
+          .eq('id', selectedAppointmentForAction.id);
         
-        if (error) throw error;
+        if (error) {
+          console.error('Error canceling appointment:', error);
+          throw error;
+        }
         
         setAppointments(appointments.map(appointment => 
           appointment.id === selectedAppointmentForAction.id 
@@ -1344,9 +1672,14 @@ const PatientAppointments = () => {
     try {
       console.log('Fetching reschedule time slots for:', { date, branch, duration });
       
+      // Normalize date to avoid timezone issues
+      const dateObj = date instanceof Date ? date : new Date(date);
+      const normalizedDate = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
+      const formattedDate = formatDateLocal(normalizedDate);
+      
       const result = await ScheduleService.getAvailableTimeSlots(
         branch,
-        date.toISOString().split('T')[0],
+        formattedDate,
         duration,
         null
       );
@@ -1397,13 +1730,13 @@ const PatientAppointments = () => {
         currentStatus: selectedAppointmentForAction.status
       });
 
-      // First, verify the appointment exists and belongs to the patient
+      // First, verify the appointment exists and belongs to the patient or guardian
       console.log('Verifying appointment ownership...');
       const { data: existingAppointment, error: fetchError } = await supabase
         .from('appointments')
-        .select('id, patient_id, status, appointment_date, appointment_time, branch')
+        .select('id, patient_id, guardian_id, status, appointment_date, appointment_time, branch')
         .eq('id', selectedAppointmentForAction.id)
-        .eq('patient_id', user.id)
+        .or(`patient_id.eq.${user.id},guardian_id.eq.${user.id}`)
         .single();
       
       if (fetchError) {
@@ -1481,7 +1814,10 @@ const PatientAppointments = () => {
         throw new Error('Invalid appointment time format');
       }
       
-      // Try to update the appointment
+      // Verify ownership before updating (already done above, but double-check)
+      // If we got here, the appointment exists and user has permission
+      
+      // Try to update the appointment (no need for ownership check since we verified above)
       let updateResult, error;
       
       try {
@@ -1489,7 +1825,6 @@ const PatientAppointments = () => {
           .from('appointments')
           .update(updateData)
           .eq('id', selectedAppointmentForAction.id)
-          .eq('patient_id', user.id)
           .select('id, status, appointment_date, appointment_time, branch');
         
         updateResult = result.data;
@@ -1518,7 +1853,6 @@ const PatientAppointments = () => {
           .from('appointments')
           .update(dataWithoutStatus)
           .eq('id', selectedAppointmentForAction.id)
-          .eq('patient_id', user.id)
           .select('id, status, appointment_date, appointment_time, branch');
         
         if (result2.error) {
@@ -1542,7 +1876,6 @@ const PatientAppointments = () => {
                 updated_at: new Date().toISOString()
               })
               .eq('id', selectedAppointmentForAction.id)
-              .eq('patient_id', user.id)
               .select('id, status, appointment_date, appointment_time, branch');
             
             if (statusResult.error) {
@@ -1565,7 +1898,6 @@ const PatientAppointments = () => {
                   updated_at: new Date().toISOString()
                 })
                 .eq('id', selectedAppointmentForAction.id)
-                .eq('patient_id', user.id)
                 .select('id, status, appointment_date, appointment_time, branch');
               
               if (altResult.error) {
@@ -1577,7 +1909,6 @@ const PatientAppointments = () => {
                   .from('appointments')
                   .update({ status: 'pending' })
                   .eq('id', selectedAppointmentForAction.id)
-                  .eq('patient_id', user.id)
                   .select('id, status');
                 
                 if (finalStatusResult.error) {
@@ -1757,6 +2088,9 @@ const PatientAppointments = () => {
               setAvailableTimeSlots([]);
               setEstimatedDuration(30);
               setShowLocationSuggestion(false);
+              // Reset patient selection
+              setSelectedPatientType('self');
+              setSelectedChildId(null);
             }}
             className="px-3 sm:px-4 py-2 bg-primary-600 text-white text-sm sm:text-base rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
           >
@@ -1803,13 +2137,7 @@ const PatientAppointments = () => {
                 Estimated Duration: {estimatedDuration} minutes
               </div>
               
-              {/* Branch Hours Information */}
-              {branchHours && branchHours.open && (
-                <div className="flex items-center text-gray-600 mt-2">
-                  <FiClock className="mr-2" /> 
-                  Operating Hours: {branchHours.hours.startFormatted} - {branchHours.hours.endFormatted}
-                </div>
-              )}
+              {/* Branch Hours Information - removed for patient view */}
               
               {/* Available Providers */}
               {availableProviders.length > 0 && (
@@ -1903,32 +2231,9 @@ const PatientAppointments = () => {
                               value={slot.time}
                               disabled={!slot.available}
                               className="sr-only"
-                              onClick={async () => {
-                                // Real-time availability check before selecting
-                                if (slot.available && selectedDate && selectedBranch) {
-                                  try {
-                                    console.log('🔍 Checking real-time availability for:', slot.time);
-                                    const slotsResult = await ScheduleService.getAvailableTimeSlots(
-                                      selectedBranch, 
-                                      selectedDate.toISOString().split('T')[0], 
-                                      estimatedDuration, 
-                                      null
-                                    );
-                                    
-                                    // Check if this specific slot is still available
-                                    const currentSlot = slotsResult.formattedSlots.find(s => s.time === slot.time);
-                                    if (currentSlot && !currentSlot.available) {
-                                      toast.error('This time slot is no longer available. Please select another time.');
-                                      // Refresh the time slots to show updated availability
-                                      await fetchAvailableTimeSlots(selectedDate, selectedBranch, estimatedDuration);
-                                      return;
-                                    }
-                                  } catch (error) {
-                                    console.error('Error checking real-time availability:', error);
-                                    toast.error('Unable to verify availability. Please try again.');
-                                    return;
-                                  }
-                                }
+                              onClick={() => {
+                                // Simply select the time - no need to fetch slots again
+                                // This prevents date from being reset
                                 setFieldValue('formTime', slot.time);
                               }}
                             />
@@ -2079,21 +2384,34 @@ const PatientAppointments = () => {
                 branch: editingAppointment?.branch || selectedBranch || localStorage.getItem('temp_selected_branch') || '',
                 appointment_date: editingAppointment ? 
                   new Date(editingAppointment.appointment_date) : 
-                  (localStorage.getItem('temp_selected_date') ? 
-                    new Date(localStorage.getItem('temp_selected_date')) : 
-                    (() => {
-                      const today = new Date();
-                      const tomorrow = new Date(today);
-                      tomorrow.setDate(today.getDate() + 1);
-                      tomorrow.setHours(0, 0, 0, 0);
-                      return tomorrow;
-                    })()),
+                  (() => {
+                    // Always default to tomorrow (appointments must be booked in advance)
+                    const today = new Date();
+                    const tomorrow = new Date(today);
+                    tomorrow.setDate(today.getDate() + 1);
+                    tomorrow.setHours(0, 0, 0, 0);
+                    
+                    // Check if there's a stored date, but validate it's not today or in the past
+                    const storedDate = localStorage.getItem('temp_selected_date');
+                    if (storedDate) {
+                      const storedDateObj = parseDateLocal(storedDate);
+                      storedDateObj.setHours(0, 0, 0, 0);
+                      // Only use stored date if it's tomorrow or later
+                      if (storedDateObj > today) {
+                        return storedDateObj;
+                      }
+                    }
+                    
+                    return tomorrow;
+                  })(),
                 appointment_time: editingAppointment?.appointment_time || localStorage.getItem('temp_selected_time') || '',
                 service_id: editingAppointment?.serviceIds || [],
                 teeth_involved: editingAppointment?.teeth_involved || '',
                 notes: editingAppointment?.notes || '',
                 is_emergency: editingAppointment?.is_emergency || false,
-                agree_terms: editingAppointment ? true : false,
+                agree_terms: true,
+                patient_type: 'self',
+                child_id: null,
               }}
               validationSchema={appointmentSchema}
               onSubmit={handleBooking}
@@ -2116,17 +2434,54 @@ const PatientAppointments = () => {
                     setFieldValue('branch', selectedBranch);
                   }
                   
-                  if (storedDate && (!values.appointment_date || values.appointment_date.toISOString().split('T')[0] !== storedDate)) {
-                    const dateObj = new Date(storedDate);
-                    setFieldValue('appointment_date', dateObj);
-                    setSelectedDate(dateObj);
+                  // Only restore from localStorage if there's no current date set
+                  // And validate that stored date is not today or in the past
+                  if (storedDate && !values.appointment_date) {
+                    const dateObj = parseDateLocal(storedDate);
+                    dateObj.setHours(0, 0, 0, 0);
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    
+                    // Only use stored date if it's tomorrow or later
+                    if (dateObj > today) {
+                      setFieldValue('appointment_date', dateObj, false);
+                      setSelectedDate(dateObj);
+                    } else {
+                      // If stored date is today or past, set to tomorrow
+                      const tomorrow = new Date(today);
+                      tomorrow.setDate(today.getDate() + 1);
+                      tomorrow.setHours(0, 0, 0, 0);
+                      setFieldValue('appointment_date', tomorrow, false);
+                      setSelectedDate(tomorrow);
+                      localStorage.setItem('temp_selected_date', formatDateLocal(tomorrow));
+                    }
+                  }
+                  
+                  // Keep selectedDate in sync with values.appointment_date
+                  // This ensures time slot selection uses the correct date
+                  // Only update if the date actually changed (not just time component)
+                  if (values.appointment_date) {
+                    const formDate = values.appointment_date instanceof Date 
+                      ? values.appointment_date 
+                      : new Date(values.appointment_date);
+                    const normalizedFormDate = new Date(formDate.getFullYear(), formDate.getMonth(), formDate.getDate());
+                    normalizedFormDate.setHours(0, 0, 0, 0);
+                    
+                    // Only update if different to avoid infinite loops and unnecessary re-renders
+                    // Compare dates by their date components, not time
+                    if (!selectedDate || 
+                        selectedDate.getFullYear() !== normalizedFormDate.getFullYear() ||
+                        selectedDate.getMonth() !== normalizedFormDate.getMonth() ||
+                        selectedDate.getDate() !== normalizedFormDate.getDate()) {
+                      setSelectedDate(normalizedFormDate);
+                    }
                   }
                   
                   if (storedTime && values.appointment_time !== storedTime) {
                     setFieldValue('appointment_time', storedTime);
                     setSelectedTimeSlot(storedTime);
                   }
-                }, [setFieldValue, values.branch, values.appointment_date, values.appointment_time, selectedBranch]);
+                }, [setFieldValue, values.branch, values.appointment_date, selectedBranch]);
                 
                 return (
                   <Form className="space-y-4">
@@ -2138,6 +2493,194 @@ const PatientAppointments = () => {
                         <p className="text-blue-700 text-sm mt-1">
                           You can change the branch, date, and time as needed.
                         </p>
+                      </div>
+                    )}
+
+                    {/* Patient Selection - Only show when not editing and children are available */}
+                    {!editingAppointment && children.length > 0 && (
+                      <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+                        <label className="block text-base font-semibold text-gray-900 mb-4">
+                          Book Appointment For <span className="text-red-500">*</span>
+                        </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                          {/* Myself Option */}
+                          <label 
+                            className={`relative flex items-center p-4 rounded-lg border-2 cursor-pointer transition-all duration-200 ${
+                              selectedPatientType === 'self'
+                                ? 'border-primary-500 bg-primary-50 shadow-md'
+                                : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
+                            }`}
+                          >
+                            <Field
+                              type="radio"
+                              name="patient_type"
+                              value="self"
+                              checked={selectedPatientType === 'self'}
+                              onChange={async () => {
+                                setSelectedPatientType('self');
+                                setSelectedChildId(null);
+                                
+                                // Reload unavailable dates for self
+                                const unavailableDatesSet = await loadUnavailableDates('self', null);
+                                
+                                // Update date if current date is unavailable
+                                if (values.branch && values.appointment_date) {
+                                  const dateStr = formatDateLocal(values.appointment_date);
+                                  if (unavailableDatesSet.has(dateStr)) {
+                                    const firstAvailable = findFirstAvailableDate(values.branch, unavailableDatesSet);
+                                    if (firstAvailable) {
+                                      setFieldValue('appointment_date', firstAvailable);
+                                      setSelectedDate(firstAvailable);
+                                      localStorage.setItem('temp_selected_date', formatDateLocal(firstAvailable));
+                                      if (values.branch) {
+                                        fetchAvailableTimeSlots(firstAvailable, values.branch, estimatedDuration);
+                                      }
+                                    }
+                                  }
+                                }
+                              }}
+                              className="sr-only"
+                            />
+                            <div className={`flex items-center justify-center w-5 h-5 rounded-full border-2 mr-3 flex-shrink-0 ${
+                              selectedPatientType === 'self'
+                                ? 'border-primary-500 bg-primary-500'
+                                : 'border-gray-300 bg-white'
+                            }`}>
+                              {selectedPatientType === 'self' && (
+                                <div className="w-2 h-2 rounded-full bg-white"></div>
+                              )}
+                            </div>
+                            <div className="flex items-center flex-1">
+                              <FiUser className={`h-5 w-5 mr-2 ${
+                                selectedPatientType === 'self' ? 'text-primary-600' : 'text-gray-400'
+                              }`} />
+                              <span className={`font-medium ${
+                                selectedPatientType === 'self' ? 'text-primary-900' : 'text-gray-700'
+                              }`}>
+                                Myself
+                              </span>
+                            </div>
+                            {selectedPatientType === 'self' && (
+                              <FiCheck className="h-5 w-5 text-primary-600 ml-auto" />
+                            )}
+                          </label>
+
+                          {/* My Child Option */}
+                          <label 
+                            className={`relative flex items-center p-4 rounded-lg border-2 cursor-pointer transition-all duration-200 ${
+                              selectedPatientType === 'child'
+                                ? 'border-primary-500 bg-primary-50 shadow-md'
+                                : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
+                            }`}
+                          >
+                            <Field
+                              type="radio"
+                              name="patient_type"
+                              value="child"
+                              checked={selectedPatientType === 'child'}
+                              onChange={async () => {
+                                const newChildId = children.length > 0 && !selectedChildId ? children[0].id : selectedChildId;
+                                setSelectedPatientType('child');
+                                if (children.length > 0 && !selectedChildId) {
+                                  setSelectedChildId(children[0].id);
+                                }
+                                
+                                // Reload unavailable dates for the selected child
+                                const unavailableDatesSet = await loadUnavailableDates('child', newChildId || children[0]?.id);
+                                
+                                // Update date if current date is unavailable
+                                if (values.branch && values.appointment_date) {
+                                  const dateStr = formatDateLocal(values.appointment_date);
+                                  if (unavailableDatesSet.has(dateStr)) {
+                                    const firstAvailable = findFirstAvailableDate(values.branch, unavailableDatesSet);
+                                    if (firstAvailable) {
+                                      setFieldValue('appointment_date', firstAvailable);
+                                      setSelectedDate(firstAvailable);
+                                      localStorage.setItem('temp_selected_date', formatDateLocal(firstAvailable));
+                                      if (values.branch) {
+                                        fetchAvailableTimeSlots(firstAvailable, values.branch, estimatedDuration);
+                                      }
+                                    }
+                                  }
+                                }
+                              }}
+                              className="sr-only"
+                            />
+                            <div className={`flex items-center justify-center w-5 h-5 rounded-full border-2 mr-3 flex-shrink-0 ${
+                              selectedPatientType === 'child'
+                                ? 'border-primary-500 bg-primary-500'
+                                : 'border-gray-300 bg-white'
+                            }`}>
+                              {selectedPatientType === 'child' && (
+                                <div className="w-2 h-2 rounded-full bg-white"></div>
+                              )}
+                            </div>
+                            <div className="flex items-center flex-1">
+                              <FiUsers className={`h-5 w-5 mr-2 ${
+                                selectedPatientType === 'child' ? 'text-primary-600' : 'text-gray-400'
+                              }`} />
+                              <span className={`font-medium ${
+                                selectedPatientType === 'child' ? 'text-primary-900' : 'text-gray-700'
+                              }`}>
+                                My Child (Minor)
+                              </span>
+                            </div>
+                            {selectedPatientType === 'child' && (
+                              <FiCheck className="h-5 w-5 text-primary-600 ml-auto" />
+                            )}
+                          </label>
+                        </div>
+                          
+                          {selectedPatientType === 'child' && (
+                            <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                              <label htmlFor="child_select" className="block text-sm font-semibold text-gray-700 mb-2">
+                                Select Child <span className="text-red-500">*</span>
+                              </label>
+                              <Field
+                                as="select"
+                                id="child_select"
+                                name="child_id"
+                                value={selectedChildId || ''}
+                                onChange={async (e) => {
+                                  const newChildId = e.target.value;
+                                  setSelectedChildId(newChildId);
+                                  
+                                  // Reload unavailable dates for the selected child
+                                  const unavailableDatesSet = await loadUnavailableDates('child', newChildId);
+                                  
+                                  // Update date if current date is unavailable
+                                  if (values.branch && values.appointment_date) {
+                                    const dateStr = formatDateLocal(values.appointment_date);
+                                    if (unavailableDatesSet.has(dateStr)) {
+                                      const firstAvailable = findFirstAvailableDate(values.branch, unavailableDatesSet);
+                                      if (firstAvailable) {
+                                        setFieldValue('appointment_date', firstAvailable);
+                                        setSelectedDate(firstAvailable);
+                                        localStorage.setItem('temp_selected_date', formatDateLocal(firstAvailable));
+                                        if (values.branch) {
+                                          fetchAvailableTimeSlots(firstAvailable, values.branch, estimatedDuration);
+                                        }
+                                      }
+                                    }
+                                  }
+                                }}
+                                className="block w-full py-2.5 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                                required={selectedPatientType === 'child'}
+                              >
+                                <option value="">Select a child</option>
+                                {children.map((child) => (
+                                  <option key={child.id} value={child.id}>
+                                    {child.first_name} {child.middle_name ? child.middle_name + ' ' : ''}{child.last_name}
+                                    {child.nickname ? ` (${child.nickname})` : ''} - {child.age} years old
+                                  </option>
+                                ))}
+                              </Field>
+                              <p className="text-xs text-gray-500 mt-2 flex items-center">
+                                <FiInfo className="h-3 w-3 mr-1" />
+                                Note: Minors require a guardian to book appointments
+                              </p>
+                            </div>
+                          )}
                       </div>
                     )}
 
@@ -2156,19 +2699,40 @@ const PatientAppointments = () => {
                             id="branch"
                             name="branch"
                             className="block w-full pl-10 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 bg-gray-100 text-gray-600"
-                            onChange={(e) => {
+                            onChange={async (e) => {
                               const newBranch = e.target.value;
                               setFieldValue('branch', newBranch);
                               setSelectedBranch(newBranch);
                               localStorage.setItem('temp_selected_branch', newBranch);
                               
-                              // Auto-select tomorrow's date (1 day in advance)
-                              const tomorrow = new Date();
-                              tomorrow.setHours(0, 0, 0, 0); // Set to start of today
-                              tomorrow.setDate(tomorrow.getDate() + 1); // Add one day
-                              setFieldValue('appointment_date', tomorrow);
-                              setSelectedDate(tomorrow);
-                              localStorage.setItem('temp_selected_date', tomorrow.toISOString().split('T')[0]);
+                              // Reload unavailable dates to ensure we have the latest data
+                              const unavailableDatesSet = await loadUnavailableDates(selectedPatientType, selectedChildId);
+                              
+                              // Always find and auto-select the first available date for this branch (tomorrow or later)
+                              // This ensures it goes directly to tomorrow (28th) if no appointment, or next available date
+                              const firstAvailable = findFirstAvailableDate(newBranch, unavailableDatesSet);
+                              if (firstAvailable) {
+                                // Normalize the date to ensure it's at midnight
+                                const normalizedDate = new Date(firstAvailable.getFullYear(), firstAvailable.getMonth(), firstAvailable.getDate());
+                                setFieldValue('appointment_date', normalizedDate, false);
+                                setSelectedDate(normalizedDate);
+                                localStorage.setItem('temp_selected_date', formatDateLocal(normalizedDate));
+                                
+                                // Fetch time slots for the selected date
+                                if (newBranch) {
+                                  fetchAvailableTimeSlots(normalizedDate, newBranch, estimatedDuration);
+                                }
+                              } else {
+                                // Fallback: if no available date found, set to tomorrow
+                                const today = new Date();
+                                today.setHours(0, 0, 0, 0);
+                                const tomorrow = new Date(today);
+                                tomorrow.setDate(today.getDate() + 1);
+                                tomorrow.setHours(0, 0, 0, 0);
+                                setFieldValue('appointment_date', tomorrow, false);
+                                setSelectedDate(tomorrow);
+                                localStorage.setItem('temp_selected_date', formatDateLocal(tomorrow));
+                              }
                               
                               setFieldValue('appointment_time', '');
                               localStorage.removeItem('temp_selected_time');
@@ -2187,24 +2751,7 @@ const PatientAppointments = () => {
                           </Field>
                         </div>
                         <ErrorMessage name="branch" component="p" className="mt-1 text-sm text-red-600" />
-                        {values.branch && (
-                          <div className="mt-2 text-sm text-gray-600">
-                            <p className="font-medium">{values.branch} Branch Hours:</p>
-                            {values.branch === 'Cabugao' ? (
-                              <div>
-                                <p>Monday to Friday: 8:00 AM - 12:00 PM</p>
-                                <p>Saturday: 8:00 AM - 5:00 PM</p>
-                                <p>Sunday: Closed</p>
-                              </div>
-                            ) : (
-                              <div>
-                                <p>Monday to Friday: 1:00 PM - 5:00 PM</p>
-                                <p>Saturday: Closed</p>
-                                <p>Sunday: 8:00 AM - 5:00 PM</p>
-                              </div>
-                            )}
-                          </div>
-                        )}
+                        {/* Branch Hours section removed for patient view */}
                       </div>
 
                       <div className="flex-1">
@@ -2212,31 +2759,82 @@ const PatientAppointments = () => {
                           Select Date <span className="text-red-500">*</span>
                         </label>
                         <div className="relative">
-                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
                             <FiCalendar className="h-5 w-5 text-gray-400" />
                           </div>
                           <DatePicker
                             id="appointment_date"
-                            selected={values.appointment_date}
+                            selected={values.appointment_date ? (() => {
+                              const date = values.appointment_date instanceof Date 
+                                ? values.appointment_date 
+                                : new Date(values.appointment_date);
+                              // Normalize to ensure consistent date display
+                              return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+                            })() : null}
                             onChange={(date) => {
-                              setFieldValue('appointment_date', date);
-                              setSelectedDate(date);
-                              localStorage.setItem('temp_selected_date', date.toISOString().split('T')[0]);
-                              setFieldValue('appointment_time', '');
+                              if (!date) {
+                                setFieldValue('appointment_date', null, false);
+                                setSelectedDate(null);
+                                return;
+                              }
+                              
+                              // Normalize to midnight local time
+                              const normalizedDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+                              
+                              // Validate it's not today or past
+                              const today = new Date();
+                              today.setHours(0, 0, 0, 0);
+                              if (normalizedDate <= today) {
+                                toast.error('Appointments must be booked at least 1 day in advance.');
+                                return;
+                              }
+                              
+                              // Set the date - simple and direct
+                              setFieldValue('appointment_date', normalizedDate, false);
+                              setSelectedDate(normalizedDate);
+                              localStorage.setItem('temp_selected_date', formatDateLocal(normalizedDate));
+                              
+                              // Clear time when date changes
+                              setFieldValue('appointment_time', '', false);
                               localStorage.removeItem('temp_selected_time');
+                              
+                              // Fetch time slots
                               if (values.branch) {
-                                fetchAvailableTimeSlots(date, values.branch, estimatedDuration);
+                                fetchAvailableTimeSlots(normalizedDate, values.branch, estimatedDuration);
                               }
                             }}
+                            shouldCloseOnSelect={true}
                             minDate={(() => {
+                              // Set minDate to tomorrow (appointments must be booked in advance)
                               const today = new Date();
                               const tomorrow = new Date(today);
                               tomorrow.setDate(today.getDate() + 1);
                               tomorrow.setHours(0, 0, 0, 0);
-                              console.log('Min date calculated:', tomorrow.toISOString().split('T')[0]);
                               return tomorrow;
                             })()}
+                            dayClassName={(date) => {
+                              const today = new Date();
+                              today.setHours(0, 0, 0, 0);
+                              const checkDate = new Date(date);
+                              checkDate.setHours(0, 0, 0, 0);
+                              
+                              // Add class for past dates and today (both unavailable) to style them in red
+                              if (checkDate <= today) {
+                                return 'react-datepicker__day--past';
+                              }
+                              return '';
+                            }}
                             filterDate={(date) => {
+                              const today = new Date();
+                              today.setHours(0, 0, 0, 0);
+                              const checkDate = new Date(date);
+                              checkDate.setHours(0, 0, 0, 0);
+                              
+                              // Past dates and today are disabled (appointments must be booked in advance)
+                              if (checkDate <= today) {
+                                return false; // This makes them disabled but still visible
+                              }
+                              
                               const day = date.getDay();
                               // Use local date formatting to match the unavailableDates format
                               const year = date.getFullYear();
@@ -2244,39 +2842,58 @@ const PatientAppointments = () => {
                               const dayOfMonth = String(date.getDate()).padStart(2, '0');
                               const dateStr = `${year}-${month}-${dayOfMonth}`;
                               
-                              console.log('Filtering date:', dateStr, 'Day:', day, 'Branch:', values.branch, 'Unavailable dates:', Array.from(unavailableDates));
-                              
                               // Check if patient already has an appointment on this date
                               if (unavailableDates.has(dateStr)) {
-                                console.log('Date blocked - patient has existing appointment');
                                 return false;
                               }
                               
                               // Check branch-specific day restrictions
                               if (values.branch === 'Cabugao') {
-                                const allowed = day !== 0; // Not Sunday
-                                console.log('Cabugao branch - Sunday check:', allowed);
-                                return allowed;
+                                return day !== 0; // Not Sunday
                               } else if (values.branch === 'San Juan') {
-                                const allowed = day !== 6; // Not Saturday
-                                console.log('San Juan branch - Saturday check:', allowed);
-                                return allowed;
+                                return day !== 6; // Not Saturday
                               }
-                              console.log('Date allowed');
                               return true;
                             }}
                             dateFormat="MMMM d, yyyy"
-                            className="block w-full pl-10 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                            className="block w-full pl-10 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200 bg-white text-gray-900"
                             placeholderText="Select date"
                             disabled={!values.branch}
+                            showMonthDropdown
+                            showYearDropdown
+                            dropdownMode="select"
+                            scrollableYearDropdown
+                            yearDropdownItemNumber={15}
+                            popperModifiers={[
+                              {
+                                name: "offset",
+                                options: {
+                                  offset: [0, 8],
+                                },
+                              },
+                              {
+                                name: "preventOverflow",
+                                options: {
+                                  rootBoundary: "viewport",
+                                  tether: false,
+                                  altAxis: true,
+                                },
+                              },
+                            ]}
+                            popperClassName="react-datepicker-popper"
+                            popperPlacement="bottom-start"
+                            withPortal={false}
+                            calendarClassName="modern-datepicker-calendar"
                             title={unavailableDates.size > 0 ? "Dates with existing appointments are not available" : "Select an available date"}
                           />
                         </div>
                         <ErrorMessage name="appointment_date" component="p" className="mt-1 text-sm text-red-600" />
                         {unavailableDates.size > 0 && (
                           <p className="mt-1 text-sm text-blue-600 flex items-center">
-                            <FiUser className="mr-1" />
-                          Only one appointment per day is allowed.
+                            <FiInfo className="mr-1" />
+                            {selectedPatientType === 'child' && selectedChildId 
+                              ? 'This child already has an appointment on the marked dates.'
+                              : 'You already have an appointment on the marked dates. Each person can have one appointment per day, but you and your children can book on the same day.'}
                           </p>
                         )}
                       </div>
@@ -2358,11 +2975,35 @@ const PatientAppointments = () => {
                             {services.map(service => (
                               <div 
                                 key={service.id} 
-                                className={`relative flex items-start p-3 rounded-md border ${
+                                className={`relative flex items-start p-3 rounded-md border transition-all duration-200 cursor-pointer ${
                                   values.service_id.includes(service.id) 
                                     ? 'bg-primary-50 border-primary-300' 
-                                    : 'bg-gray-50 border-gray-200 hover:border-primary-300'
+                                    : 'bg-gray-50 border-gray-200 hover:border-primary-300 hover:bg-gray-100'
                                 }`}
+                                onMouseEnter={(e) => {
+                                  const description = e.currentTarget.querySelector('.service-description');
+                                  if (description) {
+                                    description.classList.remove('hidden');
+                                    description.classList.add('block');
+                                  }
+                                }}
+                                onMouseLeave={(e) => {
+                                  const description = e.currentTarget.querySelector('.service-description');
+                                  if (description) {
+                                    description.classList.add('hidden');
+                                    description.classList.remove('block');
+                                  }
+                                }}
+                                onClick={(e) => {
+                                  // Only toggle description if clicking on the card, not the checkbox
+                                  if (e.target.type !== 'checkbox') {
+                                    const description = e.currentTarget.querySelector('.service-description');
+                                    if (description) {
+                                      description.classList.toggle('hidden');
+                                      description.classList.toggle('block');
+                                    }
+                                  }
+                                }}
                               >
                                 <div className="flex items-center h-5">
                                   <Field
@@ -2399,10 +3040,10 @@ const PatientAppointments = () => {
                                   <label htmlFor={`service_${service.id}`} className="font-medium text-gray-700 cursor-pointer">
                                     {service.name || 'Unnamed Service'}
                                   </label>
-                                  <p className="text-gray-500 text-xs mt-1">{service.description || 'No description available'}</p>
+                                  <p className="service-description hidden text-gray-500 text-xs mt-1 transition-all duration-200">{service.description || 'No description available'}</p>
                                   <div className="flex justify-between mt-2">
                                     <span className="text-primary-600 font-medium">
-                                      ₱{service.price ? parseFloat(service.price).toLocaleString() : '0'}
+                                      PHP {service.price ? parseFloat(service.price).toLocaleString() : '0'}
                                     </span>
                                     <span className="text-gray-500 text-xs">{service.duration || 30} mins</span>
                                   </div>
@@ -2420,9 +3061,9 @@ const PatientAppointments = () => {
                                 </span>
                               </div>
                               <div className="flex items-center mt-2">
-                              <span className="h-4 w-4 text-primary-600 mr-2">₱</span>
+                              <RiWalletLine className="h-4 w-4 text-primary-600 mr-2" />
                                 <span className="text-primary-700 text-sm">
-                                  Estimated cost: <strong>₱{calculateEstimatedCost(values.service_id).toLocaleString()}</strong>
+                                  Estimated cost: <strong>PHP {calculateEstimatedCost(values.service_id).toLocaleString()}</strong>
                                 </span>
                               </div>
                             </div>
@@ -2449,57 +3090,14 @@ const PatientAppointments = () => {
                       <ErrorMessage name="notes" component="p" className="mt-1 text-sm text-red-600" />
                     </div>
 
-                    {/* Auto-Queue Option */}
-                    <div className="bg-blue-50 p-4 rounded-md border border-blue-200">
-                      <div className="flex items-start">
-                        <div className="flex items-center h-5">
-                          <Field
-                            id="auto_join_queue"
-                            name="auto_join_queue"
-                            type="checkbox"
-                            checked={autoJoinQueue}
-                            onChange={(e) => setAutoJoinQueue(e.target.checked)}
-                            className="h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-                          />
-                        </div>
-                        <div className="ml-3 text-sm">
-                          <label htmlFor="auto_join_queue" className="font-medium text-blue-800">
-                            Auto-join queue for today's appointments
-                          </label>
-                          <p className="text-blue-700">
-                            If this appointment is scheduled for today, automatically join the waiting queue after booking.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
+                    {/* Auto-Queue Option removed: now automatic for today's appointments */}
 
-                    {/* Cancellation Policy */}
-                    <div className="border-t border-gray-200 pt-4 mt-4">
-                      <div className="flex items-start">
-                        <div className="flex items-center h-5">
-                          <Field
-                            id="agree_terms"
-                            name="agree_terms"
-                            type="checkbox"
-                            className="h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-                          />
-                        </div>
-                        <div className="ml-3 text-sm">
-                          <label htmlFor="agree_terms" className="font-medium text-gray-700">
-                            I agree to the cancellation policy <span className="text-red-500">*</span>
-                          </label>
-                          <p className="text-gray-500">
-                            Appointments must be canceled at least 24 hours in advance. 
-                          </p>
-                        </div>
-                      </div>
-                      <ErrorMessage name="agree_terms" component="div" className="mt-2 text-sm text-red-600 font-medium" />
-                    </div>
+                    {/* Cancellation Policy UI removed: agreement now implied */}
 
                     <div className="pt-2">
                       <button
                         type="submit"
-                        disabled={isSubmitting || !values.appointment_time || values.service_id.length === 0 || !values.agree_terms}
+                        disabled={isSubmitting || !values.appointment_time || values.service_id.length === 0}
                         className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:bg-primary-300 disabled:cursor-not-allowed"
                       >
                         {isSubmitting ? (
@@ -2642,6 +3240,14 @@ const PatientAppointments = () => {
                             </span>
                           </span>
                           
+                          {appointment.isChildAppointment && appointment.childName && (
+                            <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 bg-blue-100 text-blue-800 text-xs rounded-full flex items-center">
+                              <FiUser className="mr-1 h-3 w-3" />
+                              <span className="hidden sm:inline">For: {appointment.childName}</span>
+                              <span className="sm:hidden">{appointment.childName}</span>
+                            </span>
+                          )}
+                          
                           {appointment.is_emergency && (
                             <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 bg-red-100 text-red-800 text-xs rounded-full flex items-center">
                               <FiAlertTriangle className="mr-1 h-3 w-3" />
@@ -2677,7 +3283,14 @@ const PatientAppointments = () => {
                               <span className="sm:hidden">Doctor:</span>
                             </span>{' '}
                             {appointment.assignedDoctor ? (
-                              <span className="text-primary-600">Dr. {appointment.assignedDoctor.full_name}</span>
+                              <span className="text-primary-600">
+                                Dr. {appointment.assignedDoctor.full_name}
+                                {appointment.auto_assigned === true && (
+                                  <span className="ml-1 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">
+                                    Auto-assigned
+                                  </span>
+                                )}
+                              </span>
                             ) : (
                               <span className="text-gray-500 italic">Not yet assigned</span>
                             )}

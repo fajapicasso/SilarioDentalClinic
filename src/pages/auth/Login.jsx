@@ -83,39 +83,40 @@ const Login = () => {
           className="w-full h-full"
         >
           <SwiperSlide>
-            <img src={cabugaoImg} alt="Cabugao Branch" className="w-full h-full object-cover object-center" />
+            <img src={cabugaoImg} alt="Cabugao Branch" className="w-full h-full object-cover object-center blur-md" />
           </SwiperSlide>
           <SwiperSlide>
-            <img src={sanJuanImg} alt="San Juan Branch" className="w-full h-full object-cover object-center" />
+            <img src={sanJuanImg} alt="San Juan Branch" className="w-full h-full object-cover object-center blur-md" />
           </SwiperSlide>
           <SwiperSlide>
-            <img src={cabugaoImg2} alt="Cabugao Branch 2" className="w-full h-full object-cover object-center" />
+            <img src={cabugaoImg2} alt="Cabugao Branch 2" className="w-full h-full object-cover object-center blur-md" />
           </SwiperSlide>
           <SwiperSlide>
-            <img src={sanJuanImg2} alt="San Juan Branch 2" className="w-full h-full object-cover object-center" />
+            <img src={sanJuanImg2} alt="San Juan Branch 2" className="w-full h-full object-cover object-center blur-md" />
           </SwiperSlide>
           <SwiperSlide>
-            <img src={cabugaoImg3} alt="Cabugao Branch 3" className="w-full h-full object-cover object-center" />
+            <img src={cabugaoImg3} alt="Cabugao Branch 3" className="w-full h-full object-cover object-center blur-md" />
           </SwiperSlide>
         </Swiper>
         <div className="absolute inset-0 bg-black/50" />
       </div>
       {/* Login Card */}
       <div className="relative z-10 min-h-screen flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8 pt-20">
-        <div className="max-w-md w-full space-y-6 bg-white/80 p-8 rounded-2xl shadow-lg border border-gray-100">
+        <div className="max-w-sm w-full space-y-4 bg-white/95 backdrop-blur-xl p-6 rounded-2xl shadow-2xl border border-white/20 relative overflow-hidden">
+          {/* Decorative Elements */}
+          <div className="absolute -top-10 -right-10 w-20 h-20 bg-gradient-to-br from-blue-100/30 to-purple-100/30 rounded-full blur-xl"></div>
+          <div className="absolute -bottom-10 -left-10 w-20 h-20 bg-gradient-to-tr from-purple-100/30 to-blue-100/30 rounded-full blur-xl"></div>
+          
           {/* Professional Header */}
-          <div className="flex flex-col items-center mb-6">
-            <div className="mb-2">
-              <img src={logo} alt="Silario Dental Clinic Logo" className="h-24 w-24 object-contain" />
-            </div>
-            <h1 className="text-2xl font-bold text-primary-700 tracking-wide">Silario Dental Clinic</h1>
-            <div className="w-16 border-b-2 border-primary-200 mt-2 mb-1"></div>
+          <div className="flex flex-col items-center mb-4 relative z-10">
+            <img src={logo} alt="Silario Dental Clinic Logo" className="h-20 w-20 object-contain" />
           </div>
-          <div className="text-center">
-            <h2 className="mt-3 text-xl font-semibold text-gray-800">Sign in to your account</h2>
-            <p className="mt-2 text-sm text-gray-500">
-              Don't have an account yet?{' '}
-              <Link to="/register" className="font-medium text-primary-600 hover:text-primary-700 transition-colors">
+          
+          <div className="text-center relative z-10 mb-6">
+            <h2 className="text-xl font-semibold text-gray-800 mb-1">Sign in to your account</h2>
+            <p className="text-sm text-gray-500 mb-3">
+              Don't have an account?{' '}
+              <Link to="/register" className="font-semibold text-blue-600 hover:text-blue-700 transition-colors duration-200">
                 Sign up
               </Link>
             </p>
@@ -127,17 +128,15 @@ const Login = () => {
             onSubmit={handleSubmit}
           >
             {({ isSubmitting, errors, touched }) => (
-              <Form className="mt-6 space-y-5">
+              <Form className="mt-4 space-y-4 relative z-10">
                 <div className="space-y-4">
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                        Email Address
-                      </label>
-                    </div>
-                    <div className="mt-1 relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <FiUser className="h-5 w-5 text-gray-400" />
+                  <div className="group">
+                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                      Email Address
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
+                        <FiUser className="h-5 w-5 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
                       </div>
                       <Field
                         id="email"
@@ -145,12 +144,14 @@ const Login = () => {
                         type="email"
                         autoComplete="email"
                         className={`
-                          appearance-none block w-full pl-10 pr-3 py-2.5 border rounded-lg shadow-sm text-gray-700
-                          focus:ring-2 focus:ring-primary-500 focus:border-primary-500 focus:outline-none transition-all
+                          appearance-none block w-full pl-10 pr-3 py-3 border-2 rounded-lg shadow-sm text-gray-700
+                          bg-gray-50/50 backdrop-blur-sm transition-all duration-200
+                          focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none focus:bg-white
+                          hover:bg-gray-50 hover:border-gray-400
                           ${
                             errors.email && touched.email
-                              ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                              : 'border-gray-300'
+                              ? 'border-red-400 focus:ring-red-500/20 focus:border-red-500'
+                              : 'border-gray-200'
                           }
                         `}
                         placeholder="you@example.com"
@@ -159,27 +160,25 @@ const Login = () => {
                     <ErrorMessage
                       name="email"
                       component="p"
-                      className="mt-1 text-sm text-red-600"
+                      className="mt-1 text-sm text-red-500 font-medium"
                     />
                   </div>
                   
-                  <div>
-                    <div className="flex items-center justify-between">
+                  <div className="group">
+                    <div className="flex items-center justify-between mb-1">
                       <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                         Password
                       </label>
-                      <div className="text-sm">
-                        <Link
-                          to="/forgot-password"
-                          className="font-medium text-primary-600 hover:text-primary-700 transition-colors"
-                        >
-                          Forgot password?
-                        </Link>
-                      </div>
+                      <Link
+                        to="/forgot-password"
+                        className="text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors duration-200"
+                      >
+                        Forgot password?
+                      </Link>
                     </div>
-                    <div className="mt-1 relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <FiLock className="h-5 w-5 text-gray-400" />
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
+                        <FiLock className="h-5 w-5 text-gray-400 group-focus-within:text-purple-500 transition-colors" />
                       </div>
                       <Field
                         id="password"
@@ -187,27 +186,29 @@ const Login = () => {
                         type={showPassword ? 'text' : 'password'}
                         autoComplete="current-password"
                         className={`
-                          appearance-none block w-full pl-10 pr-10 py-2.5 border rounded-lg shadow-sm text-gray-700
-                          focus:ring-2 focus:ring-primary-500 focus:border-primary-500 focus:outline-none transition-all
+                          appearance-none block w-full pl-10 pr-10 py-3 border-2 rounded-lg shadow-sm text-gray-700
+                          bg-gray-50/50 backdrop-blur-sm transition-all duration-200
+                          focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 focus:outline-none focus:bg-white
+                          hover:bg-gray-50 hover:border-gray-400
                           ${
                             errors.password && touched.password
-                              ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                              : 'border-gray-300'
+                              ? 'border-red-400 focus:ring-red-500/20 focus:border-red-500'
+                              : 'border-gray-200'
                           }
                         `}
                         placeholder="••••••••"
                       />
-                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center z-10">
                         <button
                           type="button"
                           onClick={() => setShowPassword(!showPassword)}
-                          className="text-gray-400 hover:text-gray-600 focus:outline-none transition-colors"
+                          className="text-gray-400 hover:text-gray-600 focus:outline-none transition-colors duration-200"
                           aria-label={showPassword ? 'Hide password' : 'Show password'}
                         >
                           {showPassword ? (
-                            <FiEyeOff className="h-5 w-5" />
+                            <FiEyeOff className="h-4 w-4" />
                           ) : (
-                            <FiEye className="h-5 w-5" />
+                            <FiEye className="h-4 w-4" />
                           )}
                         </button>
                       </div>
@@ -215,7 +216,7 @@ const Login = () => {
                     <ErrorMessage
                       name="password"
                       component="p"
-                      className="mt-1 text-sm text-red-600"
+                      className="mt-1 text-sm text-red-500 font-medium"
                     />
                   </div>
                 </div>
@@ -225,7 +226,7 @@ const Login = () => {
                     id="remember-me"
                     name="remember-me"
                     type="checkbox"
-                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded transition-colors"
                   />
                   <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
                     Remember me
@@ -236,7 +237,7 @@ const Login = () => {
                   <button
                     type="submit"
                     disabled={isSubmitting || isLoading}
-                    className="group relative w-full flex justify-center py-2.5 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:bg-primary-300 disabled:cursor-not-allowed transition-colors"
+                    className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-semibold rounded-lg text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl"
                   >
                     {isLoading || isSubmitting ? (
                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>

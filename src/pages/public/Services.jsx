@@ -60,9 +60,9 @@ const Services = () => {
   // Format price
   const formatPrice = (service) => {
     if (service.price_min && service.price_max) {
-      return `₱${service.price_min.toLocaleString()} - ₱${service.price_max.toLocaleString()}`;
+      return `PHP ${service.price_min.toLocaleString()} - PHP ${service.price_max.toLocaleString()}`;
     } else if (service.price) {
-      return `₱${service.price.toLocaleString()}`;
+      return `PHP ${service.price.toLocaleString()}`;
     }
     return 'Price varies';
   };

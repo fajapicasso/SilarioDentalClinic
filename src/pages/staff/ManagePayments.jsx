@@ -1,7 +1,7 @@
 // src/pages/patient/Payments.jsx - Fixed Payment Flow
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { FiDollarSign, FiCreditCard, FiFileText, FiDownload, FiExternalLink, FiInfo, FiUpload, FiCheck, FiClock, FiPrinter, FiEye } from 'react-icons/fi';
+import { FiDollarSign, FiCreditCard, FiFileText, FiDownload, FiExternalLink, FiInfo, FiUpload, FiCheck, FiClock, FiPrinter, FiEye, FiFilter, FiCalendar, FiX } from 'react-icons/fi';
 import supabase from '../../config/supabaseClient';
 // Staff view does not use patient auth; we provide a patient selector
 import LoadingSpinner from '../../components/common/LoadingSpinner';
@@ -10,6 +10,8 @@ import { usePaymentNotifications } from '../../hooks/useNotificationIntegration'
 import InvoicePDF from '../../components/common/InvoicePDF';
 import UnifiedInvoicePrinter from '../../components/common/UnifiedInvoicePrinter';
 import { useUniversalAudit } from '../../hooks/useUniversalAudit';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 // Import GCash QR Code
 import gcashQR from '../../assets/clinic.png';
@@ -72,6 +74,9 @@ const Payments = () => {
   const [invoices, setInvoices] = useState([]);
   const [filteredInvoices, setFilteredInvoices] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [dateFilter, setDateFilter] = useState('all'); // Date filter: 'all', 'today', 'thisWeek', 'thisMonth', 'thisYear', 'custom'
+  const [dateFrom, setDateFrom] = useState(null);
+  const [dateTo, setDateTo] = useState(null);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
@@ -83,6 +88,7 @@ const Payments = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [paymentHistory, setPaymentHistory] = useState([]);
+  const [filteredPaymentHistory, setFilteredPaymentHistory] = useState([]);
   const [activeTab, setActiveTab] = useState('pending');
   // Track which invoices have payments in this session
   const [paidInvoicesInSession, setPaidInvoicesInSession] = useState([]);
@@ -124,7 +130,79 @@ const Payments = () => {
     }
   };
 
-  // Filter invoices when search query changes
+  // Helper function to check if date is within range
+  const isDateInRange = (date, filterType, fromDate = null, toDate = null) => {
+    if (!date) return false;
+    try {
+      // Normalize invoice date to local date (year, month, day only)
+      const invoiceDate = new Date(date);
+      const invoiceYear = invoiceDate.getFullYear();
+      const invoiceMonth = invoiceDate.getMonth();
+      const invoiceDay = invoiceDate.getDate();
+      const normalizedInvoiceDate = new Date(invoiceYear, invoiceMonth, invoiceDay);
+      normalizedInvoiceDate.setHours(0, 0, 0, 0);
+      
+      const today = new Date();
+      const todayYear = today.getFullYear();
+      const todayMonth = today.getMonth();
+      const todayDay = today.getDate();
+      const normalizedToday = new Date(todayYear, todayMonth, todayDay);
+      normalizedToday.setHours(0, 0, 0, 0);
+      
+      switch (filterType) {
+        case 'today': {
+          return normalizedInvoiceDate.getTime() === normalizedToday.getTime();
+        }
+        case 'thisWeek': {
+          const startOfWeek = new Date(normalizedToday);
+          startOfWeek.setDate(normalizedToday.getDate() - normalizedToday.getDay()); // Sunday
+          startOfWeek.setHours(0, 0, 0, 0);
+          const endOfWeek = new Date(startOfWeek);
+          endOfWeek.setDate(startOfWeek.getDate() + 6);
+          endOfWeek.setHours(23, 59, 59, 999);
+          return normalizedInvoiceDate >= startOfWeek && normalizedInvoiceDate <= endOfWeek;
+        }
+        case 'thisMonth': {
+          const startOfMonth = new Date(normalizedToday.getFullYear(), normalizedToday.getMonth(), 1);
+          startOfMonth.setHours(0, 0, 0, 0);
+          const endOfMonth = new Date(normalizedToday.getFullYear(), normalizedToday.getMonth() + 1, 0);
+          endOfMonth.setHours(23, 59, 59, 999);
+          return normalizedInvoiceDate >= startOfMonth && normalizedInvoiceDate <= endOfMonth;
+        }
+        case 'thisYear': {
+          const startOfYear = new Date(normalizedToday.getFullYear(), 0, 1);
+          startOfYear.setHours(0, 0, 0, 0);
+          const endOfYear = new Date(normalizedToday.getFullYear(), 11, 31);
+          endOfYear.setHours(23, 59, 59, 999);
+          return normalizedInvoiceDate >= startOfYear && normalizedInvoiceDate <= endOfYear;
+        }
+        case 'custom': {
+          if (!fromDate || !toDate) return true;
+          const from = fromDate instanceof Date ? new Date(fromDate) : new Date(fromDate);
+          const fromYear = from.getFullYear();
+          const fromMonth = from.getMonth();
+          const fromDay = from.getDate();
+          const normalizedFrom = new Date(fromYear, fromMonth, fromDay);
+          normalizedFrom.setHours(0, 0, 0, 0);
+          
+          const to = toDate instanceof Date ? new Date(toDate) : new Date(toDate);
+          const toYear = to.getFullYear();
+          const toMonth = to.getMonth();
+          const toDay = to.getDate();
+          const normalizedTo = new Date(toYear, toMonth, toDay);
+          normalizedTo.setHours(23, 59, 59, 999);
+          return normalizedInvoiceDate >= normalizedFrom && normalizedInvoiceDate <= normalizedTo;
+        }
+        default:
+          return true;
+      }
+    } catch (error) {
+      console.error('Error in isDateInRange:', error, date);
+      return false;
+    }
+  };
+
+  // Filter invoices when search query or date filter changes
   useEffect(() => {
     if (invoices.length === 0) return;
     
@@ -134,15 +212,54 @@ const Payments = () => {
     if (searchQuery) {
       const lowercasedQuery = searchQuery.toLowerCase();
       filtered = filtered.filter(
-        invoice => 
-          invoice.invoice_number?.toLowerCase().includes(lowercasedQuery) ||
-          invoice.total_amount?.toString().includes(lowercasedQuery) ||
-          invoice.invoice_date?.toLowerCase().includes(lowercasedQuery)
+        invoice => {
+          const invoiceNumber = invoice.invoice_number?.toLowerCase() || '';
+          const amount = invoice.total_amount?.toString() || '';
+          const date = invoice.invoice_date?.toLowerCase() || '';
+          const patientName = invoice.patientName?.toLowerCase() || '';
+          const guardianName = invoice.guardianName?.toLowerCase() || '';
+          
+          // Search by invoice number, amount, date, patient name, or guardian name
+          // Note: We search by guardian name but don't show children as separate entries
+          return invoiceNumber.includes(lowercasedQuery) ||
+                 amount.includes(lowercasedQuery) ||
+                 date.includes(lowercasedQuery) ||
+                 patientName.includes(lowercasedQuery) ||
+                 guardianName.includes(lowercasedQuery);
+        }
+      );
+    }
+    
+    // Apply date filter
+    if (dateFilter !== 'all') {
+      filtered = filtered.filter(invoice => 
+        isDateInRange(invoice.invoice_date, dateFilter, dateFrom, dateTo)
       );
     }
     
     setFilteredInvoices(filtered);
-  }, [searchQuery, invoices]);
+  }, [searchQuery, dateFilter, dateFrom, dateTo, invoices]);
+
+  // Filter payment history when date filter changes
+  useEffect(() => {
+    if (paymentHistory.length === 0) {
+      setFilteredPaymentHistory([]);
+      return;
+    }
+    
+    let filtered = [...paymentHistory];
+    
+    // Apply date filter to payment history
+    if (dateFilter !== 'all') {
+      filtered = filtered.filter(payment => {
+        // Use payment_date or created_at for date filtering
+        const paymentDate = payment.payment_date || payment.created_at;
+        return isDateInRange(paymentDate, dateFilter, dateFrom, dateTo);
+      });
+    }
+    
+    setFilteredPaymentHistory(filtered);
+  }, [dateFilter, dateFrom, dateTo, paymentHistory]);
 
   // Function to check all invoices for rejected payment proofs
   const checkInvoicesForRejectedProofs = async (invoiceList) => {
@@ -178,7 +295,7 @@ const Payments = () => {
           subtotal,
           discount,
           tax,
-          profiles:patient_id(full_name, phone, email, address),
+          profiles:patient_id(full_name, phone, email, address, guardian_id),
           invoice_items(id, service_name, description, quantity, price)
         `)
         .eq('id', invoiceId)
@@ -190,9 +307,34 @@ const Payments = () => {
         return;
       }
 
+      // Fetch guardian information if patient is a minor
+      let guardianName = null;
+      let guardianPhone = null;
+      if (data?.profiles?.guardian_id) {
+        const { data: guardianData } = await supabase
+          .from('profiles')
+          .select('full_name, phone')
+          .eq('id', data.profiles.guardian_id)
+          .single();
+        
+        if (guardianData?.full_name) {
+          guardianName = guardianData.full_name;
+          guardianPhone = guardianData.phone || null;
+        } else if (data.notes) {
+          // Fallback to notes
+          const guardianMatch = data.notes.match(/Guardian: ([^|\n]+)/);
+          if (guardianMatch) {
+            guardianName = guardianMatch[1].trim();
+          }
+        }
+      }
+
       const fullInvoice = {
         ...data,
         patientName: data?.profiles?.full_name || '',
+        guardianName: guardianName,
+        guardianPhone: guardianPhone,
+        isMinor: !!data?.profiles?.guardian_id
       };
 
       printInvoice(fullInvoice);
@@ -222,7 +364,7 @@ const Payments = () => {
           subtotal,
           discount,
           tax,
-          profiles:patient_id(full_name, phone, email, address),
+          profiles:patient_id(full_name, phone, email, address, guardian_id),
           invoice_items(id, service_name, description, quantity, price)
         `)
         .eq('id', invoiceId)
@@ -234,9 +376,34 @@ const Payments = () => {
         return;
       }
 
+      // Fetch guardian information if patient is a minor
+      let guardianName = null;
+      let guardianPhone = null;
+      if (data?.profiles?.guardian_id) {
+        const { data: guardianData } = await supabase
+          .from('profiles')
+          .select('full_name, phone')
+          .eq('id', data.profiles.guardian_id)
+          .single();
+        
+        if (guardianData?.full_name) {
+          guardianName = guardianData.full_name;
+          guardianPhone = guardianData.phone || null;
+        } else if (data.notes) {
+          // Fallback to notes
+          const guardianMatch = data.notes.match(/Guardian: ([^|\n]+)/);
+          if (guardianMatch) {
+            guardianName = guardianMatch[1].trim();
+          }
+        }
+      }
+
       const fullInvoice = {
         ...data,
         patientName: data?.profiles?.full_name || '',
+        guardianName: guardianName,
+        guardianPhone: guardianPhone,
+        isMinor: !!data?.profiles?.guardian_id
       };
 
       await InvoicePDF.generateInvoicePDF(fullInvoice, toast);
@@ -367,25 +534,162 @@ const Payments = () => {
   };
 
 
-  // Load patient options based on invoices available
+  // Load patient options based on invoices available - grouped by guardians
   useEffect(() => {
     // Log page view
     logPageView('Staff Payments', 'billing', 'management');
     
     const loadPatients = async () => {
       try {
-        const { data, error } = await supabase
+        // First, get unique patient IDs from invoices
+        const { data: invoicesData, error: invoicesError } = await supabase
           .from('invoices')
-          .select('patient_id, profiles:patient_id ( id, full_name )')
+          .select('patient_id, profiles:patient_id ( id, full_name, guardian_id )')
           .order('invoice_date', { ascending: false });
-        if (error) throw error;
-        const map = new Map();
-        (data || []).forEach(r => {
-          if (r.profiles?.id) map.set(r.profiles.id, r.profiles.full_name || 'Unknown');
+        
+        if (invoicesError) throw invoicesError;
+        
+        // Get unique patient IDs to avoid processing duplicates
+        const uniquePatientIds = new Set();
+        const patientProfileMap = new Map(); // patient_id -> profile data
+        
+        (invoicesData || []).forEach(r => {
+          if (r.profiles?.id && !uniquePatientIds.has(r.profiles.id)) {
+            uniquePatientIds.add(r.profiles.id);
+            patientProfileMap.set(r.profiles.id, r.profiles);
+          }
         });
-        const list = Array.from(map.entries()).map(([id, full_name]) => ({ id, full_name }));
-        setPatients(list);
-        if (list.length > 0) setSelectedPatientId(list[0].id);
+        
+        // Now process unique patients only
+        const uniqueInvoicesData = Array.from(patientProfileMap.entries()).map(([id, profile]) => ({
+          patient_id: id,
+          profiles: { id, ...profile }
+        }));
+        
+        // Separate guardians and children - use Sets to track unique patients
+        const guardianMap = new Map(); // guardian_id -> { id, full_name, children: Map }
+        const childMap = new Map(); // child_id -> guardian_id
+        const adultPatientsMap = new Map(); // patient_id -> { id, full_name } (for unique adults)
+        const processedChildIds = new Set(); // Track processed child IDs to avoid duplicates
+        
+        (uniqueInvoicesData || []).forEach(r => {
+          if (!r.profiles?.id) return;
+          
+          const patientId = r.profiles.id;
+          const patientName = r.profiles.full_name || 'Unknown';
+          const guardianId = r.profiles.guardian_id;
+          
+          if (guardianId) {
+            // This is a child - only process once per child
+            if (!processedChildIds.has(patientId)) {
+              childMap.set(patientId, guardianId);
+              processedChildIds.add(patientId);
+              
+              // Add to guardian's children list (using Map to ensure uniqueness)
+              if (!guardianMap.has(guardianId)) {
+                guardianMap.set(guardianId, {
+                  id: guardianId,
+                  full_name: null, // Will be fetched separately
+                  children: new Map() // Use Map instead of array to prevent duplicates
+                });
+              }
+              const guardian = guardianMap.get(guardianId);
+              // Add child to guardian's children map (automatically handles duplicates)
+              if (!guardian.children.has(patientId)) {
+                guardian.children.set(patientId, { id: patientId, full_name: patientName });
+              }
+            }
+          } else {
+            // This is an adult (guardian or standalone patient)
+            // Only add if not already in guardianMap (as a guardian) and not already in adultPatientsMap
+            if (!guardianMap.has(patientId) && !adultPatientsMap.has(patientId)) {
+              adultPatientsMap.set(patientId, { id: patientId, full_name: patientName });
+            }
+          }
+        });
+        
+        // Fetch guardian names
+        const guardianIds = Array.from(guardianMap.keys());
+        if (guardianIds.length > 0) {
+          const { data: guardianProfiles, error: guardianError } = await supabase
+            .from('profiles')
+            .select('id, full_name')
+            .in('id', guardianIds);
+          
+          if (!guardianError && guardianProfiles) {
+            guardianProfiles.forEach(guardian => {
+              if (guardianMap.has(guardian.id)) {
+                guardianMap.get(guardian.id).full_name = guardian.full_name;
+              }
+            });
+          }
+        }
+        
+        // Build final patient list: guardians with children grouped, plus standalone adults
+        const groupedPatients = [];
+        
+        // Add guardians with their children
+        guardianMap.forEach((guardian, guardianId) => {
+          if (guardian.full_name) {
+            // Convert children Map to array for processing
+            const childrenArray = Array.from(guardian.children.values());
+            const childrenCount = childrenArray.length;
+            let displayName = guardian.full_name;
+            
+            // Format display name based on number of children
+            if (childrenCount > 0) {
+              if (childrenCount === 1) {
+                // Show single child name
+                displayName = `${guardian.full_name} (${childrenArray[0].full_name})`;
+              } else if (childrenCount <= 3) {
+                // Show up to 3 children
+                const childrenNames = childrenArray.slice(0, 3).map(c => c.full_name).join(', ');
+                displayName = `${guardian.full_name} (${childrenNames})`;
+              } else {
+                // Show first 2 children and count of remaining
+                const firstTwo = childrenArray.slice(0, 2).map(c => c.full_name).join(', ');
+                const remainingCount = childrenCount - 2;
+                displayName = `${guardian.full_name} (${firstTwo} + ${remainingCount} more)`;
+              }
+            }
+            
+            groupedPatients.push({
+              id: guardianId,
+              full_name: displayName,
+              guardianId: guardianId,
+              childIds: childrenArray.map(c => c.id),
+              isGuardian: true,
+              childrenCount: childrenCount
+            });
+          }
+        });
+        
+        // Add standalone adults (patients without guardian_id and not guardians themselves)
+        adultPatientsMap.forEach((adult, patientId) => {
+          // Only add if they're not already in the guardian list (they might be a guardian with children)
+          if (!guardianMap.has(patientId)) {
+            groupedPatients.push({
+              id: patientId,
+              full_name: adult.full_name,
+              guardianId: null,
+              childIds: [],
+              isGuardian: false
+            });
+          }
+        });
+        
+        // Sort by name
+        groupedPatients.sort((a, b) => {
+          // Extract the main name (before the parenthesis) for sorting
+          const nameA = a.full_name.split(' (')[0];
+          const nameB = b.full_name.split(' (')[0];
+          return nameA.localeCompare(nameB);
+        });
+        
+        setPatients(groupedPatients);
+        if (groupedPatients.length > 0) {
+          setSelectedPatientId(groupedPatients[0].id);
+        }
       } catch (e) {
         console.error('Failed to load patients:', e);
         toast.error('Failed to load patients');
@@ -601,8 +905,20 @@ const Payments = () => {
     try {
       console.log('Fetching invoices for patient:', selectedPatientId);
       
-      // Correct way to use the IN operator with Supabase - ensure array is properly formatted
-      const { data, error } = await supabase
+      // Get the selected patient info to determine if it's a guardian
+      const selectedPatient = patients.find(p => p.id === selectedPatientId);
+      const patientIdsToFetch = selectedPatient?.isGuardian && selectedPatient.childIds.length > 0
+        ? [selectedPatientId, ...selectedPatient.childIds] // Fetch guardian + all children
+        : [selectedPatientId]; // Just the selected patient
+      
+      console.log('Fetching invoices for patient IDs:', patientIdsToFetch);
+      
+      // Fetch invoices with patient and guardian information
+      // Use separate queries for each status to avoid OR operator issues
+      let allInvoices = [];
+      
+      // Query for pending invoices
+      const { data: pendingData, error: pendingError } = await supabase
         .from('invoices')
         .select(`
           id,
@@ -617,6 +933,8 @@ const Payments = () => {
           created_by,
           discount,
           tax,
+          patient_id,
+          profiles:patient_id(id, full_name, guardian_id),
           invoice_items(
             id,
             description,
@@ -626,22 +944,139 @@ const Payments = () => {
             discount
           )
         `)
-        .eq('patient_id', selectedPatientId)
-        .or('status.eq.pending,status.eq.partial,status.eq.rejected')  // Include rejected invoices
+        .in('patient_id', patientIdsToFetch)
+        .eq('status', 'pending')
         .order('invoice_date', { ascending: false });
+      
+      if (!pendingError && pendingData) {
+        allInvoices = [...allInvoices, ...pendingData];
+      }
+      
+      // Query for partial invoices
+      const { data: partialData, error: partialError } = await supabase
+        .from('invoices')
+        .select(`
+          id,
+          invoice_number,
+          invoice_date,
+          due_date,
+          total_amount,
+          amount_paid,
+          status,
+          payment_method,
+          notes,
+          created_by,
+          discount,
+          tax,
+          patient_id,
+          profiles:patient_id(id, full_name, guardian_id),
+          invoice_items(
+            id,
+            description,
+            service_name,
+            price,
+            quantity,
+            discount
+          )
+        `)
+        .in('patient_id', patientIdsToFetch)
+        .eq('status', 'partial')
+        .order('invoice_date', { ascending: false });
+      
+      if (!partialError && partialData) {
+        allInvoices = [...allInvoices, ...partialData];
+      }
+      
+      // Query for rejected invoices
+      const { data: rejectedData, error: rejectedError } = await supabase
+        .from('invoices')
+        .select(`
+          id,
+          invoice_number,
+          invoice_date,
+          due_date,
+          total_amount,
+          amount_paid,
+          status,
+          payment_method,
+          notes,
+          created_by,
+          discount,
+          tax,
+          patient_id,
+          profiles:patient_id(id, full_name, guardian_id),
+          invoice_items(
+            id,
+            description,
+            service_name,
+            price,
+            quantity,
+            discount
+          )
+        `)
+        .in('patient_id', patientIdsToFetch)
+        .eq('status', 'rejected')
+        .order('invoice_date', { ascending: false });
+      
+      if (!rejectedError && rejectedData) {
+        allInvoices = [...allInvoices, ...rejectedData];
+      }
+      
+      // Fetch guardian information for all minors
+      const guardianIds = [...new Set(
+        allInvoices
+          .map(inv => inv.profiles?.guardian_id)
+          .filter(Boolean)
+      )];
+      
+      let guardianMap = {};
+      if (guardianIds.length > 0) {
+        const { data: guardianData } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', guardianIds);
+        
+        if (guardianData) {
+          guardianMap = guardianData.reduce((acc, guardian) => {
+            acc[guardian.id] = guardian.full_name;
+            return acc;
+          }, {});
+        }
+      }
+      
+      // Enrich invoices with guardian information
+      const enrichedInvoices = allInvoices.map(invoice => {
+        let guardianName = null;
+        if (invoice.profiles?.guardian_id) {
+          guardianName = guardianMap[invoice.profiles.guardian_id] || null;
+          // Also check notes as fallback
+          if (!guardianName && invoice.notes) {
+            const guardianMatch = invoice.notes.match(/Guardian: ([^|\n]+)/);
+            if (guardianMatch) {
+              guardianName = guardianMatch[1].trim();
+            }
+          }
+        }
+        
+        return {
+          ...invoice,
+          patientName: invoice.profiles?.full_name || 'Unknown Patient',
+          guardianName: guardianName,
+          isMinor: !!invoice.profiles?.guardian_id
+        };
+      });
+      
+      const error = pendingError || partialError || rejectedError;
       
       if (error) {
         console.error('Error in invoice query:', error);
-        // Try the fallback approach with separate queries if OR fails
-        await fetchWithSeparateQueries();
-        return;
+        toast.error('Failed to load some invoices');
       }
       
-      console.log(`Found ${data?.length || 0} invoices`);
-      const invoiceData = data || [];
+      console.log(`Found ${enrichedInvoices.length} invoices`);
       
       // Calculate correct amount_paid based only on approved payments
-      const invoicesWithCorrectAmounts = await calculateCorrectAmountPaid(invoiceData);
+      const invoicesWithCorrectAmounts = await calculateCorrectAmountPaid(enrichedInvoices);
       setInvoices(invoicesWithCorrectAmounts);
       setFilteredInvoices(invoicesWithCorrectAmounts);
       
@@ -949,6 +1384,34 @@ const Payments = () => {
       console.log('Fetching payment history for staff');
       setIsLoading(true);
       
+      // Get the selected patient info to determine if it's a guardian
+      const selectedPatient = patients.find(p => p.id === selectedPatientId);
+      const patientIdsForPayments = selectedPatient?.isGuardian && selectedPatient.childIds.length > 0
+        ? [selectedPatientId, ...selectedPatient.childIds] // Include guardian + all children
+        : [selectedPatientId]; // Just the selected patient
+      
+      console.log('Fetching payment history for patient IDs:', patientIdsForPayments);
+      
+      // First, get all invoices for these patients
+      const { data: invoicesForPatients, error: invoicesError } = await supabase
+        .from('invoices')
+        .select('id')
+        .in('patient_id', patientIdsForPayments);
+      
+      if (invoicesError) {
+        console.error('Error fetching invoices for payment history:', invoicesError);
+      }
+      
+      const invoiceIds = invoicesForPatients?.map(inv => inv.id) || [];
+      
+      // If no invoices found, set empty payment history
+      if (invoiceIds.length === 0) {
+        setPaymentHistory([]);
+        setIsLoading(false);
+        return;
+      }
+      
+      // Fetch payments for invoices belonging to the selected guardian/patient and their children
       const { data, error } = await supabase
         .from('payments')
         .select(`
@@ -964,7 +1427,7 @@ const Payments = () => {
           doctor_approval_status,
           approval_status
         `)
-        .eq('created_by', selectedPatientId)
+        .in('invoice_id', invoiceIds)
         .order('created_at', { ascending: false });
       
       if (error) throw error;
@@ -976,7 +1439,7 @@ const Payments = () => {
         if (invoiceIds.length > 0) {
           const { data: invoicesData, error: invoicesError } = await supabase
             .from('invoices')
-            .select('id, invoice_number, total_amount, notes, created_by')
+            .select('id, invoice_number, total_amount, notes, created_by, patient_id, profiles:patient_id(id, full_name, guardian_id)')
             .in('id', invoiceIds);
           
           if (!invoicesError && invoicesData) {
@@ -997,14 +1460,46 @@ const Payments = () => {
               }
             }
             
+            // Get patient data from invoices
+            let patientData = {};
+            invoicesData.forEach(inv => {
+              if (inv.profiles && inv.patient_id) {
+                patientData[inv.patient_id] = inv.profiles;
+              }
+            });
+            
+            // Get guardian information for minors
+            const guardianIds = [...new Set(Object.values(patientData).filter(p => p.guardian_id).map(p => p.guardian_id).filter(Boolean))];
+            let guardianData = {};
+            
+            if (guardianIds.length > 0) {
+              const { data: guardianProfiles, error: guardianError } = await supabase
+                .from('profiles')
+                .select('id, full_name')
+                .in('id', guardianIds);
+              
+              if (!guardianError && guardianProfiles) {
+                guardianProfiles.forEach(profile => {
+                  guardianData[profile.id] = profile;
+                });
+              }
+            }
+            
             // Safely combine the payment and invoice data
             const paymentsWithInvoices = data.map(payment => {
               const matchingInvoice = invoicesData.find(inv => inv.id === payment.invoice_id) || {
                 invoice_number: 'Unknown',
                 total_amount: 0,
                 notes: '',
-                created_by: null
+                created_by: null,
+                patient_id: null
               };
+              
+              // Get patient information
+              const patient = matchingInvoice.patient_id ? patientData[matchingInvoice.patient_id] : null;
+              const isMinor = patient ? !!patient.guardian_id : false;
+              const guardianName = isMinor && patient.guardian_id ? (guardianData[patient.guardian_id]?.full_name || null) : null;
+              const childName = isMinor && patient ? patient.full_name : null;
               
               // Extract doctor information from notes
               const doctorName = extractDoctorFromNotes(matchingInvoice.notes);
@@ -1029,6 +1524,10 @@ const Payments = () => {
               return {
                 ...payment,
                 doctor_approval_status: getApprovalStatusFromNotes(payment.notes),
+                patientName: patient ? patient.full_name : null,
+                childName: childName, // Child's name (for minors)
+                guardianName: guardianName, // Guardian's name (for minors)
+                isMinor: isMinor,
                 invoices: { 
                   invoice_number: matchingInvoice.invoice_number, 
                   total_amount: matchingInvoice.total_amount,
@@ -1432,31 +1931,179 @@ const Payments = () => {
             <select
               value={selectedPatientId}
               onChange={(e) => setSelectedPatientId(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+              className="px-3 py-2 border border-gray-300 rounded-md text-sm min-w-[300px] max-w-[500px]"
+              title={patients.find(p => p.id === selectedPatientId)?.full_name || ''}
             >
               {patients.map(p => (
-                <option key={p.id} value={p.id}>{p.full_name}</option>
+                <option key={p.id} value={p.id} title={p.full_name}>
+                  {p.full_name}
+                </option>
               ))}
             </select>
+            {patients.find(p => p.id === selectedPatientId)?.isGuardian && 
+             patients.find(p => p.id === selectedPatientId)?.childrenCount > 0 && (
+              <span className="text-xs text-gray-500">
+                ({patients.find(p => p.id === selectedPatientId)?.childrenCount} {patients.find(p => p.id === selectedPatientId)?.childrenCount === 1 ? 'child' : 'children'})
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Search Bar */}
-        <div className="mb-6">
-          <div className="relative">
+        {/* Search and Filter Section */}
+        <div className="flex flex-col gap-4 mb-6">
+          {/* Search Bar */}
+          <div className="relative w-full">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
+              <FiDollarSign className="h-5 w-5 text-gray-400" />
             </div>
             <input
               type="text"
-              placeholder="Search invoices by number, amount, or date..."
+              placeholder="Search by invoice number, patient name, guardian name, doctor name, or notes..."
               className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
+
+          {/* Date Filter Buttons */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <FiFilter className="h-4 w-4 text-gray-500" />
+              <span className="text-sm font-medium text-gray-700">Date Filter:</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => {
+                  setDateFilter('all');
+                  setDateFrom(null);
+                  setDateTo(null);
+                }}
+                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                  dateFilter === 'all'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                All Invoices
+              </button>
+              <button
+                onClick={() => {
+                  setDateFilter('today');
+                  setDateFrom(null);
+                  setDateTo(null);
+                }}
+                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                  dateFilter === 'today'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Today
+              </button>
+              <button
+                onClick={() => {
+                  setDateFilter('thisWeek');
+                  setDateFrom(null);
+                  setDateTo(null);
+                }}
+                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                  dateFilter === 'thisWeek'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                This Week
+              </button>
+              <button
+                onClick={() => {
+                  setDateFilter('thisMonth');
+                  setDateFrom(null);
+                  setDateTo(null);
+                }}
+                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                  dateFilter === 'thisMonth'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                This Month
+              </button>
+              <button
+                onClick={() => {
+                  setDateFilter('thisYear');
+                  setDateFrom(null);
+                  setDateTo(null);
+                }}
+                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                  dateFilter === 'thisYear'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                This Year
+              </button>
+              <button
+                onClick={() => {
+                  setDateFilter(dateFilter === 'custom' ? 'all' : 'custom');
+                }}
+                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                  dateFilter === 'custom'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <FiCalendar className="inline h-4 w-4 mr-1" />
+                Custom Range
+              </button>
+            </div>
+          </div>
+
+          {/* Custom Date Range Inputs */}
+          {dateFilter === 'custom' && (
+            <div className="flex flex-wrap items-center gap-4 p-4 bg-blue-50 rounded-lg border-2 border-blue-200 shadow-sm">
+              <div className="flex items-center space-x-2">
+                <label className="text-sm font-medium text-gray-700">From:</label>
+                <DatePicker
+                  selected={dateFrom}
+                  onChange={(date) => setDateFrom(date)}
+                  selectsStart
+                  startDate={dateFrom}
+                  endDate={dateTo}
+                  maxDate={dateTo || new Date()}
+                  className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  dateFormat="yyyy-MM-dd"
+                  placeholderText="Start Date"
+                />
+              </div>
+              <div className="flex items-center space-x-2">
+                <label className="text-sm font-medium text-gray-700">To:</label>
+                <DatePicker
+                  selected={dateTo}
+                  onChange={(date) => setDateTo(date)}
+                  selectsEnd
+                  startDate={dateFrom}
+                  endDate={dateTo}
+                  minDate={dateFrom}
+                  maxDate={new Date()}
+                  className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  dateFormat="yyyy-MM-dd"
+                  placeholderText="End Date"
+                />
+              </div>
+              {(dateFrom || dateTo) && (
+                <button
+                  onClick={() => {
+                    setDateFrom(null);
+                    setDateTo(null);
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors flex items-center gap-2"
+                >
+                  <FiX className="h-4 w-4" />
+                  Clear
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Tabs */}
@@ -1554,6 +2201,22 @@ const Payments = () => {
                                 <div className="text-sm text-gray-500">
                                   {formatDate(invoice.invoice_date)}
                                 </div>
+                                {invoice.isMinor && invoice.guardianName ? (
+                                  <>
+                                    <div className="text-xs text-gray-600 mt-1">
+                                      <span className="font-semibold">Child:</span> {invoice.patientName}
+                                    </div>
+                                    <div className="text-xs text-blue-600 mt-1 font-medium">
+                                      <span className="font-semibold">Guardian:</span> {invoice.guardianName}
+                                    </div>
+                                  </>
+                                ) : (
+                                  invoice.patientName && (
+                                    <div className="text-xs text-gray-600 mt-1">
+                                      <span className="font-semibold">Patient:</span> {invoice.patientName}
+                                    </div>
+                                  )
+                                )}
                               </div>
                             </div>
                           </td>
@@ -1710,13 +2373,16 @@ const Payments = () => {
               </button>
             </div>
             <div className="border-t border-gray-200">
-              {paymentHistory.length > 0 ? (
+              {filteredPaymentHistory.length > 0 ? (
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
                         <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Invoice
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Patient
                         </th>
                         <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Amount
@@ -1743,7 +2409,7 @@ const Payments = () => {
                       {(() => {
                         const grouped = new Map();
                         const totalsByInvoice = new Map();
-                        for (const p of paymentHistory) {
+                        for (const p of filteredPaymentHistory) {
                           const key = p.invoice_id;
                           if (!grouped.has(key)) {
                             grouped.set(key, p);
@@ -1784,6 +2450,18 @@ const Payments = () => {
                                 </div>
                               </div>
                             </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {payment.isMinor && payment.childName ? (
+                              <>
+                                <div className="text-base font-bold text-gray-900">{payment.childName}</div>
+                                {payment.guardianName && (
+                                  <div className="text-xs text-gray-500 mt-1">{payment.guardianName}</div>
+                                )}
+                              </>
+                            ) : (
+                              <div className="text-base font-bold text-gray-900">{payment.patientName || (selectedPatientId ? (patients.find(p => p.id === selectedPatientId)?.full_name || 'N/A') : 'N/A')}</div>
+                            )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm font-semibold text-gray-900">
@@ -1924,9 +2602,13 @@ const Payments = () => {
               ) : (
                 <div className="text-center py-8">
                   <FiClock className="mx-auto h-12 w-12 text-gray-400" />
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">No payment history</h3>
+                  <h3 className="mt-2 text-sm font-medium text-gray-900">
+                    {paymentHistory.length > 0 ? 'No payments match the selected date filter' : 'No payment history'}
+                  </h3>
                   <p className="mt-1 text-sm text-gray-500">
-                    You haven't submitted any payment confirmations yet.
+                    {paymentHistory.length > 0 
+                      ? 'Try selecting a different date range.'
+                      : "You haven't submitted any payment confirmations yet."}
                   </p>
                 </div>
               )}

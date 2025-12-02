@@ -2,6 +2,7 @@
 import React from 'react';
 import { FiPrinter, FiDownload, FiX } from 'react-icons/fi';
 import { toast } from 'react-toastify';
+import logo from '../../assets/Logo.png';
 
 const UnifiedInvoicePrinter = ({ 
   invoice, 
@@ -18,11 +19,17 @@ const UnifiedInvoicePrinter = ({
 
   // Define print styles
   const printStyles = `
+    @page {
+      size: A4;
+      margin: 1cm;
+    }
     body {
       font-family: Arial, sans-serif;
-      margin: 20px;
+      margin: 0;
+      padding: 20px;
       color: #333;
-      line-height: 1.6;
+      line-height: 1.5;
+      font-size: 14px;
     }
     .invoice-container {
       max-width: 800px;
@@ -31,64 +38,100 @@ const UnifiedInvoicePrinter = ({
     .invoice-header {
       display: flex;
       justify-content: space-between;
-      margin-bottom: 30px;
+      align-items: flex-start;
+      margin-bottom: 25px;
       border-bottom: 2px solid #2563eb;
-      padding-bottom: 20px;
+      padding-bottom: 15px;
+    }
+    .invoice-header-left {
+      flex: 1;
+    }
+    .title-with-logo {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      margin-bottom: 10px;
+      margin-top: 0;
+    }
+    .logo-container {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+    }
+    .logo-img {
+      width: 100px;
+      height: 80px;
+      object-fit: contain;
+      background: #fff;
+      border: none;
+      display: block;
     }
     .invoice-title {
-      font-size: 32px;
+      font-size: 48px;
       font-weight: bold;
-      color: #2563eb;
-      margin-bottom: 10px;
+      color: #1f2937;
+      margin: 0;
+      text-transform: uppercase;
+      line-height: 1;
     }
     .clinic-info {
       margin-bottom: 5px;
       color: #6b7280;
+      font-size: 12px;
+      line-height: 1.4;
     }
     .clinic-name {
-      font-size: 18px;
+      font-size: 16px;
       font-weight: 600;
       color: #1f2937;
       margin-bottom: 5px;
     }
+    .invoice-number-section {
+      text-align: right;
+    }
     .invoice-info {
       text-align: right;
       margin-bottom: 5px;
+      color: #6b7280;
+      font-size: 12px;
+      line-height: 1.4;
     }
     .invoice-number {
-      font-size: 20px;
+      font-size: 24px;
       font-weight: bold;
       color: #2563eb;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
     }
     .bill-section {
       display: flex;
       justify-content: space-between;
       background-color: #f8fafc;
-      padding: 25px;
+      padding: 20px;
       margin: 25px 0;
       border-radius: 8px;
       border: 1px solid #e5e7eb;
+      gap: 30px;
     }
     .bill-to, .payment-info {
       flex: 1;
     }
     .bill-to h2, .payment-info h2 {
-      font-size: 16px;
+      font-size: 14px;
       font-weight: bold;
       color: #374151;
-      margin-bottom: 15px;
+      margin-bottom: 12px;
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
     .patient-info, .payment-details {
       color: #6b7280;
-      line-height: 1.5;
+      line-height: 1.6;
+      font-size: 12px;
     }
     .patient-name {
       font-weight: 600;
       color: #1f2937;
-      font-size: 16px;
+      font-size: 14px;
       margin-bottom: 5px;
     }
     table {
@@ -96,12 +139,10 @@ const UnifiedInvoicePrinter = ({
       border-collapse: collapse;
       margin: 25px 0;
       background-color: white;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-      border-radius: 8px;
-      overflow: hidden;
+      font-size: 12px;
     }
     th, td {
-      padding: 15px;
+      padding: 12px;
       text-align: left;
       border-bottom: 1px solid #e5e7eb;
     }
@@ -111,7 +152,7 @@ const UnifiedInvoicePrinter = ({
       color: #374151;
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      font-size: 12px;
+      font-size: 11px;
     }
     .amount-right {
       text-align: right;
@@ -119,9 +160,9 @@ const UnifiedInvoicePrinter = ({
     }
     .summary {
       margin-left: auto;
-      width: 350px;
+      width: 300px;
       background-color: #f8fafc;
-      padding: 25px;
+      padding: 20px;
       border-radius: 8px;
       border: 1px solid #e5e7eb;
     }
@@ -129,7 +170,7 @@ const UnifiedInvoicePrinter = ({
       display: flex;
       justify-content: space-between;
       padding: 8px 0;
-      font-size: 14px;
+      font-size: 12px;
     }
     .summary-label {
       color: #6b7280;
@@ -142,9 +183,9 @@ const UnifiedInvoicePrinter = ({
     .total-row {
       font-weight: bold;
       border-top: 2px solid #2563eb;
-      padding-top: 15px;
-      margin-top: 10px;
-      font-size: 18px;
+      padding-top: 12px;
+      margin-top: 8px;
+      font-size: 14px;
     }
     .total-row .summary-label {
       color: #2563eb;
@@ -155,27 +196,29 @@ const UnifiedInvoicePrinter = ({
       font-weight: bold;
     }
     .notes {
-      margin-top: 30px;
+      margin-top: 25px;
       border-top: 1px solid #e5e7eb;
-      padding-top: 20px;
+      padding-top: 15px;
     }
     .notes h2 {
-      font-size: 16px;
+      font-size: 14px;
       font-weight: 600;
       color: #374151;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
     }
     .notes p {
       color: #6b7280;
       line-height: 1.6;
+      font-size: 12px;
+      margin: 0;
     }
     .footer {
-      margin-top: 50px;
+      margin-top: 40px;
       text-align: center;
       color: #9ca3af;
-      font-size: 14px;
+      font-size: 12px;
       border-top: 1px solid #e5e7eb;
-      padding-top: 25px;
+      padding-top: 20px;
     }
     .footer p {
       margin: 5px 0;
@@ -183,7 +226,7 @@ const UnifiedInvoicePrinter = ({
     .thank-you {
       font-weight: 600;
       color: #2563eb;
-      font-size: 16px;
+      font-size: 14px;
     }
     .badge {
       display: inline-block;
@@ -236,6 +279,12 @@ const UnifiedInvoicePrinter = ({
     return `₱${parseFloat(amount).toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,')}`;
   };
 
+  // Clean notes to remove DoctorId
+  const cleanNotes = (notes) => {
+    if (!notes) return '';
+    return notes.replace(/\s*\|\s*DoctorId:\s*[\w-]+/gi, '').trim();
+  };
+
   // Generate HTML content for printing
   const generateInvoiceHTML = () => {
     return `
@@ -250,13 +299,20 @@ const UnifiedInvoicePrinter = ({
       <body>
         <div class="invoice-container">
           <div class="invoice-header">
-            <div>
-              <div class="invoice-title">INVOICE</div>
-              <div class="clinic-name">Silario Dental Clinic</div>
-              <div class="clinic-info">Cabugao/San Juan, Ilocos Sur</div>
-              <div class="clinic-info">silaroidentalclinic@gmail.com</div>
+            <div class="invoice-header-left">
+              <div class="title-with-logo">
+                <div class="logo-container">
+                  <img src="${logo}" alt="Silario Dental Clinic Logo" class="logo-img" />
+                </div>
+                <div class="invoice-title">INVOICE</div>
+              </div>
+              <div class="clinic-info">
+                <div class="clinic-name">Silario Dental Clinic</div>
+                <div class="clinic-info">Cabugao/San Juan, Ilocos Sur</div>
+                <div class="clinic-info">silaroidentalclinic@gmail.com</div>
+              </div>
             </div>
-            <div>
+            <div class="invoice-number-section">
               <div class="invoice-number">#${invoice.invoice_number}</div>
               <div class="invoice-info"><strong>Date:</strong> ${new Date(invoice.invoice_date).toLocaleDateString()}</div>
               <div class="invoice-info"><strong>Due Date:</strong> ${new Date(invoice.due_date).toLocaleDateString()}</div>
@@ -268,6 +324,8 @@ const UnifiedInvoicePrinter = ({
               <h2>Billed To</h2>
               <div class="patient-info">
                 <div class="patient-name">${invoice.patientName}</div>
+                ${invoice.isMinor && invoice.guardianName ? `<div style="font-weight: 500; color: #6b7280; margin-top: 4px; font-size: 12px;">Guardian: ${invoice.guardianName}</div>` : ''}
+                ${invoice.isMinor && invoice.guardianPhone ? `<div style="color: #6b7280; margin-top: 2px; font-size: 12px;">Guardian Phone: ${invoice.guardianPhone}</div>` : ''}
                 ${invoice.profiles?.address ? `<div>${invoice.profiles.address}</div>` : ''}
                 ${invoice.profiles?.phone ? `<div>${invoice.profiles.phone}</div>` : ''}
                 ${invoice.profiles?.email ? `<div>${invoice.profiles.email}</div>` : ''}
@@ -277,7 +335,6 @@ const UnifiedInvoicePrinter = ({
             <div class="payment-info">
               <h2>Payment Information</h2>
               <div class="payment-details">
-                <div><strong>Method:</strong> ${invoice.payment_method || 'Not specified'}</div>
                 <div><strong>Status:</strong> <span class="${getStatusBadgeClass(invoice.status)}">${invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}</span></div>
               </div>
             </div>
@@ -344,7 +401,7 @@ const UnifiedInvoicePrinter = ({
           ${invoice.notes ? `
             <div class="notes">
               <h2>Notes</h2>
-              <p>${invoice.notes}</p>
+              <p>${cleanNotes(invoice.notes)}</p>
             </div>
           ` : ''}
           
@@ -428,18 +485,25 @@ const UnifiedInvoicePrinter = ({
           <div className="p-6 max-h-[80vh] overflow-y-auto">
             <div className="max-w-4xl mx-auto bg-white">
               {/* Invoice Header */}
-              <div className="flex justify-between items-start mb-8">
-                <div>
-                  <h1 className="text-4xl font-bold text-gray-800 mb-3">INVOICE</h1>
-                  <div className="text-gray-600 space-y-1">
-                    <div className="text-lg font-semibold text-gray-900">Silario Dental Clinic</div>
+              <div className="flex justify-between items-start mb-6 border-b-2 border-blue-600 pb-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-4 mb-3">
+                    <img 
+                      src={logo} 
+                      alt="Silario Dental Clinic Logo" 
+                      className="w-[100px] h-[80px] object-contain"
+                    />
+                    <h1 className="text-5xl font-bold text-gray-800">INVOICE</h1>
+                  </div>
+                  <div className="text-gray-600 space-y-1 text-sm">
+                    <div className="text-base font-semibold text-gray-900">Silario Dental Clinic</div>
                     <div>Cabugao/San Juan, Ilocos Sur</div>
                     <div>silaroidentalclinic@gmail.com</div>
                   </div>
                 </div>
                 <div className="text-right">
                   <div className="text-2xl font-bold text-blue-600 mb-2">#{invoice.invoice_number}</div>
-                  <div className="text-gray-600 space-y-1">
+                  <div className="text-gray-600 space-y-1 text-sm">
                     <div><strong>Date:</strong> {new Date(invoice.invoice_date).toLocaleDateString()}</div>
                     <div><strong>Due Date:</strong> {new Date(invoice.due_date).toLocaleDateString()}</div>
                   </div>
@@ -447,24 +511,29 @@ const UnifiedInvoicePrinter = ({
               </div>
 
               {/* Bill To Section */}
-              <div className="bg-gray-50 p-6 rounded-lg mb-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-gray-50 p-5 rounded-lg mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div>
-                    <h2 className="text-lg font-semibold text-gray-800 mb-3">Billed To</h2>
-                    <div className="text-gray-600">
-                      <div className="font-semibold text-gray-900 text-lg">{invoice.patientName}</div>
+                    <h2 className="text-sm font-bold text-gray-800 mb-3 uppercase tracking-wide">Billed To</h2>
+                    <div className="text-gray-600 text-xs leading-relaxed">
+                      <div className="font-semibold text-gray-900 text-sm mb-1">{invoice.patientName}</div>
+                      {invoice.isMinor && invoice.guardianName && (
+                        <div className="font-medium text-gray-500 mt-1 mb-1">Guardian: {invoice.guardianName}</div>
+                      )}
+                      {invoice.isMinor && invoice.guardianPhone && (
+                        <div className="text-gray-500 mt-1 mb-1">Guardian Phone: {invoice.guardianPhone}</div>
+                      )}
                       {invoice.profiles?.address && <div>{invoice.profiles.address}</div>}
                       {invoice.profiles?.phone && <div>{invoice.profiles.phone}</div>}
                       {invoice.profiles?.email && <div>{invoice.profiles.email}</div>}
                     </div>
                   </div>
                   <div>
-                    <h2 className="text-lg font-semibold text-gray-800 mb-3">Payment Information</h2>
-                    <div className="text-gray-600">
-                      
-                      <div className="mt-2">
+                    <h2 className="text-sm font-bold text-gray-800 mb-3 uppercase tracking-wide">Payment Information</h2>
+                    <div className="text-gray-600 text-xs">
+                      <div>
                         <strong>Status:</strong> 
-                        <span className={`ml-2 px-2 py-1 rounded-full text-xs font-semibold ${
+                        <span className={`ml-2 px-3 py-1 rounded-full text-xs font-semibold ${
                           invoice.status === 'paid' ? 'bg-green-100 text-green-800' :
                           invoice.status === 'partial' ? 'bg-yellow-100 text-yellow-800' :
                           invoice.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
@@ -480,22 +549,22 @@ const UnifiedInvoicePrinter = ({
 
               {/* Items Table */}
               <div className="mb-6">
-                <table className="w-full border-collapse border border-gray-300">
+                <table className="w-full border-collapse">
                   <thead>
                     <tr className="bg-gray-100">
-                      <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Description</th>
-                      <th className="border border-gray-300 px-4 py-3 text-right font-semibold">Unit Price</th>
-                      <th className="border border-gray-300 px-4 py-3 text-right font-semibold">Quantity</th>
-                      <th className="border border-gray-300 px-4 py-3 text-right font-semibold">Total</th>
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide border-b border-gray-300">Description</th>
+                      <th className="px-3 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wide border-b border-gray-300">Unit Price</th>
+                      <th className="px-3 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wide border-b border-gray-300">Quantity</th>
+                      <th className="px-3 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wide border-b border-gray-300">Total</th>
                     </tr>
                   </thead>
                   <tbody>
                     {items.map((item, index) => (
                       <tr key={index} className="hover:bg-gray-50">
-                        <td className="border border-gray-300 px-4 py-3">{item.service_name || item.description}</td>
-                        <td className="border border-gray-300 px-4 py-3 text-right">{formatCurrency(item.price)}</td>
-                        <td className="border border-gray-300 px-4 py-3 text-right">{item.quantity}</td>
-                        <td className="border border-gray-300 px-4 py-3 text-right font-semibold">{formatCurrency(item.price * item.quantity)}</td>
+                        <td className="px-3 py-3 text-sm border-b border-gray-200">{item.service_name || item.description}</td>
+                        <td className="px-3 py-3 text-sm text-right border-b border-gray-200">{formatCurrency(item.price)}</td>
+                        <td className="px-3 py-3 text-sm text-right border-b border-gray-200">{item.quantity}</td>
+                        <td className="px-3 py-3 text-sm text-right font-semibold border-b border-gray-200">{formatCurrency(item.price * item.quantity)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -504,41 +573,41 @@ const UnifiedInvoicePrinter = ({
 
               {/* Summary */}
               <div className="flex justify-end mb-6">
-                <div className="w-80 bg-gray-50 p-6 rounded-lg">
+                <div className="w-72 bg-gray-50 p-5 rounded-lg">
                   <div className="space-y-2">
-                    <div className="flex justify-between">
+                    <div className="flex justify-between text-sm py-2">
                       <span className="text-gray-600">Subtotal:</span>
-                      <span className="font-semibold">{formatCurrency(invoice.subtotal || invoice.total_amount)}</span>
+                      <span className="font-semibold text-gray-900">{formatCurrency(invoice.subtotal || invoice.total_amount)}</span>
                     </div>
                     
                     {invoice.discount > 0 && (
-                      <div className="flex justify-between">
+                      <div className="flex justify-between text-sm py-2">
                         <span className="text-gray-600">Discount:</span>
-                        <span className="font-semibold">-{formatCurrency(invoice.discount)}</span>
+                        <span className="font-semibold text-gray-900">-{formatCurrency(invoice.discount)}</span>
                       </div>
                     )}
                     
                     {invoice.tax > 0 && (
-                      <div className="flex justify-between">
+                      <div className="flex justify-between text-sm py-2">
                         <span className="text-gray-600">Tax:</span>
-                        <span className="font-semibold">{formatCurrency(invoice.tax)}</span>
+                        <span className="font-semibold text-gray-900">{formatCurrency(invoice.tax)}</span>
                       </div>
                     )}
                     
-                    <div className="flex justify-between text-lg font-bold text-blue-600 border-t pt-2">
+                    <div className="flex justify-between text-sm font-bold text-blue-600 border-t-2 border-blue-600 pt-3 mt-2">
                       <span>Total Amount:</span>
                       <span>{formatCurrency(invoice.total_amount)}</span>
                     </div>
                     
                     {invoice.amount_paid > 0 && (
                       <>
-                        <div className="flex justify-between">
+                        <div className="flex justify-between text-sm py-2">
                           <span className="text-gray-600">Amount Paid:</span>
-                          <span className="font-semibold">{formatCurrency(invoice.amount_paid)}</span>
+                          <span className="font-semibold text-gray-900">{formatCurrency(invoice.amount_paid)}</span>
                         </div>
-                        <div className="flex justify-between">
+                        <div className="flex justify-between text-sm py-2">
                           <span className="text-gray-600">Balance Due:</span>
-                          <span className="font-semibold">{formatCurrency(invoice.total_amount - invoice.amount_paid)}</span>
+                          <span className="font-semibold text-gray-900">{formatCurrency(invoice.total_amount - invoice.amount_paid)}</span>
                         </div>
                       </>
                     )}
@@ -548,16 +617,16 @@ const UnifiedInvoicePrinter = ({
 
               {/* Notes */}
               {invoice.notes && (
-                <div className="mb-6">
-                  <h2 className="text-lg font-semibold text-gray-800 mb-2">Notes</h2>
-                  <p className="text-gray-600">{invoice.notes}</p>
+                <div className="mb-6 border-t border-gray-200 pt-4">
+                  <h2 className="text-sm font-semibold text-gray-800 mb-2">Notes</h2>
+                  <p className="text-gray-600 text-xs leading-relaxed">{cleanNotes(invoice.notes)}</p>
                 </div>
               )}
 
               {/* Footer */}
-              <div className="text-center text-gray-500 border-t pt-6">
-                <p className="font-semibold text-blue-600 mb-2">Thank you for choosing Silario Dental Clinic</p>
-                <p>For any inquiries, please contact us at silaroidentalclinic@gmail.com</p>
+              <div className="text-center text-gray-500 border-t border-gray-200 pt-5 mt-8">
+                <p className="font-semibold text-blue-600 mb-1 text-sm">Thank you for choosing Silario Dental Clinic</p>
+                <p className="text-xs">For any inquiries, please contact us at silaroidentalclinic@gmail.com</p>
               </div>
             </div>
           </div>

@@ -81,7 +81,7 @@ const ProtectedRoute = ({ role }) => {
   
   // User is authenticated and has the correct role, render the protected content
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
       <Sidebar 
         role={userRole} 
         isMobileMenuOpen={isMobileMenuOpen} 

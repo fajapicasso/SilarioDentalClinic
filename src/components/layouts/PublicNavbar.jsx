@@ -120,8 +120,8 @@ const PublicNavbar = () => {
                   to="/login"
                   className={`flex items-center px-4 py-2 rounded-md ${
                     isScrolled || !isPublicPage
-                      ? 'text-primary-600 hover:text-primary-700 border border-primary-600'
-                      : 'text-white hover:text-primary-100 border border-white'
+                      ? 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
                   } transition-colors duration-300`}
                 >
                   <FiLogIn className="mr-2" />
@@ -131,8 +131,8 @@ const PublicNavbar = () => {
                   to="/register"
                   className={`flex items-center px-4 py-2 rounded-md ${
                     isScrolled || !isPublicPage
-                      ? 'bg-primary-600 text-white hover:bg-primary-700'
-                      : 'bg-white text-primary-600 hover:bg-primary-50'
+                      ? 'bg-green-600 text-white hover:bg-green-700'
+                      : 'bg-green-600 text-white hover:bg-green-700'
                   } transition-colors duration-300`}
                 >
                   <FiUser className="mr-2" />
@@ -223,7 +223,7 @@ const PublicNavbar = () => {
                   <>
                     <Link
                       to="/login"
-                      className="flex items-center px-4 py-3 rounded-xl text-base font-medium text-primary-600 hover:text-primary-700 hover:bg-primary-50 border border-primary-200 transition-all duration-200 mt-4"
+                      className="flex items-center px-4 py-3 rounded-xl text-base font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors duration-200 shadow-lg mt-4"
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
                       <FiLogIn className="mr-2" />
@@ -231,7 +231,7 @@ const PublicNavbar = () => {
                     </Link>
                     <Link
                       to="/register"
-                      className="flex items-center px-4 py-3 rounded-xl text-base font-medium bg-primary-600 text-white hover:bg-primary-700 transition-colors duration-200 shadow-lg"
+                      className="flex items-center px-4 py-3 rounded-xl text-base font-medium bg-green-600 text-white hover:bg-green-700 transition-colors duration-200 shadow-lg"
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
                       <FiUser className="mr-2" />

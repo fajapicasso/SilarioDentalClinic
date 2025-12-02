@@ -134,11 +134,11 @@ const Services = () => {
   const formatPrice = (service) => {
     // Check if we have price range
     if (service.price_min && service.price_max) {
-      return `₱${service.price_min.toLocaleString()} - ₱${service.price_max.toLocaleString()}`;
+      return `PHP ${service.price_min.toLocaleString()} - PHP ${service.price_max.toLocaleString()}`;
     }
     // Otherwise use base price
     else if (service.price) {
-      return `₱${service.price.toLocaleString()}`;
+      return `PHP ${service.price.toLocaleString()}`;
     }
     // If neither, show as variable
     return 'Price varies';

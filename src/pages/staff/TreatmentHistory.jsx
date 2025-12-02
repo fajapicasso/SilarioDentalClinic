@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { FiArrowLeft, FiPrinter, FiFileText, FiCalendar, FiUser } from 'react-icons/fi';
+import { FiArrowLeft, FiPrinter, FiFileText, FiCalendar, FiUser, FiFilter, FiX } from 'react-icons/fi';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import logo from '../../assets/Logo.png';
@@ -15,9 +15,12 @@ const TreatmentHistory = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [treatments, setTreatments] = useState([]);
   const [patient, setPatient] = useState(null);
+  const [guardian, setGuardian] = useState(null);
   // Filters / paging
   const [searchQuery, setSearchQuery] = useState('');
-  const [startDate, setStartDate] = useState(null);
+  const [dateFilter, setDateFilter] = useState('all'); // Date filter: 'all', 'today', 'thisWeek', 'thisMonth', 'thisYear', 'custom'
+  const [dateFrom, setDateFrom] = useState(null);
+  const [dateTo, setDateTo] = useState(null);
   const [toothFilter, setToothFilter] = useState('all');
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
@@ -33,6 +36,17 @@ const TreatmentHistory = () => {
           .eq('id', patientId)
           .single();
         setPatient(profile);
+        
+        // Fetch guardian information if patient is a minor
+        if (profile?.guardian_id) {
+          const { data: guardianData } = await supabase
+            .from('profiles')
+            .select('full_name, phone')
+            .eq('id', profile.guardian_id)
+            .single();
+          setGuardian(guardianData);
+        }
+        
         const { data } = await supabase
           .from('treatments')
           .select('id, procedure, tooth_number, diagnosis, notes, treatment_date, doctor:doctor_id (full_name)')
@@ -56,6 +70,78 @@ const TreatmentHistory = () => {
   }, []);
 
   const formatDate = (d) => (d ? new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '');
+
+  // Helper function to check if date is within range
+  const isDateInRange = (date, filterType, fromDate = null, toDate = null) => {
+    if (!date) return false;
+    try {
+      // Normalize treatment date to local date (year, month, day only)
+      const treatmentDate = new Date(date);
+      const treatmentYear = treatmentDate.getFullYear();
+      const treatmentMonth = treatmentDate.getMonth();
+      const treatmentDay = treatmentDate.getDate();
+      const normalizedTreatmentDate = new Date(treatmentYear, treatmentMonth, treatmentDay);
+      normalizedTreatmentDate.setHours(0, 0, 0, 0);
+      
+      const today = new Date();
+      const todayYear = today.getFullYear();
+      const todayMonth = today.getMonth();
+      const todayDay = today.getDate();
+      const normalizedToday = new Date(todayYear, todayMonth, todayDay);
+      normalizedToday.setHours(0, 0, 0, 0);
+      
+      switch (filterType) {
+        case 'today': {
+          return normalizedTreatmentDate.getTime() === normalizedToday.getTime();
+        }
+        case 'thisWeek': {
+          const startOfWeek = new Date(normalizedToday);
+          startOfWeek.setDate(normalizedToday.getDate() - normalizedToday.getDay()); // Sunday
+          startOfWeek.setHours(0, 0, 0, 0);
+          const endOfWeek = new Date(startOfWeek);
+          endOfWeek.setDate(startOfWeek.getDate() + 6);
+          endOfWeek.setHours(23, 59, 59, 999);
+          return normalizedTreatmentDate >= startOfWeek && normalizedTreatmentDate <= endOfWeek;
+        }
+        case 'thisMonth': {
+          const startOfMonth = new Date(normalizedToday.getFullYear(), normalizedToday.getMonth(), 1);
+          startOfMonth.setHours(0, 0, 0, 0);
+          const endOfMonth = new Date(normalizedToday.getFullYear(), normalizedToday.getMonth() + 1, 0);
+          endOfMonth.setHours(23, 59, 59, 999);
+          return normalizedTreatmentDate >= startOfMonth && normalizedTreatmentDate <= endOfMonth;
+        }
+        case 'thisYear': {
+          const startOfYear = new Date(normalizedToday.getFullYear(), 0, 1);
+          startOfYear.setHours(0, 0, 0, 0);
+          const endOfYear = new Date(normalizedToday.getFullYear(), 11, 31);
+          endOfYear.setHours(23, 59, 59, 999);
+          return normalizedTreatmentDate >= startOfYear && normalizedTreatmentDate <= endOfYear;
+        }
+        case 'custom': {
+          if (!fromDate || !toDate) return true;
+          const from = fromDate instanceof Date ? new Date(fromDate) : new Date(fromDate);
+          const fromYear = from.getFullYear();
+          const fromMonth = from.getMonth();
+          const fromDay = from.getDate();
+          const normalizedFrom = new Date(fromYear, fromMonth, fromDay);
+          normalizedFrom.setHours(0, 0, 0, 0);
+          
+          const to = toDate instanceof Date ? new Date(toDate) : new Date(toDate);
+          const toYear = to.getFullYear();
+          const toMonth = to.getMonth();
+          const toDay = to.getDate();
+          const normalizedTo = new Date(toYear, toMonth, toDay);
+          normalizedTo.setHours(23, 59, 59, 999);
+          return normalizedTreatmentDate >= normalizedFrom && normalizedTreatmentDate <= normalizedTo;
+        }
+        default:
+          return true;
+      }
+    } catch (error) {
+      console.error('Error in isDateInRange:', error, date);
+      return false;
+    }
+  };
 
   const buildReportHtml = () => {
     const fmt = (d) => (d ? new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '');
@@ -124,15 +210,18 @@ const TreatmentHistory = () => {
             <div class="row"><div class="label">Address</div><div class="value">${patient?.address || ''}</div></div>
             <div class="row"><div class="label">Sex</div><div class="value">${patient?.gender ? patient.gender[0].toUpperCase()+patient.gender.slice(1) : ''}</div></div>
             <div class="row"><div class="label">Birthdate</div><div class="value">${fmt(patient?.birthday)}</div></div>
-            <div class="row"><div class="label">Date</div><div class="value">${fmt(new Date())}</div></div>
             <div class="row"><div class="label">Nationality</div><div class="value">${patient?.nationality || ''}</div></div>
+            ${patient?.guardian_id && guardian ? `
+            <div class="row"><div class="label">Cell/Mobile (Guardian)</div><div class="value">${guardian.phone || ''}</div></div>
+            <div class="row"><div class="label">Email</div><div class="value">${patient?.email || ''}</div></div>
+            <div class="row"><div class="label">Guardian</div><div class="value">${guardian.full_name || ''}</div></div>
+            ` : `
             <div class="row"><div class="label">Home No.</div><div class="value">${patient?.phone || ''}</div></div>
-            <div class="row"><div class="label">Home Address</div><div class="value">${patient?.address || ''}</div></div>
-            <div class="row"><div class="label">Office No.</div><div class="value">${patient?.office_phone || ''}</div></div>
+            <div class="row"><div class="label">Office No.</div><div class="value">${patient?.office_no || ''}</div></div>
             <div class="row"><div class="label">Occupation</div><div class="value">${patient?.occupation || ''}</div></div>
             <div class="row"><div class="label">Cell/Mobile</div><div class="value">${patient?.mobile || patient?.phone || ''}</div></div>
-            <div class="row"><div class="label">Patient ID</div><div class="value">${patient?.id ? patient.id.substring(0,8) : ''}</div></div>
             <div class="row"><div class="label">Email</div><div class="value">${patient?.email || ''}</div></div>
+            `}
           </div>
         </div>
       </div>
@@ -289,14 +378,7 @@ const TreatmentHistory = () => {
   // Filter helpers
   const filteredTreatments = () => {
     let list = treatments;
-    const toYmd = (d) => {
-      if (!d) return '';
-      const dt = new Date(d);
-      const y = dt.getFullYear();
-      const m = String(dt.getMonth() + 1).padStart(2, '0');
-      const day = String(dt.getDate()).padStart(2, '0');
-      return `${y}-${m}-${day}`;
-    };
+    
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       list = list.filter(t =>
@@ -305,12 +387,14 @@ const TreatmentHistory = () => {
         (t.notes || '').toLowerCase().includes(q)
       );
     }
-    // If a date is selected, match EXACT day (not whole month)
-    if (startDate) {
-      const selectedYmd = toYmd(startDate);
-      list = list.filter(t => toYmd(t.treatment_date) === selectedYmd);
+    
+    // Apply date filter
+    if (dateFilter !== 'all') {
+      list = list.filter(t => 
+        isDateInRange(t.treatment_date, dateFilter, dateFrom, dateTo)
+      );
     }
-    // End date removed per new UI
+    
     if (toothFilter !== 'all') list = list.filter(t => String(t.tooth_number) === toothFilter);
     if (procedureFilter !== 'all') list = list.filter(t => (t.procedure || '') === procedureFilter);
     return list;
@@ -369,7 +453,8 @@ const TreatmentHistory = () => {
       </div>
 
       {/* Filters row */}
-      <div className="mt-4 bg-white border rounded-lg p-3">
+      <div className="mt-4 bg-white border rounded-lg p-4 space-y-4">
+        {/* Search and basic filters */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-center">
           <input
             value={searchQuery}
@@ -377,18 +462,6 @@ const TreatmentHistory = () => {
             placeholder="Search treatments..."
             className="lg:col-span-3 px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
-          <div className="lg:col-span-2">
-            <DatePicker
-              selected={startDate}
-              onChange={(d)=>{setStartDate(d); setCurrentPage(1);}}
-              placeholderText="Select date"
-              className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              popperPlacement="bottom-start"
-              showPopperArrow
-              isClearable
-              dateFormat="MMMM d, yyyy"
-            />
-          </div>
           <select
             value={procedureFilter}
             onChange={e=>{setProcedureFilter(e.target.value); setCurrentPage(1);}}
@@ -418,13 +491,174 @@ const TreatmentHistory = () => {
               <option value={50}>50 per page</option>
             </select>
             <button
-              onClick={() => { setSearchQuery(''); setStartDate(null); setToothFilter('all'); setProcedureFilter('all'); setCurrentPage(1); }}
+              onClick={() => { 
+                setSearchQuery(''); 
+                setDateFilter('all');
+                setDateFrom(null);
+                setDateTo(null);
+                setToothFilter('all'); 
+                setProcedureFilter('all'); 
+                setCurrentPage(1); 
+              }}
               className="px-3 py-2 border rounded-md bg-gray-50 hover:bg-gray-100"
             >
               Clear
             </button>
           </div>
         </div>
+        
+        {/* Date Filter Buttons */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <FiFilter className="h-4 w-4 text-gray-500" />
+            <span className="text-sm font-medium text-gray-700">Date Filter:</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => {
+                setDateFilter('all');
+                setDateFrom(null);
+                setDateTo(null);
+                setCurrentPage(1);
+              }}
+              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                dateFilter === 'all'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              All Treatments
+            </button>
+            <button
+              onClick={() => {
+                setDateFilter('today');
+                setDateFrom(null);
+                setDateTo(null);
+                setCurrentPage(1);
+              }}
+              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                dateFilter === 'today'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Today
+            </button>
+            <button
+              onClick={() => {
+                setDateFilter('thisWeek');
+                setDateFrom(null);
+                setDateTo(null);
+                setCurrentPage(1);
+              }}
+              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                dateFilter === 'thisWeek'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              This Week
+            </button>
+            <button
+              onClick={() => {
+                setDateFilter('thisMonth');
+                setDateFrom(null);
+                setDateTo(null);
+                setCurrentPage(1);
+              }}
+              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                dateFilter === 'thisMonth'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              This Month
+            </button>
+            <button
+              onClick={() => {
+                setDateFilter('thisYear');
+                setDateFrom(null);
+                setDateTo(null);
+                setCurrentPage(1);
+              }}
+              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                dateFilter === 'thisYear'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              This Year
+            </button>
+            <button
+              onClick={() => {
+                setDateFilter(dateFilter === 'custom' ? 'all' : 'custom');
+                setCurrentPage(1);
+              }}
+              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                dateFilter === 'custom'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <FiCalendar className="inline h-4 w-4 mr-1" />
+              Custom Range
+            </button>
+          </div>
+        </div>
+
+        {/* Custom Date Range Inputs */}
+        {dateFilter === 'custom' && (
+          <div className="flex flex-wrap items-center gap-4 p-4 bg-blue-50 rounded-lg border-2 border-blue-200 shadow-sm">
+            <div className="flex items-center space-x-2">
+              <label className="text-sm font-medium text-gray-700">From:</label>
+              <DatePicker
+                selected={dateFrom}
+                onChange={(date) => {
+                  setDateFrom(date);
+                  setCurrentPage(1);
+                }}
+                selectsStart
+                startDate={dateFrom}
+                endDate={dateTo}
+                maxDate={dateTo || new Date()}
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                dateFormat="yyyy-MM-dd"
+                placeholderText="Start Date"
+              />
+            </div>
+            <div className="flex items-center space-x-2">
+              <label className="text-sm font-medium text-gray-700">To:</label>
+              <DatePicker
+                selected={dateTo}
+                onChange={(date) => {
+                  setDateTo(date);
+                  setCurrentPage(1);
+                }}
+                selectsEnd
+                startDate={dateFrom}
+                endDate={dateTo}
+                minDate={dateFrom}
+                maxDate={new Date()}
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                dateFormat="yyyy-MM-dd"
+                placeholderText="End Date"
+              />
+            </div>
+            {(dateFrom || dateTo) && (
+              <button
+                onClick={() => {
+                  setDateFrom(null);
+                  setDateTo(null);
+                  setCurrentPage(1);
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors flex items-center gap-2"
+              >
+                <FiX className="h-4 w-4" />
+                Clear
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* List items */}

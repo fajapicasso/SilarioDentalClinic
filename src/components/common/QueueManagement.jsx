@@ -226,7 +226,7 @@ const QueueManagement = () => {
     fetchQueueData();
   }, [activeBranch]);
 
-  // Set up periodic check for appointments that should be added to queue (1 hour before appointment time)
+  // Set up periodic check for appointments that should be added to queue (5 hours before appointment time)
   useEffect(() => {
     const checkAppointmentsInterval = setInterval(() => {
       // Only check if we're not already auto-adding to prevent race conditions
@@ -489,11 +489,13 @@ const QueueManagement = () => {
     const uniquePatients = [];
     
     patients.forEach(patient => {
-      if (!seenPatients.has(patient.patient_id)) {
-        seenPatients.add(patient.patient_id);
+      // Use patientId (camelCase) which is the correct property name in formatted queue objects
+      const patientId = patient.patientId || patient.patient_id;
+      if (!seenPatients.has(patientId)) {
+        seenPatients.add(patientId);
         uniquePatients.push(patient);
       } else {
-        console.log(`🚫 Removed duplicate patient from display: ${patient.patient_name || patient.patientProfile?.full_name}`);
+        console.log(`🚫 Removed duplicate patient from display: ${patient.name || patient.patient_name || patient.patientProfile?.full_name}`);
       }
     });
     
@@ -588,6 +590,7 @@ const QueueManagement = () => {
            id, 
            patient_id,
            doctor_id,
+           guardian_id,
            appointment_date,
            appointment_time,
            status,
@@ -623,6 +626,25 @@ const QueueManagement = () => {
         } else if (patientProfilesData) {
           patientProfilesData.forEach(profile => {
             appointmentPatientProfiles[profile.id] = profile;
+          });
+        }
+      }
+      
+      // Fetch guardian profiles for appointments with guardian_id
+      const guardianIds = [...new Set((todayAppointments || []).map(a => a.guardian_id).filter(Boolean))];
+      let guardianProfiles = {};
+      
+      if (guardianIds.length > 0) {
+        const { data: guardianProfilesData, error: guardianProfilesError } = await supabase
+          .from('profiles')
+          .select('id, full_name, email, phone')
+          .in('id', guardianIds);
+          
+        if (guardianProfilesError) {
+          console.error('Error fetching guardian profiles:', guardianProfilesError);
+        } else if (guardianProfilesData) {
+          guardianProfilesData.forEach(profile => {
+            guardianProfiles[profile.id] = profile;
           });
         }
       }
@@ -714,11 +736,15 @@ const QueueManagement = () => {
             }
           }
           
+          const guardianProfile = appointment.guardian_id ? guardianProfiles[appointment.guardian_id] : null;
+          
           processedAppointments[appointment.id] = {
             ...appointment,
             enrichedServices: services,
             patientProfile: patientProfile,
-            doctorProfile: appointment.doctor_id ? doctorProfiles[appointment.doctor_id] : null
+            doctorProfile: appointment.doctor_id ? doctorProfiles[appointment.doctor_id] : null,
+            guardianProfile: guardianProfile,
+            guardianName: guardianProfile?.full_name || null
           };
         });
       }
@@ -747,6 +773,21 @@ const QueueManagement = () => {
       console.log('Queue error:', queueError);
       console.log('Queue entries found:', queueData?.length || 0);
       
+      // Debug: Show all queue entries with their statuses
+      if (queueData && queueData.length > 0) {
+        console.log('=== DEBUG: All queue entries with statuses ===');
+        queueData.forEach((entry, index) => {
+          console.log(`Entry ${index + 1}:`, {
+            id: entry.id,
+            patient_id: entry.patient_id,
+            queue_number: entry.queue_number,
+            status: entry.status,
+            branch: entry.branch,
+            created_at: entry.created_at
+          });
+        });
+      }
+      
       if (queueError) {
         console.error('Error fetching queue data:', queueError);
         throw queueError;
@@ -772,23 +813,23 @@ const QueueManagement = () => {
            const isAppointmentInQueue = queueAppointmentIds.has(appointment.id);
            const isPatientInQueue = queuePatientIds.has(appointment.patient_id);
            
-           // Check if appointment should be added to queue (1 hour before appointment time)
+           // Check if appointment should be added to queue (5 hours before appointment time)
            let shouldAddToQueue = false;
            if (appointment.appointment_time) {
              const [hours, minutes] = appointment.appointment_time.split(':').map(Number);
              const appointmentDateTime = new Date();
              appointmentDateTime.setHours(hours, minutes, 0, 0);
              
-             // Add 1 hour before appointment time
-             const oneHourBefore = new Date(appointmentDateTime.getTime() - (60 * 60 * 1000));
+             // Add 5 hours before appointment time
+             const fiveHoursBefore = new Date(appointmentDateTime.getTime() - (5 * 60 * 60 * 1000));
              
-             // Only add if current time is within 1 hour of appointment time (but not exactly at 1 hour)
-             shouldAddToQueue = now > oneHourBefore;
+             // Only add if current time is within 5 hours of appointment time
+             shouldAddToQueue = now > fiveHoursBefore;
              
              console.log(`Appointment ${appointment.id} timing check:`, {
                appointmentTime: appointment.appointment_time,
                appointmentDateTime: appointmentDateTime.toISOString(),
-               oneHourBefore: oneHourBefore.toISOString(),
+               fiveHoursBefore: fiveHoursBefore.toISOString(),
                currentTime: now.toISOString(),
                shouldAddToQueue
              });
@@ -950,6 +991,10 @@ const QueueManagement = () => {
             }
           }
           
+          // Get guardian information from appointment data
+          const guardianProfile = appointmentData?.guardianProfile;
+          const guardianName = appointmentData?.guardianName;
+          
           // Determine services
           let services = [];
           if (appointmentData && appointmentData.enrichedServices) {
@@ -979,24 +1024,44 @@ const QueueManagement = () => {
             createdDate: new Date(item.created_at).toLocaleDateString(),
             doctorName: doctorProfile?.full_name || 'N/A',
             doctorId: doctorProfile?.id || null,
-            appointmentTime: appointmentData?.appointment_time ? formatTime(appointmentData.appointment_time) : null
+            appointmentTime: appointmentData?.appointment_time ? formatTime(appointmentData.appointment_time) : null,
+            guardianName: guardianName || null
           };
         });
       }
       
       // Apply branch filtering if a specific branch is selected
+      console.log('=== DEBUG: Branch filtering ===');
+      console.log('Active branch:', activeBranch);
+      console.log('Formatted queue before filtering:', formattedQueue.length);
+      
       if (activeBranch !== 'all') {
         const branchName = activeBranch === 'cabugao' ? 'Cabugao' : 'San Juan';
+        console.log('Filtering for branch:', branchName);
         formattedQueue = formattedQueue.filter(item => item.branch === branchName);
+        console.log('Formatted queue after filtering:', formattedQueue.length);
+      } else {
+        console.log('No branch filtering applied - showing all branches');
       }
       
       // Set current patients and waiting list
       const serving = formattedQueue.filter(p => p.status === 'serving');
       const waiting = formattedQueue.filter(p => p.status === 'waiting');
       
+      console.log('=== DEBUG: Before duplicate removal ===');
+      console.log('Total formatted queue entries:', formattedQueue.length);
+      console.log('Serving patients:', serving.length);
+      console.log('Waiting patients:', waiting.length);
+      console.log('Waiting patients details:', waiting.map(p => ({ id: p.id, patientId: p.patientId, name: p.name, status: p.status })));
+      
       // 🚫 Remove duplicate patients from display
       const uniqueWaiting = removeDuplicatePatients(waiting);
       const uniqueServing = removeDuplicatePatients(serving);
+      
+      console.log('=== DEBUG: After duplicate removal ===');
+      console.log('Unique serving patients:', uniqueServing.length);
+      console.log('Unique waiting patients:', uniqueWaiting.length);
+      console.log('Unique waiting patients details:', uniqueWaiting.map(p => ({ id: p.id, patientId: p.patientId, name: p.name, status: p.status })));
       
       setServingPatients(uniqueServing);
       setWaitingPatients(uniqueWaiting);
@@ -2017,7 +2082,7 @@ const QueueManagement = () => {
             <h1 className="text-2xl font-bold text-gray-800">Queue Management</h1>
             <div className="mt-1 flex items-center space-x-4">
               <span className="text-sm text-gray-600">
-                Active Queue - Shows all waiting/serving patients
+                Active Queue - Shows all in queue/serving patients
               </span>
                              <div className="flex items-center text-sm text-blue-600">
                  <FiInfo className="h-4 w-4 mr-1" />
@@ -2108,6 +2173,11 @@ const QueueManagement = () => {
                       </div>
                       <div className="ml-4">
                         <h4 className="text-lg font-medium text-gray-900">{patient.name}</h4>
+                        {patient.guardianName && (
+                          <p className="text-sm text-gray-600 mt-0.5">
+                            Guardian: {patient.guardianName}
+                          </p>
+                        )}
                         <p className="text-sm text-gray-500">
                           Queue #{patient.queueNumber}
                           {patient.isFromAppointment && (
@@ -2214,7 +2284,7 @@ const QueueManagement = () => {
                     </div>
                     <h3 className="mt-2 text-sm font-medium text-gray-900">No patients being served</h3>
                     <p className="mt-1 text-sm text-gray-500">
-                      Call patients from the waiting list to start serving them.
+                      Call patients from the In Queue to start serving them.
                     </p>
                     {waitingPatients.length > 0 && (
                       <div className="mt-6">
@@ -2239,7 +2309,7 @@ const QueueManagement = () => {
             <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
               <div className="px-4 py-5 sm:px-6 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
                 <div>
-                  <h3 className="text-lg leading-6 font-medium text-gray-900">Waiting List</h3>
+                  <h3 className="text-lg leading-6 font-medium text-gray-900">In Queue</h3>
                   <p className="mt-1 max-w-2xl text-sm text-gray-500">
                     Active patients: {waitingPatients.length} 
                     {waitingPatients.filter(p => p.isFromAppointment).length > 0 && (
@@ -2280,6 +2350,11 @@ const QueueManagement = () => {
                             </div>
                             <div className="ml-3">
                               <p className="text-sm font-medium text-gray-900">{patient.name}</p>
+                              {patient.guardianName && (
+                                <p className="text-xs text-gray-600 mt-0.5">
+                                  Guardian: {patient.guardianName}
+                                </p>
+                              )}
                               <div className="flex items-center flex-wrap">
                                 <span className="text-xs text-gray-500">Queue #{patient.queueNumber}</span>
                                 <span className="mx-1.5 text-gray-500">•</span>

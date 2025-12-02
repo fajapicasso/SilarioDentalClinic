@@ -866,6 +866,9 @@ class AuditLogService {
       if (filters.userId) {
         query = query.eq('user_id', filters.userId);
       }
+      if (filters.userRole) {
+        query = query.eq('user_role', filters.userRole);
+      }
       if (filters.action) {
         query = query.eq('action', filters.action);
       }
@@ -881,18 +884,21 @@ class AuditLogService {
       if (filters.dateTo) {
         query = query.lte('timestamp', filters.dateTo);
       }
-      if (filters.success !== undefined) {
+      if (filters.success !== undefined && filters.success !== null) {
         query = query.eq('success', filters.success);
       }
       if (filters.limit) {
         query = query.limit(filters.limit);
+      }
+      if (filters.offset) {
+        query = query.range(filters.offset, filters.offset + (filters.limit || 50) - 1);
       }
 
       const { data, error } = await query;
 
       if (error) throw error;
 
-      return { success: true, data };
+      return { success: true, data: data || [] };
     } catch (error) {
       console.error('Error fetching audit logs:', error);
       return { success: false, error: error.message };

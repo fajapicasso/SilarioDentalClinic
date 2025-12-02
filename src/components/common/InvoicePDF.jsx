@@ -2,10 +2,41 @@
 import React from 'react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+import logo from '../../assets/Logo.png';
 
 const InvoicePDF = {
+  // Helper function to convert image URL to base64
+  imageToBase64: (url) => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        try {
+          const dataURL = canvas.toDataURL('image/png');
+          resolve(dataURL);
+        } catch (e) {
+          reject(e);
+        }
+      };
+      img.onerror = reject;
+      img.src = url;
+    });
+  },
+
+  // Helper function to remove DoctorId from notes
+  cleanNotes: (notes) => {
+    if (!notes) return '';
+    // Remove DoctorId: pattern and the ID value (including the | separator before it)
+    // This handles UUIDs and other ID formats
+    return notes.replace(/\s*\|\s*DoctorId:\s*[\w-]+/gi, '').trim();
+  },
+
   // Generate invoice PDF HTML template matching the UnifiedInvoicePrinter design
-  generateInvoiceHTML: (invoice) => {
+  generateInvoiceHTML: (invoice, logoBase64 = null) => {
     if (!invoice) return '';
 
     const items = invoice.invoice_items || invoice.items || [];
@@ -73,15 +104,43 @@ const InvoicePDF = {
             margin-bottom: 30px;
             padding-bottom: 20px;
             border-bottom: 2px solid #2563eb;
+            min-height: 100px;
+          }
+          
+          .invoice-header-left {
+            flex: 1;
+          }
+          
+          .title-with-logo {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 15px;
+            margin-top: 20px;
+          }
+          
+          .logo-container {
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+          }
+          
+          .logo-img {
+            width: 100px;
+            height: 80px;
+            object-fit: contain;
+            background: #fff;
+            border: none;
+            display: block;
           }
           
           .invoice-title {
             font-size: 40px;
             font-weight: bold;
             color: #1f2937;
-            margin-bottom: 15px;
-            margin-top: 0;
+            margin: 0;
             text-transform: uppercase;
+            line-height: 1.2;
           }
           
           .clinic-info {
@@ -304,12 +363,19 @@ const InvoicePDF = {
         
         <div class="invoice-container">
           <div class="invoice-header">
-            <div class="clinic-info">
-              <div class="invoice-title">INVOICE</div>
-              <div class="clinic-name">Silario Dental Clinic</div>
-              <div class="clinic-details">
-                Cabugao/San Juan, Ilocos Sur<br>
-                silaroidentalclinic@gmail.com
+            <div class="invoice-header-left">
+              <div class="title-with-logo">
+                <div class="logo-container">
+                  <img src="${logoBase64 || `${window.location.origin}/src/assets/Logo.png`}" alt="Silario Dental Clinic Logo" class="logo-img" />
+                </div>
+                <div class="invoice-title">INVOICE</div>
+              </div>
+              <div class="clinic-info">
+                <div class="clinic-name">Silario Dental Clinic</div>
+                <div class="clinic-details">
+                  Cabugao/San Juan, Ilocos Sur<br>
+                  silaroidentalclinic@gmail.com
+                </div>
               </div>
             </div>
             <div class="invoice-number-section">
@@ -326,6 +392,8 @@ const InvoicePDF = {
               <div class="section-title">BILLED TO</div>
               <div class="patient-info">
                 <div class="patient-name">${invoice.patientName || invoice.profiles?.full_name || 'N/A'}</div>
+                ${invoice.isMinor && invoice.guardianName ? `<div style="font-weight: 500; color: #6b7280; margin-top: 6px; font-size: 13px;">Guardian: ${invoice.guardianName}</div>` : ''}
+                ${invoice.isMinor && invoice.guardianPhone ? `<div style="color: #6b7280; margin-top: 4px; font-size: 13px;">Guardian Phone: ${invoice.guardianPhone}</div>` : ''}
                 <div>${invoice.profiles?.address || 'N/A'}</div>
                 <div>${invoice.profiles?.phone || 'N/A'}</div>
                 <div>${invoice.profiles?.email || 'N/A'}</div>
@@ -400,7 +468,7 @@ const InvoicePDF = {
           ${invoice.notes ? `
             <div class="notes-section">
               <div class="notes-title">Notes</div>
-              <div class="notes-content">${invoice.notes}</div>
+              <div class="notes-content">${InvoicePDF.cleanNotes(invoice.notes)}</div>
             </div>
           ` : ''}
  
@@ -422,7 +490,17 @@ const InvoicePDF = {
       }
 
       console.log('Generating PDF for invoice:', invoice);
-      const printHTML = InvoicePDF.generateInvoiceHTML(invoice);
+      
+      // Convert logo to base64 for reliable PDF generation
+      let logoBase64 = null;
+      try {
+        logoBase64 = await InvoicePDF.imageToBase64(logo);
+        console.log('Logo converted to base64 successfully');
+      } catch (error) {
+        console.warn('Failed to convert logo to base64, using URL fallback:', error);
+      }
+      
+      const printHTML = InvoicePDF.generateInvoiceHTML(invoice, logoBase64);
       
       if (!printHTML) {
         toast.error('Failed to generate invoice HTML. Please try again.');

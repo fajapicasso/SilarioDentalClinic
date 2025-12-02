@@ -4,6 +4,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import auditLogService from '../../services/auditLogService';
 import { toast } from 'react-toastify';
 import { useUniversalAudit } from '../../hooks/useUniversalAudit';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import { 
   FiEye, 
   FiDownload, 
@@ -46,8 +48,8 @@ const AuditLogs = () => {
     action: '',
     module: '',
     resourceType: '',
-    dateFrom: '',
-    dateTo: '',
+    dateFrom: null,
+    dateTo: null,
     success: '',
     searchTerm: ''
   });
@@ -91,33 +93,85 @@ const AuditLogs = () => {
   const loadAuditLogs = useCallback(async () => {
     setIsLoading(true);
     try {
-      const queryFilters = {
-        ...filters,
-        limit: itemsPerPage,
-        offset: (currentPage - 1) * itemsPerPage
-      };
+      // Prepare query filters - format dates and convert success string to boolean
+      const queryFilters = {};
 
-      // Remove empty filters
-      Object.keys(queryFilters).forEach(key => {
-        if (queryFilters[key] === '' || queryFilters[key] === null) {
-          delete queryFilters[key];
-        }
-      });
+      // Apply filters only if they have values
+      if (filters.userId) {
+        queryFilters.userId = filters.userId;
+      }
+      if (filters.userRole) {
+        queryFilters.userRole = filters.userRole;
+      }
+      if (filters.action) {
+        queryFilters.action = filters.action;
+      }
+      if (filters.module) {
+        queryFilters.module = filters.module;
+      }
+      if (filters.resourceType) {
+        queryFilters.resourceType = filters.resourceType;
+      }
+      if (filters.dateFrom) {
+        // Format date to ISO string with time set to start of day
+        const dateFrom = filters.dateFrom instanceof Date ? filters.dateFrom : new Date(filters.dateFrom);
+        dateFrom.setHours(0, 0, 0, 0);
+        queryFilters.dateFrom = dateFrom.toISOString();
+      }
+      if (filters.dateTo) {
+        // Format date to ISO string with time set to end of day
+        const dateTo = filters.dateTo instanceof Date ? filters.dateTo : new Date(filters.dateTo);
+        dateTo.setHours(23, 59, 59, 999);
+        queryFilters.dateTo = dateTo.toISOString();
+      }
+      if (filters.success !== '') {
+        queryFilters.success = filters.success === 'true';
+      }
 
+      // For pagination, we'll fetch more records and paginate client-side
+      // This is because Supabase doesn't easily return total count with filters
+      // In production, you'd want a separate count query or use RPC function
+      queryFilters.limit = 1000; // Fetch more records to allow client-side pagination
+      
       const result = await auditLogService.getAuditLogs(queryFilters);
       
       if (result.success) {
-        setAuditLogs(result.data);
-        setFilteredLogs(result.data);
+        let logs = result.data || [];
         
-        // Calculate total pages (simplified)
-        setTotalPages(Math.ceil(result.data.length / itemsPerPage));
+        // Apply client-side search filter if searchTerm exists
+        if (filters.searchTerm) {
+          const searchLower = filters.searchTerm.toLowerCase();
+          logs = logs.filter(log => 
+            (log.user_name?.toLowerCase().includes(searchLower)) ||
+            (log.action?.toLowerCase().includes(searchLower)) ||
+            (log.module?.toLowerCase().includes(searchLower)) ||
+            (log.resource_name?.toLowerCase().includes(searchLower)) ||
+            (log.resource_type?.toLowerCase().includes(searchLower)) ||
+            (log.user_role?.toLowerCase().includes(searchLower)) ||
+            (log.ip_address?.toLowerCase().includes(searchLower))
+          );
+        }
+        
+        setAuditLogs(logs);
+        
+        // Apply pagination
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        const paginatedLogs = logs.slice(startIndex, endIndex);
+        setFilteredLogs(paginatedLogs);
+        
+        // Calculate total pages based on filtered results
+        setTotalPages(Math.max(1, Math.ceil(logs.length / itemsPerPage)));
       } else {
         toast.error('Failed to load audit logs');
+        setAuditLogs([]);
+        setFilteredLogs([]);
       }
     } catch (error) {
       console.error('Error loading audit logs:', error);
       toast.error('Error loading audit logs');
+      setAuditLogs([]);
+      setFilteredLogs([]);
     } finally {
       setIsLoading(false);
     }
@@ -144,23 +198,7 @@ const AuditLogs = () => {
     loadStats();
   }, [loadAuditLogs, loadStats, logPageView]);
 
-  // Filter logs based on search term
-  useEffect(() => {
-    if (!filters.searchTerm) {
-      setFilteredLogs(auditLogs);
-      return;
-    }
-
-    const filtered = auditLogs.filter(log => 
-      log.user_name.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
-      log.action.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
-      log.module.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
-      log.resource_name?.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
-      log.resource_type?.toLowerCase().includes(filters.searchTerm.toLowerCase())
-    );
-
-    setFilteredLogs(filtered);
-  }, [auditLogs, filters.searchTerm]);
+  // Note: Search filtering is now handled in loadAuditLogs to work with server-side filters
 
   // Handle filter changes
   const handleFilterChange = (key, value) => {
@@ -179,8 +217,8 @@ const AuditLogs = () => {
       action: '',
       module: '',
       resourceType: '',
-      dateFrom: '',
-      dateTo: '',
+      dateFrom: null,
+      dateTo: null,
       success: '',
       searchTerm: ''
     });
@@ -217,18 +255,52 @@ const AuditLogs = () => {
   // Generate report
   const generateReport = async () => {
     try {
+      // Prepare filters for report - use report modal dates if provided, otherwise use filter dates
+      let reportDateFrom = reportData.dateFrom || filters.dateFrom;
+      let reportDateTo = reportData.dateTo || filters.dateTo;
+
+      // Format dates properly for the report
+      let formattedDateFrom = null;
+      let formattedDateTo = null;
+
+      if (reportDateFrom) {
+        const dateFrom = reportDateFrom instanceof Date ? reportDateFrom : new Date(reportDateFrom);
+        dateFrom.setHours(0, 0, 0, 0);
+        formattedDateFrom = dateFrom.toISOString();
+      }
+      if (reportDateTo) {
+        const dateTo = reportDateTo instanceof Date ? reportDateTo : new Date(reportDateTo);
+        dateTo.setHours(23, 59, 59, 999);
+        formattedDateTo = dateTo.toISOString();
+      }
+
+      // Prepare all filters for the report
+      const reportFilters = {
+        ...filters,
+        dateFrom: formattedDateFrom,
+        dateTo: formattedDateTo
+      };
+
       const result = await auditLogService.generateAuditReport({
-        reportName: reportData.reportName,
+        reportName: reportData.reportName || `Audit Report - ${new Date().toLocaleDateString()}`,
         reportType: reportData.reportType,
         generatedBy: user.id,
-        dateFrom: reportData.dateFrom,
-        dateTo: reportData.dateTo,
-        filters: filters
+        dateFrom: formattedDateFrom,
+        dateTo: formattedDateTo,
+        filters: reportFilters
       });
 
       if (result.success) {
         toast.success('Report generation started');
         setShowReportModal(false);
+        // Reset report data
+        setReportData({
+          reportName: '',
+          reportType: 'custom',
+          dateFrom: null,
+          dateTo: null,
+          format: 'pdf'
+        });
       } else {
         toast.error('Failed to generate report');
       }
@@ -265,54 +337,296 @@ const AuditLogs = () => {
 
   // Print logs
   const printLogs = () => {
+    if (filteredLogs.length === 0) {
+      toast.info('No logs to print');
+      return;
+    }
+
+    const currentDate = new Date().toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    // Build filter summary
+    const activeFilters = [];
+    if (filters.userRole) activeFilters.push(`User Role: ${filters.userRole}`);
+    if (filters.action) activeFilters.push(`Action: ${filters.action}`);
+    if (filters.module) activeFilters.push(`Module: ${filters.module}`);
+    if (filters.resourceType) activeFilters.push(`Resource Type: ${filters.resourceType}`);
+    if (filters.dateFrom) {
+      const dateFrom = filters.dateFrom instanceof Date ? filters.dateFrom : new Date(filters.dateFrom);
+      activeFilters.push(`From: ${dateFrom.toLocaleDateString()}`);
+    }
+    if (filters.dateTo) {
+      const dateTo = filters.dateTo instanceof Date ? filters.dateTo : new Date(filters.dateTo);
+      activeFilters.push(`To: ${dateTo.toLocaleDateString()}`);
+    }
+    if (filters.success !== '') activeFilters.push(`Status: ${filters.success === 'true' ? 'Successful' : 'Failed'}`);
+    if (filters.searchTerm) activeFilters.push(`Search: ${filters.searchTerm}`);
+
     const printContent = `
+      <!DOCTYPE html>
       <html>
         <head>
-          <title>Audit Logs Report</title>
+          <title>Audit Logs Report - Silario Dental Clinic</title>
+          <meta charset="UTF-8">
           <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            table { width: 100%; border-collapse: collapse; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-            th { background-color: #f2f2f2; }
-            .success { color: green; }
-            .error { color: red; }
+            @media print {
+              @page {
+                size: A4 landscape;
+                margin: 1cm;
+              }
+            }
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+            body {
+              font-family: 'Arial', sans-serif;
+              font-size: 10px;
+              color: #333;
+              line-height: 1.4;
+              padding: 20px;
+              background: #fff;
+            }
+            .header {
+              margin-bottom: 20px;
+              border-bottom: 3px solid #2563eb;
+              padding-bottom: 15px;
+            }
+            .header-content {
+              display: flex;
+              align-items: center;
+              gap: 20px;
+              margin-bottom: 15px;
+            }
+            .clinic-name {
+              font-size: 24px;
+              font-weight: bold;
+              color: #1f2937;
+              margin-bottom: 5px;
+              text-transform: uppercase;
+            }
+            .report-title {
+              font-size: 20px;
+              font-weight: bold;
+              color: #1e40af;
+              text-transform: uppercase;
+              margin-top: 10px;
+            }
+            .report-info {
+              margin: 15px 0;
+              padding: 10px;
+              background: #f3f4f6;
+              border-radius: 5px;
+            }
+            .report-info p {
+              margin: 3px 0;
+              font-size: 9px;
+            }
+            .filters {
+              margin: 10px 0;
+              padding: 8px;
+              background: #eff6ff;
+              border-left: 4px solid #2563eb;
+              font-size: 9px;
+            }
+            .filters strong {
+              color: #1e40af;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 15px;
+              font-size: 9px;
+            }
+            thead {
+              background: #2563eb;
+              color: white;
+            }
+            th {
+              padding: 8px 5px;
+              text-align: left;
+              font-weight: bold;
+              border: 1px solid #1e40af;
+              font-size: 9px;
+            }
+            td {
+              padding: 6px 5px;
+              border: 1px solid #d1d5db;
+              vertical-align: top;
+            }
+            tbody tr:nth-child(even) {
+              background: #f9fafb;
+            }
+            tbody tr:hover {
+              background: #f3f4f6;
+            }
+            .status-success {
+              color: #059669;
+              font-weight: bold;
+            }
+            .status-failed {
+              color: #dc2626;
+              font-weight: bold;
+            }
+            .badge {
+              display: inline-block;
+              padding: 2px 6px;
+              border-radius: 3px;
+              font-size: 8px;
+              font-weight: bold;
+            }
+            .badge-success {
+              background: #d1fae5;
+              color: #065f46;
+            }
+            .badge-failed {
+              background: #fee2e2;
+              color: #991b1b;
+            }
+            .footer {
+              margin-top: 20px;
+              padding-top: 10px;
+              border-top: 2px solid #e5e7eb;
+              text-align: center;
+              font-size: 8px;
+              color: #6b7280;
+            }
+            .summary {
+              margin: 15px 0;
+              padding: 10px;
+              background: #f0fdf4;
+              border: 1px solid #86efac;
+              border-radius: 5px;
+            }
+            .summary p {
+              margin: 3px 0;
+              font-size: 9px;
+              font-weight: bold;
+            }
           </style>
         </head>
         <body>
-          <h1>Audit Logs Report</h1>
-          <p>Generated on: ${new Date().toLocaleString()}</p>
+          <div class="header">
+            <div class="header-content">
+              <img src="${window.location.origin}/src/assets/Logo.png" alt="Silario Dental Clinic Logo" style="width: 100px; height: 80px; object-fit: contain;" />
+              <div style="flex: 1;">
+                <div class="clinic-name">Silario Dental Clinic</div>
+                <div style="font-size: 10px; color: #6b7280; margin-top: 2px;">Cabugao/San Juan, Ilocos Sur</div>
+                <div class="report-title">AUDIT LOGS REPORT</div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="report-info">
+            <p><strong>Generated On:</strong> ${currentDate}</p>
+            <p><strong>Generated By:</strong> ${user?.full_name || user?.email || 'System'}</p>
+            <p><strong>Total Records:</strong> ${filteredLogs.length}</p>
+          </div>
+
+          ${activeFilters.length > 0 ? `
+            <div class="filters">
+              <strong>Active Filters:</strong> ${activeFilters.join(' | ')}
+            </div>
+          ` : ''}
+
+          <div class="summary">
+            <p>Report Summary: This audit log report contains all system activities and security events tracked by the system.</p>
+          </div>
+
           <table>
             <thead>
               <tr>
-                <th>Timestamp</th>
-                <th>User</th>
-                <th>Action</th>
-                <th>Module</th>
-                <th>Resource</th>
-                <th>Success</th>
+                <th style="width: 12%;">Timestamp</th>
+                <th style="width: 12%;">User</th>
+                <th style="width: 8%;">Role</th>
+                <th style="width: 10%;">Action</th>
+                <th style="width: 10%;">Module</th>
+                <th style="width: 12%;">Resource</th>
+                <th style="width: 8%;">Status</th>
+                <th style="width: 10%;">IP Address</th>
+                <th style="width: 8%;">Details</th>
               </tr>
             </thead>
             <tbody>
-              ${filteredLogs.map(log => `
-                <tr>
-                  <td>${new Date(log.timestamp).toLocaleString()}</td>
-                  <td>${log.user_name}</td>
-                  <td>${log.action}</td>
-                  <td>${log.module}</td>
-                  <td>${log.resource_name || ''}</td>
-                  <td class="${log.success ? 'success' : 'error'}">${log.success ? 'Yes' : 'No'}</td>
-                </tr>
-              `).join('')}
+              ${filteredLogs.map(log => {
+                const timestamp = new Date(log.timestamp).toLocaleString('en-US', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit'
+                });
+                const hasDetails = log.old_values || log.new_values || log.error_message || log.metadata;
+                return `
+                  <tr>
+                    <td>${timestamp}</td>
+                    <td>${log.user_name || 'System'}</td>
+                    <td>${log.user_role || 'N/A'}</td>
+                    <td>${log.action?.replace(/_/g, ' ') || 'N/A'}</td>
+                    <td>${log.module?.replace(/_/g, ' ') || 'N/A'}</td>
+                    <td>${log.resource_name || log.resource_type || 'N/A'}</td>
+                    <td>
+                      <span class="badge ${log.success ? 'badge-success' : 'badge-failed'}">
+                        ${log.success ? '✓ Success' : '✗ Failed'}
+                      </span>
+                    </td>
+                    <td>${log.ip_address || 'N/A'}</td>
+                    <td>${hasDetails ? 'Yes' : 'No'}</td>
+                  </tr>
+                `;
+              }).join('')}
             </tbody>
           </table>
+
+          <div class="footer">
+            <p>This is a system-generated audit log report. All activities are logged for security and compliance purposes.</p>
+            <p>For inquiries, contact: silariodentalclinic@gmail.com</p>
+            <p>Generated by Silario Dental Clinic Management System</p>
+          </div>
+
+          <script>
+            window.onload = function() {
+              try {
+                window.print();
+                window.onafterprint = function() {
+                  setTimeout(function() {
+                    window.close();
+                  }, 1000);
+                };
+              } catch (error) {
+                console.error('Print error:', error);
+                setTimeout(function() {
+                  window.close();
+                }, 2000);
+              }
+            };
+          </script>
         </body>
       </html>
     `;
 
     const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast.error('Pop-up blocked. Please allow pop-ups for this site.');
+      return;
+    }
+    
     printWindow.document.write(printContent);
     printWindow.document.close();
-    printWindow.print();
+    
+    // Fallback timeout
+    setTimeout(() => {
+      if (printWindow && !printWindow.closed) {
+        printWindow.focus();
+      }
+    }, 500);
   };
 
   // Format timestamp
@@ -567,11 +881,17 @@ const AuditLogs = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Date From
                 </label>
-                <input
-                  type="date"
-                  value={filters.dateFrom}
-                  onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                <DatePicker
+                  selected={filters.dateFrom}
+                  onChange={(date) => handleFilterChange('dateFrom', date)}
+                  selectsStart
+                  startDate={filters.dateFrom}
+                  endDate={filters.dateTo}
+                  maxDate={filters.dateTo || new Date()}
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-3 py-2 text-sm"
+                  dateFormat="yyyy-MM-dd"
+                  placeholderText="Select start date"
+                  isClearable
                 />
               </div>
 
@@ -579,11 +899,18 @@ const AuditLogs = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Date To
                 </label>
-                <input
-                  type="date"
-                  value={filters.dateTo}
-                  onChange={(e) => handleFilterChange('dateTo', e.target.value)}
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                <DatePicker
+                  selected={filters.dateTo}
+                  onChange={(date) => handleFilterChange('dateTo', date)}
+                  selectsEnd
+                  startDate={filters.dateFrom}
+                  endDate={filters.dateTo}
+                  minDate={filters.dateFrom}
+                  maxDate={new Date()}
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-3 py-2 text-sm"
+                  dateFormat="yyyy-MM-dd"
+                  placeholderText="Select end date"
+                  isClearable
                 />
               </div>
 
@@ -904,20 +1231,33 @@ const AuditLogs = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700">Date From</label>
-                      <input
-                        type="date"
-                        value={reportData.dateFrom}
-                        onChange={(e) => setReportData(prev => ({ ...prev, dateFrom: e.target.value }))}
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                      <DatePicker
+                        selected={reportData.dateFrom}
+                        onChange={(date) => setReportData(prev => ({ ...prev, dateFrom: date }))}
+                        selectsStart
+                        startDate={reportData.dateFrom}
+                        endDate={reportData.dateTo}
+                        maxDate={reportData.dateTo || new Date()}
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-3 py-2 text-sm"
+                        dateFormat="yyyy-MM-dd"
+                        placeholderText="Select start date"
+                        isClearable
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700">Date To</label>
-                      <input
-                        type="date"
-                        value={reportData.dateTo}
-                        onChange={(e) => setReportData(prev => ({ ...prev, dateTo: e.target.value }))}
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                      <DatePicker
+                        selected={reportData.dateTo}
+                        onChange={(date) => setReportData(prev => ({ ...prev, dateTo: date }))}
+                        selectsEnd
+                        startDate={reportData.dateFrom}
+                        endDate={reportData.dateTo}
+                        minDate={reportData.dateFrom}
+                        maxDate={new Date()}
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-3 py-2 text-sm"
+                        dateFormat="yyyy-MM-dd"
+                        placeholderText="Select end date"
+                        isClearable
                       />
                     </div>
                   </div>

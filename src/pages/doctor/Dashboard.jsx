@@ -142,6 +142,7 @@ const DoctorDashboard = () => {
           `)
           .eq('appointment_date', today)
           .eq('status', 'confirmed')
+          .eq('doctor_id', user.id)
           .order('appointment_time');
         
         if (todayError) throw todayError;
@@ -168,6 +169,7 @@ const DoctorDashboard = () => {
           `)
           .gt('appointment_date', today)
           .eq('status', 'confirmed')
+          .eq('doctor_id', user.id)
           .order('appointment_date')
           .order('appointment_time')
           .limit(5);
@@ -188,6 +190,7 @@ const DoctorDashboard = () => {
             appointment_id,
             appointments:appointment_id (
               branch,
+              doctor_id,
               services:appointment_services(
                 service_id (name)
               )
@@ -202,7 +205,13 @@ const DoctorDashboard = () => {
           throw currentError;
         }
         
-        setCurrentPatient(currentData || null);
+        // Filter by doctor: only show if appointment belongs to current doctor or if no appointment (walk-in)
+        const filteredCurrentPatient = currentData && (
+          !currentData.appointment_id || 
+          (currentData.appointments && currentData.appointments.doctor_id === user.id)
+        ) ? currentData : null;
+        
+        setCurrentPatient(filteredCurrentPatient);
 
         // Fetch waiting patients in queue
         const { data: waitingData, error: waitingError } = await supabase
@@ -218,6 +227,7 @@ const DoctorDashboard = () => {
             appointment_id,
             appointments:appointment_id (
               branch,
+              doctor_id,
               services:appointment_services(
                 service_id (name)
               )
@@ -225,10 +235,21 @@ const DoctorDashboard = () => {
           `)
           .eq('status', 'waiting')
           .order('queue_number')
-          .limit(5);
+          .limit(10);
         
         if (waitingError) throw waitingError;
-        setWaitingPatients(waitingData || []);
+        
+        // Filter by doctor: only show queue entries where appointment belongs to current doctor or if no appointment (walk-in)
+        const filteredWaitingPatients = (waitingData || []).filter(queueEntry => {
+          // If no appointment_id, it's a walk-in patient - include it
+          if (!queueEntry.appointment_id) {
+            return true;
+          }
+          // If there's an appointment, only include if it belongs to the current doctor
+          return queueEntry.appointments && queueEntry.appointments.doctor_id === user.id;
+        });
+        
+        setWaitingPatients(filteredWaitingPatients);
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
       } finally {

@@ -91,6 +91,7 @@ const AdminAppointments = () => {
           id, 
           patient_id,
           doctor_id,
+          guardian_id,
           appointment_date, 
           appointment_time, 
           status, 
@@ -107,6 +108,26 @@ const AdminAppointments = () => {
       if (error) {
         console.error('Error fetching appointments:', error);
         throw error;
+      }
+      
+      // Fetch guardian profiles for appointments with guardian_id
+      const guardianIds = [...new Set(data.map(app => app.guardian_id).filter(Boolean))];
+      const { data: guardianData, error: guardianError } = guardianIds.length > 0
+        ? await supabase
+            .from('profiles')
+            .select('id, full_name, email, phone')
+            .in('id', guardianIds)
+        : { data: [], error: null };
+      
+      if (guardianError) {
+        console.error('Error fetching guardian profiles:', guardianError);
+      }
+      
+      const guardianMap = {};
+      if (guardianData) {
+        guardianData.forEach(guardian => {
+          guardianMap[guardian.id] = guardian;
+        });
       }
       
       const appointmentIds = data.map(app => app.id);
@@ -136,18 +157,24 @@ const AdminAppointments = () => {
         });
       }
       
-      const formattedAppointments = data.map(appointment => ({
-        ...appointment,
-        services: servicesMap[appointment.id] || [],
-        serviceIds: servicesMap[appointment.id] 
-          ? servicesMap[appointment.id].map(s => s.service_id.id) 
-          : [],
-        serviceNames: servicesMap[appointment.id] 
-          ? servicesMap[appointment.id].map(s => s.service_id.name) 
-          : [],
-        patientName: appointment.patients?.full_name || 'Unknown',
-        doctorName: appointment.doctors?.full_name || null
-      }));
+      const formattedAppointments = data.map(appointment => {
+        const guardian = appointment.guardian_id ? guardianMap[appointment.guardian_id] : null;
+        return {
+          ...appointment,
+          services: servicesMap[appointment.id] || [],
+          serviceIds: servicesMap[appointment.id] 
+            ? servicesMap[appointment.id].map(s => s.service_id.id) 
+            : [],
+          serviceNames: servicesMap[appointment.id] 
+            ? servicesMap[appointment.id].map(s => s.service_id.name) 
+            : [],
+          patientName: appointment.patients?.full_name || 'Unknown',
+          doctorName: appointment.doctors?.full_name || null,
+          guardian: guardian,
+          guardianName: guardian?.full_name || null,
+          isChildAppointment: !!appointment.guardian_id
+        };
+      });
       
       console.log(`Successfully loaded ${formattedAppointments.length} appointments`);
       setAppointments(formattedAppointments);
@@ -1145,6 +1172,12 @@ const AdminAppointments = () => {
                   </h3>
                   <p className="text-gray-700">
                     <span className="font-medium">Name:</span> {selectedAppointment.patientName}
+                    {selectedAppointment.isChildAppointment && (
+                      <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                        <FiUser className="mr-1" />
+                        Minor
+                      </span>
+                    )}
                   </p>
                   {selectedAppointment.patients?.email && (
                     <p className="text-gray-700">
@@ -1155,6 +1188,24 @@ const AdminAppointments = () => {
                     <p className="text-gray-700">
                       <span className="font-medium">Phone:</span> {selectedAppointment.patients.phone}
                     </p>
+                  )}
+                  {selectedAppointment.isChildAppointment && selectedAppointment.guardianName && (
+                    <div className="mt-3 pt-3 border-t border-gray-300">
+                      <p className="text-sm font-medium text-gray-600 mb-1">Guardian Information:</p>
+                      <p className="text-gray-700">
+                        <span className="font-medium">Name:</span> {selectedAppointment.guardianName}
+                      </p>
+                      {selectedAppointment.guardian?.email && (
+                        <p className="text-gray-700">
+                          <span className="font-medium">Email:</span> {selectedAppointment.guardian.email}
+                        </p>
+                      )}
+                      {selectedAppointment.guardian?.phone && (
+                        <p className="text-gray-700">
+                          <span className="font-medium">Phone:</span> {selectedAppointment.guardian.phone}
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
                 
@@ -1563,6 +1614,12 @@ const AdminAppointments = () => {
                     <div className="flex-1">
                       <div className="flex flex-wrap items-center gap-2 mb-2">
                         <span className="font-medium text-gray-800">{appointment.patientName}</span>
+                        {appointment.isChildAppointment && appointment.guardianName && (
+                          <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full flex items-center">
+                            <FiUser className="mr-1" />
+                            Guardian: {appointment.guardianName}
+                          </span>
+                        )}
                         <span className={`px-2 py-0.5 text-xs rounded-full ${getStatusBadgeClass(appointment.status)}`}>
                           {appointment.status}
                         </span>
@@ -1706,6 +1763,12 @@ const AdminAppointments = () => {
                           <div className="ml-4">
                             <div className="text-sm font-medium text-gray-900">
                               {appointment.patientName}
+                              {appointment.isChildAppointment && appointment.guardianName && (
+                                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                  <FiUser className="mr-1" />
+                                  Guardian: {appointment.guardianName}
+                                </span>
+                              )}
                               {appointment.is_emergency && (
                                 <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
                                   <FiAlertTriangle className="mr-1" />
@@ -1715,6 +1778,9 @@ const AdminAppointments = () => {
                             </div>
                             <div className="text-sm text-gray-500">
                               {appointment.patients?.phone || 'No phone'}
+                              {appointment.isChildAppointment && appointment.guardian?.phone && (
+                                <span className="ml-2">• Guardian: {appointment.guardian.phone}</span>
+                              )}
                             </div>
                           </div>
                         </div>

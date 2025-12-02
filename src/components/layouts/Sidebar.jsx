@@ -7,7 +7,7 @@ import {
   FiHome, FiUsers, FiCalendar, FiList, 
   FiGrid, FiBarChart2, FiSettings, FiClipboard,
   FiUser, FiCreditCard, FiClock, FiFileText, FiAlertCircle, FiHeart,
-  FiChevronDown, FiChevronRight, FiMenu, FiX, FiDollarSign, FiShield
+  FiChevronDown, FiChevronRight, FiMenu, FiX, FiDollarSign, FiShield, FiCalendar as FiCalendarIcon
 } from 'react-icons/fi';
 import logo from '../../assets/Logo.png'; // Import the logo properly
 
@@ -48,6 +48,7 @@ const Sidebar = ({ role, isMobileMenuOpen, setIsMobileMenuOpen }) => {
         return [
           { to: '/doctor/dashboard', icon: <FiHome />, text: 'Dashboard' },
           { to: '/doctor/appointments', icon: <FiCalendar />, text: 'Appointments' },
+          { to: '/doctor/calendar', icon: <FiCalendarIcon />, text: 'Appointment Calendar' },
           { to: '/doctor/patients', icon: <FiUsers />, text: 'Patient Records' },
           { to: '/doctor/queue', icon: <FiGrid />, text: 'Queue Management' },
           { to: '/doctor/billing', icon: <FiFileText />, text: 'Billing' },
@@ -60,6 +61,7 @@ const Sidebar = ({ role, isMobileMenuOpen, setIsMobileMenuOpen }) => {
           { to: '/staff/appointments', icon: <FiCalendar />, text: 'Appointments' },
           { to: '/staff/queue', icon: <FiGrid />, text: 'Queue Management' },
           { to: '/staff/patients', icon: <FiUsers />, text: 'Patient Records' },
+          { to: '/staff/billing', icon: <FiFileText />, text: 'Billing' },
           { to: '/staff/payments', icon: <FiCreditCard />, text: 'Payments' },
           { to: '/staff/settings', icon: <FiSettings />, text: 'Settings' },
         ];
@@ -70,7 +72,7 @@ const Sidebar = ({ role, isMobileMenuOpen, setIsMobileMenuOpen }) => {
           { to: '/patient/appointments', icon: <FiCalendar />, text: 'My Appointments' },
           { to: '/patient/payments', icon: <FiCreditCard />, text: 'Payments' },
           { to: '/patient/records', icon: <FiClipboard />, text: 'My Dental Records' },
-          { to: '/patient/analytics', icon: <FiBarChart2 />, text: 'Analytics' },
+          //{ to: '/patient/analytics', icon: <FiBarChart2 />, text: 'Analytics' },
           { to: '/patient/profile', icon: <FiUser />, text: 'My Profile' },
           { to: '/patient/settings', icon: <FiSettings />, text: 'Settings' },
           

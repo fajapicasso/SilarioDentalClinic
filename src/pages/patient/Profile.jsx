@@ -15,7 +15,11 @@ import {
   FiX, 
   FiRefreshCw,
   FiInfo,
-  FiCamera
+  FiCamera,
+  FiPlus,
+  FiEdit2,
+  FiUsers,
+  FiCheck
 } from 'react-icons/fi';
 import supabase from '../../config/supabaseClient';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
@@ -98,12 +102,35 @@ const Profile = () => {
   // Profile pictures bucket constant
   const PROFILE_PICTURES_BUCKET = 'profile-pictures';
 
+  // Children management states
+  const [children, setChildren] = useState([]);
+  const [isLoadingChildren, setIsLoadingChildren] = useState(false);
+  const [showChildForm, setShowChildForm] = useState(false);
+  const [editingChild, setEditingChild] = useState(null);
+  const [childFormData, setChildFormData] = useState({
+    first_name: '',
+    middle_name: '',
+    last_name: '',
+    nickname: '',
+    birthday: null,
+    age: '',
+    gender: '',
+    nationality: '',
+    street: '',
+    barangay: '',
+    city: '',
+    province: ''
+  });
+  const [isSavingChild, setIsSavingChild] = useState(false);
+  const [tableExists, setTableExists] = useState(true); // Track if table exists
+
   useEffect(() => {
     console.log('Profile useEffect - user:', user);
     if (user) {
       console.log('User found, fetching profile...');
       fetchUserProfile();
       fetchUploadedFiles();
+      fetchChildren();
       // Initialize storage system
       initializeStorage().then(success => {
         if (success) {
@@ -489,6 +516,367 @@ const Profile = () => {
       toast.error('Failed to update profile: ' + error.message);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // ========== CHILDREN MANAGEMENT FUNCTIONS ==========
+  
+  // Fetch all children for the current user (guardian)
+  // Children are stored in profiles table with guardian_id set
+  const fetchChildren = async () => {
+    if (!user?.id) {
+      return;
+    }
+    
+    setIsLoadingChildren(true);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('guardian_id', user.id)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        // Check if guardian_id column doesn't exist
+        if (error.code === '42703' || error.message?.includes('guardian_id') || error.message?.includes('column') && error.message?.includes('does not exist')) {
+          console.error('guardian_id column does not exist in profiles table. Please run the SQL script: add_guardian_id_to_profiles.sql');
+          setTableExists(false);
+          setChildren([]);
+          return;
+        }
+        throw error;
+      }
+      
+      setTableExists(true);
+      setChildren(data || []);
+    } catch (error) {
+      console.error('Error fetching children:', error);
+      if (error.code !== '42703' && !error.message?.includes('guardian_id')) {
+        toast.error('Failed to load children: ' + error.message);
+      }
+    } finally {
+      setIsLoadingChildren(false);
+    }
+  };
+
+  // Reset child form
+  const resetChildForm = () => {
+    setChildFormData({
+      first_name: '',
+      middle_name: '',
+      last_name: '',
+      nickname: '',
+      birthday: null,
+      age: '',
+      gender: '',
+      nationality: '',
+      street: '',
+      barangay: '',
+      city: '',
+      province: ''
+    });
+    setEditingChild(null);
+  };
+
+  // Open child form for adding or editing
+  const openChildForm = (child = null) => {
+    if (child) {
+      setEditingChild(child);
+      setChildFormData({
+        first_name: child.first_name || '',
+        middle_name: child.middle_name || '',
+        last_name: child.last_name || '',
+        nickname: child.nickname || '',
+        birthday: child.birthday ? new Date(child.birthday) : null,
+        age: child.age || '',
+        gender: child.gender || '',
+        nationality: child.nationality || '',
+        street: child.street || '',
+        barangay: child.barangay || '',
+        city: child.city || '',
+        province: child.province || ''
+      });
+    } else {
+      resetChildForm();
+    }
+    setShowChildForm(true);
+  };
+
+  // Calculate age from birthday
+  const calculateChildAge = (birthday) => {
+    if (!birthday) return '';
+    const today = new Date();
+    const birthDate = new Date(birthday);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
+  // Handle child form input change
+  const handleChildInputChange = (field, value) => {
+    setChildFormData(prev => {
+      const updated = { ...prev, [field]: value };
+      
+      // Auto-calculate age when birthday changes
+      if (field === 'birthday' && value) {
+        updated.age = calculateChildAge(value);
+      }
+      
+      return updated;
+    });
+  };
+
+  // Save child (atomic operation - insert or update)
+  const handleSaveChild = async () => {
+    if (!user?.id) {
+      toast.error('User not authenticated');
+      return;
+    }
+
+    // Validation
+    if (!childFormData.first_name || !childFormData.last_name) {
+      toast.error('First name and last name are required');
+      return;
+    }
+
+    if (!childFormData.birthday) {
+      toast.error('Birthday is required');
+      return;
+    }
+
+    if (!childFormData.gender) {
+      toast.error('Gender is required');
+      return;
+    }
+
+    // Get guardian's email (children use parent's email)
+    let guardianEmail = profile.email;
+    if (!guardianEmail) {
+      try {
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        guardianEmail = authUser?.email || null;
+      } catch (e) {
+        console.error('Error getting guardian email:', e);
+      }
+    }
+
+    if (!guardianEmail) {
+      toast.error('Unable to get guardian email. Please ensure your profile has an email address.');
+      return;
+    }
+
+    setIsSavingChild(true);
+    
+    try {
+      // Prepare data for atomic operation - save as profile like regular patients
+      const fullName = [
+        childFormData.first_name.trim(),
+        childFormData.middle_name?.trim(),
+        childFormData.last_name.trim()
+      ].filter(Boolean).join(' ');
+      
+      const address = [
+        childFormData.street?.trim(),
+        childFormData.barangay?.trim(),
+        childFormData.city?.trim(),
+        childFormData.province?.trim()
+      ].filter(Boolean).join(', ');
+      
+      const childData = {
+        guardian_id: user.id,
+        email: guardianEmail, // Use guardian's email for the child
+        first_name: childFormData.first_name.trim(),
+        middle_name: childFormData.middle_name?.trim() || null,
+        last_name: childFormData.last_name.trim(),
+        full_name: fullName,
+        nickname: childFormData.nickname?.trim() || null,
+        birthday: childFormData.birthday instanceof Date 
+          ? childFormData.birthday.toISOString().split('T')[0]
+          : childFormData.birthday,
+        age: childFormData.age ? parseInt(childFormData.age) : null,
+        gender: childFormData.gender,
+        nationality: childFormData.nationality?.trim() || null,
+        street: childFormData.street?.trim() || null,
+        barangay: childFormData.barangay?.trim() || null,
+        city: childFormData.city?.trim() || null,
+        province: childFormData.province?.trim() || null,
+        address: address || null,
+        role: 'patient', // Children are also patients
+        is_active: true,
+        disabled: false
+      };
+
+      let result;
+      
+      if (editingChild) {
+        // Atomic update operation - update profile
+        const { data, error } = await supabase
+          .from('profiles')
+          .update(childData)
+          .eq('id', editingChild.id)
+          .eq('guardian_id', user.id) // Ensure user owns this child
+          .select()
+          .single();
+        
+        if (error) throw error;
+        result = data;
+        
+        // Update local state atomically
+        setChildren(prev => prev.map(child => 
+          child.id === editingChild.id ? result : child
+        ));
+        
+        toast.success('Child information updated successfully');
+      } else {
+        // Atomic insert operation - create new profile for child
+        // Try to generate UUID using Supabase RPC first, fallback to client-side
+        let childId;
+        
+        try {
+          // Try to get UUID from database function
+          const { data: uuidData, error: uuidError } = await supabase.rpc('generate_uuid');
+          if (!uuidError && uuidData) {
+            childId = uuidData;
+          }
+        } catch (e) {
+          console.log('RPC UUID generation not available, using client-side');
+        }
+        
+        // Fallback to client-side UUID generation
+        if (!childId) {
+          if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+            childId = crypto.randomUUID();
+          } else {
+            // Fallback for older browsers
+            childId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+              const r = Math.random() * 16 | 0;
+              const v = c === 'x' ? r : (r & 0x3 | 0x8);
+              return v.toString(16);
+            });
+          }
+        }
+        
+        // Validate UUID was generated
+        if (!childId || childId === '') {
+          throw new Error('Failed to generate UUID for child');
+        }
+        
+        console.log('Generated child ID:', childId);
+        console.log('Child data to insert:', { ...childData, id: childId });
+        
+        // Prepare insert data - try with id first, database default as fallback
+        // If database has DEFAULT gen_random_uuid(), we can omit id
+        // Use guardian's email for children (minors use parent's email)
+        const insertData = {
+          ...(childId ? { id: childId } : {}), // Only include id if we generated one
+          guardian_id: childData.guardian_id,
+          email: childData.email, // Use guardian's email (already set in childData)
+          first_name: childData.first_name || '',
+          middle_name: childData.middle_name,
+          last_name: childData.last_name || '',
+          full_name: childData.full_name || '',
+          nickname: childData.nickname,
+          birthday: childData.birthday,
+          age: childData.age,
+          gender: childData.gender || '',
+          nationality: childData.nationality,
+          street: childData.street,
+          barangay: childData.barangay,
+          city: childData.city,
+          province: childData.province,
+          address: childData.address,
+          role: childData.role || 'patient',
+          is_active: childData.is_active !== undefined ? childData.is_active : true,
+          disabled: childData.disabled !== undefined ? childData.disabled : false
+        };
+        
+        console.log('Final insert data:', insertData);
+        
+        const { data, error } = await supabase
+          .from('profiles')
+          .insert([insertData])
+          .select()
+          .single();
+        
+        if (error) {
+          console.error('Insert error details:', error);
+          console.error('Error code:', error.code);
+          console.error('Error message:', error.message);
+          console.error('Error hint:', error.hint);
+          throw error;
+        }
+        result = data;
+        
+        // Update local state atomically
+        setChildren(prev => [result, ...prev]);
+        
+        toast.success('Child added successfully');
+      }
+
+      // Close form and reset
+      setShowChildForm(false);
+      resetChildForm();
+      
+    } catch (error) {
+      console.error('Error saving child:', error);
+      
+      // Check for specific error types
+      if (error.code === '42703' || error.message?.includes('guardian_id') || (error.message?.includes('column') && error.message?.includes('does not exist'))) {
+        setTableExists(false);
+        toast.error('Database column not found. Please run the SQL script: add_guardian_id_to_profiles.sql in your Supabase SQL Editor.');
+        console.error('🔴 IMPORTANT: The guardian_id column does not exist in profiles table. Please run add_guardian_id_to_profiles.sql in Supabase SQL Editor.');
+      } else if (error.code === '42501' || error.message?.includes('permission denied')) {
+        toast.error('Permission denied. Please check your database permissions.');
+      } else if (error.message) {
+        toast.error('Failed to save child: ' + error.message);
+      } else {
+        toast.error('Failed to save child. Please check the console for details.');
+      }
+    } finally {
+      setIsSavingChild(false);
+    }
+  };
+
+  // Delete child (atomic operation)
+  const handleDeleteChild = async (childId) => {
+    if (!user?.id) {
+      toast.error('User not authenticated');
+      return;
+    }
+
+    if (!window.confirm('Are you sure you want to delete this child? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      // Atomic delete operation (soft delete by setting is_active to false)
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_active: false })
+        .eq('id', childId)
+        .eq('guardian_id', user.id); // Ensure user owns this child
+      
+      if (error) throw error;
+      
+      // Update local state atomically
+      setChildren(prev => prev.filter(child => child.id !== childId));
+      
+      toast.success('Child deleted successfully');
+    } catch (error) {
+      console.error('Error deleting child:', error);
+      
+      // Check for specific error types
+      if (error.code === '42703' || error.message?.includes('guardian_id')) {
+        toast.error('Database column not found. Please run the SQL script: add_guardian_id_to_profiles.sql');
+      } else if (error.message) {
+        toast.error('Failed to delete child: ' + error.message);
+      } else {
+        toast.error('Failed to delete child. Please check the console for details.');
+      }
     }
   };
 
@@ -2482,6 +2870,318 @@ const Profile = () => {
           </form>
         )}
       </div>
+
+      {/* Children Management Section */}
+      <div className="bg-white rounded-md shadow border border-blue-100 w-full p-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h2 className="text-2xl font-bold text-primary-700 mb-1">My Children</h2>
+              <p className="text-gray-600 text-sm">Manage your children's information to book appointments for them</p>
+            </div>
+            <button
+              onClick={() => openChildForm()}
+              disabled={!tableExists}
+              className="px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 text-sm font-medium flex items-center gap-2 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              <FiPlus className="w-4 h-4" />
+              Add Child
+            </button>
+          </div>
+          <hr className="mb-6 border-blue-100" />
+
+          {isLoadingChildren ? (
+            <div className="flex justify-center items-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+            </div>
+          ) : !tableExists ? (
+            <div className="text-center py-12 bg-yellow-50 rounded-lg border-2 border-dashed border-yellow-300">
+              <FiAlertCircle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
+              <p className="text-gray-800 font-semibold mb-2">Database Setup Required</p>
+              <p className="text-sm text-gray-600 mb-4">
+                The children feature requires database setup. Please run the SQL script:
+              </p>
+              <div className="bg-white p-4 rounded border border-gray-200 mb-4 text-left max-w-2xl mx-auto">
+                <code className="text-xs text-gray-700">add_guardian_id_to_profiles.sql</code>
+              </div>
+              <p className="text-xs text-gray-500">
+                Go to Supabase Dashboard → SQL Editor → Run the script
+              </p>
+            </div>
+          ) : children.length === 0 ? (
+            <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+              <FiUsers className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-600 mb-2">No children added yet</p>
+              <p className="text-sm text-gray-500 mb-4">Add your children to book appointments for them</p>
+              <button
+                onClick={() => openChildForm()}
+                className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 text-sm font-medium"
+              >
+                Add Your First Child
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {children.map((child) => (
+                <div key={child.id} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        {child.first_name} {child.middle_name ? child.middle_name + ' ' : ''}{child.last_name}
+                      </h3>
+                      {child.nickname && (
+                        <p className="text-sm text-gray-500">"{child.nickname}"</p>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => openChildForm(child)}
+                        className="p-2 text-primary-600 hover:bg-primary-50 rounded-md transition-colors"
+                        title="Edit"
+                      >
+                        <FiEdit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteChild(child.id)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                        title="Delete"
+                      >
+                        <FiTrash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <FiCalendar className="w-4 h-4 text-gray-400" />
+                      <span>{formatDate(child.birthday)} ({child.age} years old)</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <FiUser className="w-4 h-4 text-gray-400" />
+                      <span className="capitalize">{child.gender}</span>
+                    </div>
+                    {child.nationality && (
+                      <div className="flex items-center gap-2 text-gray-600">
+                        <FiMapPin className="w-4 h-4 text-gray-400" />
+                        <span>{child.nationality}</span>
+                      </div>
+                    )}
+                    {child.address && (
+                      <div className="flex items-start gap-2 text-gray-600">
+                        <FiMapPin className="w-4 h-4 text-gray-400 mt-0.5" />
+                        <span className="text-xs">{child.address}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Add/Edit Child Modal */}
+      {showChildForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+              <h3 className="text-xl font-bold text-primary-700">
+                {editingChild ? 'Edit Child Information' : 'Add New Child'}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowChildForm(false);
+                  resetChildForm();
+                }}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <FiX className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              {/* Name Fields */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    First Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={childFormData.first_name}
+                    onChange={(e) => handleChildInputChange('first_name', e.target.value)}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Middle Name</label>
+                  <input
+                    type="text"
+                    value={childFormData.middle_name}
+                    onChange={(e) => handleChildInputChange('middle_name', e.target.value)}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Last Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={childFormData.last_name}
+                    onChange={(e) => handleChildInputChange('last_name', e.target.value)}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Nickname */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nickname</label>
+                <input
+                  type="text"
+                  value={childFormData.nickname}
+                  onChange={(e) => handleChildInputChange('nickname', e.target.value)}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+
+              {/* Birthday, Age, Gender */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Birthday <span className="text-red-500">*</span>
+                  </label>
+                  <DatePicker
+                    selected={childFormData.birthday}
+                    onChange={(date) => handleChildInputChange('birthday', date)}
+                    dateFormat="yyyy-MM-dd"
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    placeholderText="Select birthday"
+                    maxDate={new Date()}
+                    showMonthDropdown
+                    showYearDropdown
+                    scrollableYearDropdown
+                    yearDropdownItemNumber={100}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Age</label>
+                  <input
+                    type="number"
+                    value={childFormData.age}
+                    readOnly
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-100 text-gray-600 cursor-not-allowed"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Gender <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={childFormData.gender}
+                    onChange={(e) => handleChildInputChange('gender', e.target.value)}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    required
+                  >
+                    <option value="">Select gender</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Nationality */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nationality</label>
+                <input
+                  type="text"
+                  value={childFormData.nationality}
+                  onChange={(e) => handleChildInputChange('nationality', e.target.value)}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+
+              {/* Address Fields */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Street</label>
+                    <input
+                      type="text"
+                      value={childFormData.street}
+                      onChange={(e) => handleChildInputChange('street', e.target.value)}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Barangay</label>
+                    <input
+                      type="text"
+                      value={childFormData.barangay}
+                      onChange={(e) => handleChildInputChange('barangay', e.target.value)}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">City/Municipality</label>
+                    <input
+                      type="text"
+                      value={childFormData.city}
+                      onChange={(e) => handleChildInputChange('city', e.target.value)}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Province</label>
+                    <input
+                      type="text"
+                      value={childFormData.province}
+                      onChange={(e) => handleChildInputChange('province', e.target.value)}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                <button
+                  onClick={() => {
+                    setShowChildForm(false);
+                    resetChildForm();
+                  }}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                  disabled={isSavingChild}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveChild}
+                  disabled={isSavingChild}
+                  className="px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-primary-300 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {isSavingChild ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <FiCheck className="w-4 h-4" />
+                      {editingChild ? 'Update Child' : 'Add Child'}
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Medical Records */}
       <div className="bg-white rounded-lg shadow-md overflow-hidden">

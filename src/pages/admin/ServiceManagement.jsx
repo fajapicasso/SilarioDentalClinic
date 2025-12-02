@@ -20,6 +20,10 @@ const ServiceManagement = () => {
   const [userRole, setUserRole] = useState(null);
   const [doctorPricing, setDoctorPricing] = useState({});
 
+  // Modal states
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+
   // New service form state
   const [newService, setNewService] = useState({
     name: '',
@@ -193,6 +197,31 @@ const ServiceManagement = () => {
     setNewServiceImageUrl('');
   };
 
+  // Modal handlers
+  const handleOpenAddModal = () => {
+    clearNewServiceForm();
+    setShowAddModal(true);
+  };
+
+  const handleCloseAddModal = () => {
+    clearNewServiceForm();
+    setShowAddModal(false);
+  };
+
+  const handleOpenEditModal = (service) => {
+    setEditingService({ ...service });
+    setServiceImage(null);
+    setServiceImageUrl('');
+    setShowEditModal(true);
+  };
+
+  const handleCloseEditModal = () => {
+    setEditingService(null);
+    setServiceImage(null);
+    setServiceImageUrl('');
+    setShowEditModal(false);
+  };
+
   // Handle adding a new service
   const handleAddService = async () => {
     try {
@@ -244,7 +273,7 @@ const ServiceManagement = () => {
       // Reset form
       clearNewServiceForm();
       
-      setShowAddForm(false);
+      setShowAddModal(false);
       
       // Refresh services
       fetchServices();
@@ -295,6 +324,7 @@ const ServiceManagement = () => {
       setEditingService(null);
       setServiceImage(null);
       setServiceImageUrl('');
+      setShowEditModal(false);
       // Refresh services
       fetchServices();
       toast.success('Service updated successfully');
@@ -353,28 +383,12 @@ const ServiceManagement = () => {
           <h1 className="text-2xl font-bold text-gray-800">Service Management</h1>
           {userRole === 'admin' && (
             <button 
-              onClick={() => {
-                if (showAddForm) {
-                  clearNewServiceForm();
-                  setShowAddForm(false);
-                } else {
-                  setShowAddForm(true);
-                }
-              }}
+              onClick={handleOpenAddModal}
               className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
             >
               <div className="flex items-center">
-                {showAddForm ? (
-                  <>
-                    <FiX className="mr-2" />
-                    <span>Cancel</span>
-                  </>
-                ) : (
-                  <>
                     <FiPlus className="mr-2" />
                     <span>Add New Service</span>
-                  </>
-                )}
               </div>
             </button>
           )}
@@ -436,14 +450,157 @@ const ServiceManagement = () => {
           </div>
         </div>
 
-        {/* Add Service Form */}
-        {showAddForm && userRole === 'admin' && (
-          <div className="bg-gray-50 rounded-lg p-6 mb-6 border border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Add New Service</h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Services List */}
+
+        {/* Services List */}
+        <div className="bg-white overflow-hidden border border-gray-200 sm:rounded-lg">
+          <div className="px-4 py-5 sm:px-6 bg-gray-50">
+            <h3 className="text-lg leading-6 font-medium text-gray-900">Dental Services</h3>
+            <p className="mt-1 max-w-2xl text-sm text-gray-500">
+              {userRole === 'admin' 
+                ? 'Manage all services offered by the clinic.' 
+                : userRole === 'doctor' 
+                  ? 'Set your specific pricing for services.'
+                  : 'View all services offered by the clinic.'}
+            </p>
+          </div>
+          
+          <div className="border-t border-gray-200">
+            {filteredServices.length === 0 ? (
+              <div className="p-6 text-center">
+                <p className="text-gray-500">No services found in this category.</p>
+              </div>
+            ) : (
+              <ul className="divide-y divide-gray-200">
+                {filteredServices.map((service) => (
+                  <li key={service.id} className="p-4 hover:bg-gray-50">
+                    <div className="flex flex-col sm:flex-row justify-between">
+                      <div className="flex-grow mb-2 sm:mb-0 flex items-start gap-4">
+                        {service.image_url && (
+                          <img src={service.image_url} alt={service.name} className="h-16 w-16 object-cover rounded border shadow" />
+                        )}
+                        <div className="flex flex-col">
+                          <h4 className="text-lg font-medium text-gray-900">{service.name}</h4>
+                          <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            {service.category === 'general' && 'General Dentistry'}
+                            {service.category === 'cosmetic' && 'Cosmetic Dentistry'}
+                            {service.category === 'orthodontics' && 'Orthodontics'}
+                            {service.category === 'surgery' && 'Oral Surgery'}
+                            {service.category === 'other' && 'Other'}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center">
+                        {userRole === 'admin' && (
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleOpenEditModal(service)}
+                              className="p-1 text-blue-600 hover:text-blue-800"
+                              title="Edit Service"
+                            >
+                              <FiEdit className="h-5 w-5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteClick(service)}
+                              className="p-1 text-red-600 hover:text-red-800"
+                              title="Delete Service"
+                            >
+                              <FiTrash2 className="h-5 w-5" />
+                            </button>
+                          </div>
+                        )}
+                        
+                        {userRole === 'doctor' && (
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="number"
+                              value={doctorPricing[service.id] || ''}
+                              onChange={(e) => handleDoctorPriceChange(service.id, e.target.value)}
+                              className="w-24 px-2 py-1 border border-gray-300 rounded-md text-sm"
+                              placeholder="Set your price"
+                              min="0"
+                              step="100"
+                            />
+                            <button
+                              onClick={() => saveDoctorPricing(service.id)}
+                              className="p-1 text-green-600 hover:text-green-800"
+                              title="Save Price"
+                            >
+                              <FiSave className="h-5 w-5" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3 text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+                <FiTrash2 className="h-6 w-6 text-red-600" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mt-4">Delete Service</h3>
+              <div className="mt-2 px-7 py-3">
+                <p className="text-sm text-gray-500">
+                  Are you sure you want to delete <strong>"{serviceToDelete?.name}"</strong>? 
+                  This action cannot be undone.
+                </p>
+              </div>
+              <div className="items-center px-4 py-3">
+                <button
+                  onClick={handleConfirmDelete}
+                  className="px-4 py-2 bg-red-600 text-white text-base font-medium rounded-md w-24 mr-2 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                >
+                  Delete
+                </button>
+                <button
+                  onClick={handleCancelDelete}
+                  className="px-4 py-2 bg-gray-300 text-gray-800 text-base font-medium rounded-md w-24 hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Service Modal */}
+      {showAddModal && (
+        <div className="modal-overlay">
+          <div className="modal-container">
+            {/* Modal Header */}
+            <div className="modal-header flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50">
+              <div className="flex items-center">
+                <FiPlus className="h-6 w-6 text-blue-600 mr-3" />
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Add New Service</h3>
+                  <p className="text-sm text-gray-600">Create a new dental service</p>
+                </div>
+              </div>
+              <button
+                onClick={handleCloseAddModal}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors duration-150"
+              >
+                <FiX className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="modal-content">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {/* Service Image Upload - Full Width */}
-              <div className="md:col-span-2 mb-4">
+                <div className="lg:col-span-2 mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Service Image</label>
                 <div
                   className="relative flex flex-col items-center justify-center border-2 border-dashed border-blue-400 rounded-lg p-6 bg-blue-50 hover:bg-blue-100 transition cursor-pointer group"
@@ -534,7 +691,7 @@ const ServiceManagement = () => {
               
               <div>
               <label htmlFor="price" className="block text-sm font-medium text-gray-700 mb-1">
-                  Base Price (₱) <span className="text-red-500">*</span>
+                    Base Price (PHP) <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
@@ -567,7 +724,7 @@ const ServiceManagement = () => {
               
               <div>
                 <label htmlFor="price_min" className="block text-sm font-medium text-gray-700 mb-1">
-                  Minimum Price (₱)
+                    Minimum Price (PHP)
                 </label>
                 <input
                   type="number"
@@ -584,7 +741,7 @@ const ServiceManagement = () => {
               
               <div>
                 <label htmlFor="price_max" className="block text-sm font-medium text-gray-700 mb-1">
-                  Maximum Price (₱)
+                    Maximum Price (PHP)
                 </label>
                 <input
                   type="number"
@@ -611,16 +768,15 @@ const ServiceManagement = () => {
                   rows="3"
                   className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                 />
+                </div>
               </div>
             </div>
             
-            <div className="mt-4 flex justify-end">
+            {/* Modal Footer */}
+            <div className="modal-footer flex justify-end">
               <button
                 type="button"
-                onClick={() => {
-                  clearNewServiceForm();
-                  setShowAddForm(false);
-                }}
+                onClick={handleCloseAddModal}
                 className="mr-3 px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-700 hover:bg-gray-50"
               >
                 Cancel
@@ -633,14 +789,34 @@ const ServiceManagement = () => {
                 Add Service
               </button>
             </div>
+            </div>
           </div>
         )}
 
-        {/* Edit Service Form */}
-        {editingService && userRole === 'admin' && (
-          <div className="bg-gray-50 rounded-lg p-6 mb-6 border border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Edit Service</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Edit Service Modal */}
+      {showEditModal && editingService && (
+        <div className="modal-overlay">
+          <div className="modal-container">
+            {/* Modal Header */}
+            <div className="modal-header flex items-center justify-between p-6 bg-gradient-to-r from-green-50 to-emerald-50">
+              <div className="flex items-center">
+                <FiEdit className="h-6 w-6 text-green-600 mr-3" />
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Edit Service</h3>
+                  <p className="text-sm text-gray-600">Update service information</p>
+                </div>
+              </div>
+              <button
+                onClick={handleCloseEditModal}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors duration-150"
+              >
+                <FiX className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="modal-content">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="md:col-span-2 mb-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Service Image</label>
                 <div
@@ -705,7 +881,6 @@ const ServiceManagement = () => {
                   required
                 />
               </div>
-              
               <div>
                 <label htmlFor="edit-category" className="block text-sm font-medium text-gray-700 mb-1">
                   Category
@@ -724,10 +899,9 @@ const ServiceManagement = () => {
                   <option value="other">Other</option>
                 </select>
               </div>
-              
               <div>
                 <label htmlFor="edit-price" className="block text-sm font-medium text-gray-700 mb-1">
-                  Base Price (₱) <span className="text-red-500">*</span>
+                    Base Price (PHP) <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
@@ -741,7 +915,6 @@ const ServiceManagement = () => {
                   required
                 />
               </div>
-              
               <div>
                 <label htmlFor="edit-duration" className="block text-sm font-medium text-gray-700 mb-1">
                   Duration (minutes)
@@ -757,10 +930,9 @@ const ServiceManagement = () => {
                   step="15"
                 />
               </div>
-              
               <div>
                 <label htmlFor="edit-price_min" className="block text-sm font-medium text-gray-700 mb-1">
-                  Minimum Price (₱)
+                    Minimum Price (PHP)
                 </label>
                 <input
                   type="number"
@@ -773,10 +945,9 @@ const ServiceManagement = () => {
                   step="100"
                 />
               </div>
-              
               <div>
                 <label htmlFor="edit-price_max" className="block text-sm font-medium text-gray-700 mb-1">
-                  Maximum Price (₱)
+                    Maximum Price (PHP)
                 </label>
                 <input
                   type="number"
@@ -789,7 +960,6 @@ const ServiceManagement = () => {
                   step="100"
                 />
               </div>
-              
               <div className="md:col-span-2">
                 <label htmlFor="edit-description" className="block text-sm font-medium text-gray-700 mb-1">
                   Description
@@ -802,13 +972,15 @@ const ServiceManagement = () => {
                   rows="3"
                   className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                 />
+                </div>
               </div>
             </div>
             
-            <div className="mt-4 flex justify-end">
+            {/* Modal Footer */}
+            <div className="modal-footer flex justify-end">
               <button
                 type="button"
-                onClick={() => setEditingService(null)}
+                onClick={handleCloseEditModal}
                 className="mr-3 px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-700 hover:bg-gray-50"
               >
                 Cancel
@@ -822,129 +994,7 @@ const ServiceManagement = () => {
               </button>
             </div>
           </div>
-        )}
-
-        {/* Services List */}
-        <div className="bg-white overflow-hidden border border-gray-200 sm:rounded-lg">
-          <div className="px-4 py-5 sm:px-6 bg-gray-50">
-            <h3 className="text-lg leading-6 font-medium text-gray-900">Dental Services</h3>
-            <p className="mt-1 max-w-2xl text-sm text-gray-500">
-              {userRole === 'admin' 
-                ? 'Manage all services offered by the clinic.' 
-                : userRole === 'doctor' 
-                  ? 'Set your specific pricing for services.'
-                  : 'View all services offered by the clinic.'}
-            </p>
           </div>
-          
-          <div className="border-t border-gray-200">
-            {filteredServices.length === 0 ? (
-              <div className="p-6 text-center">
-                <p className="text-gray-500">No services found in this category.</p>
-              </div>
-            ) : (
-              <ul className="divide-y divide-gray-200">
-                {filteredServices.map((service) => (
-                  <li key={service.id} className="p-4 hover:bg-gray-50">
-                    <div className="flex flex-col sm:flex-row justify-between">
-                      <div className="flex-grow mb-2 sm:mb-0 flex items-start gap-4">
-                        {service.image_url && (
-                          <img src={service.image_url} alt={service.name} className="h-16 w-16 object-cover rounded border shadow" />
-                        )}
-                        <div className="flex flex-col">
-                          <h4 className="text-lg font-medium text-gray-900">{service.name}</h4>
-                          <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                            {service.category === 'general' && 'General Dentistry'}
-                            {service.category === 'cosmetic' && 'Cosmetic Dentistry'}
-                            {service.category === 'orthodontics' && 'Orthodontics'}
-                            {service.category === 'surgery' && 'Oral Surgery'}
-                            {service.category === 'other' && 'Other'}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center">
-                        {userRole === 'admin' && (
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => setEditingService(service)}
-                              className="p-1 text-blue-600 hover:text-blue-800"
-                              title="Edit Service"
-                            >
-                              <FiEdit className="h-5 w-5" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteClick(service)}
-                              className="p-1 text-red-600 hover:text-red-800"
-                              title="Delete Service"
-                            >
-                              <FiTrash2 className="h-5 w-5" />
-                            </button>
-                          </div>
-                        )}
-                        
-                        {userRole === 'doctor' && (
-                          <div className="flex items-center space-x-2">
-                            <input
-                              type="number"
-                              value={doctorPricing[service.id] || ''}
-                              onChange={(e) => handleDoctorPriceChange(service.id, e.target.value)}
-                              className="w-24 px-2 py-1 border border-gray-300 rounded-md text-sm"
-                              placeholder="Set your price"
-                              min="0"
-                              step="100"
-                            />
-                            <button
-                              onClick={() => saveDoctorPricing(service.id)}
-                              className="p-1 text-green-600 hover:text-green-800"
-                              title="Save Price"
-                            >
-                              <FiSave className="h-5 w-5" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Delete Confirmation Modal */}
-      {showDeleteModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-            <div className="mt-3 text-center">
-              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
-                <FiTrash2 className="h-6 w-6 text-red-600" />
-              </div>
-              <h3 className="text-lg font-medium text-gray-900 mt-4">Delete Service</h3>
-              <div className="mt-2 px-7 py-3">
-                <p className="text-sm text-gray-500">
-                  Are you sure you want to delete <strong>"{serviceToDelete?.name}"</strong>? 
-                  This action cannot be undone.
-                </p>
-              </div>
-              <div className="items-center px-4 py-3">
-                <button
-                  onClick={handleConfirmDelete}
-                  className="px-4 py-2 bg-red-600 text-white text-base font-medium rounded-md w-24 mr-2 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
-                >
-                  Delete
-                </button>
-                <button
-                  onClick={handleCancelDelete}
-                  className="px-4 py-2 bg-gray-300 text-gray-800 text-base font-medium rounded-md w-24 hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );
