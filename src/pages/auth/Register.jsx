@@ -1460,7 +1460,7 @@ const Register = () => {
                       <button
                         type="button"
                         onClick={handlePrevious}
-                        className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2 md:gap-2.5 py-3 sm:py-4 md:py-4 lg:py-5 px-4 sm:px-6 md:px-8 lg:px-10 border-2 border-gray-300 text-sm sm:text-base md:text-lg font-semibold rounded-lg text-gray-700 bg-white hover:bg-gray-50 active:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all duration-200 shadow-md hover:shadow-lg touch-manipulation min-h-[44px] md:min-h-[52px]"
+                        className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2 md:gap-2.5 py-2 sm:py-2.5 md:py-2.5 lg:py-3 px-4 sm:px-6 md:px-8 lg:px-10 border-2 border-gray-300 text-sm sm:text-base md:text-lg font-semibold rounded-lg text-gray-700 bg-white hover:bg-gray-50 active:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all duration-200 shadow-md hover:shadow-lg touch-manipulation min-h-[36px] md:min-h-[40px]"
                       >
                         <FiChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" />
                         <span className="hidden xs:inline">Previous</span>
@@ -1473,7 +1473,7 @@ const Register = () => {
                       <button
                         type="button"
                         onClick={() => handleNext(errors, touched, values, validateForm, setTouched)}
-                        className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2 md:gap-2.5 py-3 sm:py-4 md:py-4 lg:py-5 px-4 sm:px-6 md:px-8 lg:px-10 border border-transparent text-sm sm:text-base md:text-lg font-semibold rounded-lg text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 active:from-blue-800 active:to-purple-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 shadow-lg hover:shadow-xl touch-manipulation min-h-[44px] md:min-h-[52px]"
+                        className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2 md:gap-2.5 py-2 sm:py-2.5 md:py-2.5 lg:py-3 px-4 sm:px-6 md:px-8 lg:px-10 border border-transparent text-sm sm:text-base md:text-lg font-semibold rounded-lg text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 active:from-blue-800 active:to-purple-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 shadow-lg hover:shadow-xl touch-manipulation min-h-[36px] md:min-h-[40px]"
                       >
                         <span>Next</span>
                         <FiChevronRight className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -1482,7 +1482,7 @@ const Register = () => {
                       <button
                         type="submit"
                         disabled={isSubmitting || isLoading}
-                        className="flex-1 flex items-center justify-center py-3 sm:py-4 px-4 sm:px-6 border border-transparent text-sm sm:text-base font-semibold rounded-lg text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 active:from-blue-800 active:to-purple-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl touch-manipulation min-h-[44px]"
+                        className="flex-1 flex items-center justify-center py-2 sm:py-2.5 md:py-2.5 lg:py-3 px-4 sm:px-6 border border-transparent text-sm sm:text-base font-semibold rounded-lg text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 active:from-blue-800 active:to-purple-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl touch-manipulation min-h-[36px] md:min-h-[40px]"
                       >
                         {isLoading || isSubmitting ? (
                           <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
