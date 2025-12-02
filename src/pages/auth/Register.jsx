@@ -802,7 +802,7 @@ const Register = () => {
         <div className="absolute inset-0 bg-black/50" />
       </div>
       {/* Register Card */}
-      <div className="fixed inset-0 z-10 flex items-center justify-center px-1 sm:px-4 md:px-6 overflow-y-auto overflow-x-hidden py-2 sm:py-3 md:py-4" style={{ WebkitOverflowScrolling: 'touch' }}>
+      <div className="fixed inset-0 z-10 flex items-start sm:items-center justify-center px-1 sm:px-4 md:px-6 overflow-y-auto overflow-x-hidden pt-20 sm:pt-24 md:pt-28 pb-2 sm:pb-3 md:pb-4" style={{ WebkitOverflowScrolling: 'touch' }}>
         <div
           ref={cardRef}
           data-modal-container
@@ -823,14 +823,14 @@ const Register = () => {
           }}
         >
           {/* Professional Header */}
-          <div className="flex flex-col items-center mb-1 sm:mb-2">
+          <div className="flex flex-col items-center mb-0">
               <div className="mb-0">
                 <img src={logo} alt="Silario Dental Clinic Logo" className="h-20 w-20 sm:h-24 sm:w-24 md:h-28 md:w-28 lg:h-32 lg:w-32 object-contain" />
               </div>
            
           </div>
 
-          <div className="text-center mb-2 sm:mb-3">
+          <div className="text-center mb-2 sm:mb-3 -mt-2 sm:-mt-1.5">
             <h2 className="mt-0 text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold text-gray-800">Create your account</h2>
             <p className="mt-1 text-xs sm:text-sm text-gray-600">
               Already have an account?{' '}
