@@ -108,11 +108,11 @@ const Login = () => {
           <div className="absolute -bottom-10 -left-10 w-20 h-20 bg-gradient-to-tr from-purple-100/30 to-blue-100/30 rounded-full blur-xl"></div>
           
           {/* Professional Header */}
-          <div className="flex flex-col items-center mb-4 relative z-10">
-            <img src={logo} alt="Silario Dental Clinic Logo" className="h-20 w-20 object-contain" />
+          <div className="flex flex-col items-center relative z-10" style={{ marginBottom: '-0.5rem' }}>
+            <img src={logo} alt="Silario Dental Clinic Logo" className="h-20 w-20 sm:h-24 sm:w-24 md:h-28 md:w-28 lg:h-32 lg:w-32 object-contain" />
           </div>
           
-          <div className="text-center relative z-10 mb-6">
+          <div className="text-center relative z-10 mb-6" style={{ marginTop: '-1.5rem' }}>
             <h2 className="text-xl font-semibold text-gray-800 mb-1">Sign in to your account</h2>
             <p className="text-sm text-gray-500 mb-3">
               Don't have an account?{' '}
@@ -237,7 +237,7 @@ const Login = () => {
                   <button
                     type="submit"
                     disabled={isSubmitting || isLoading}
-                    className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-semibold rounded-lg text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl"
+                    className="group relative w-full flex justify-center py-2 sm:py-2.5 md:py-2.5 lg:py-3 px-4 border border-transparent text-sm font-semibold rounded-lg text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl min-h-[36px] md:min-h-[40px]"
                   >
                     {isLoading || isSubmitting ? (
                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
