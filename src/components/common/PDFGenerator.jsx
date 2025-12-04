@@ -2,6 +2,7 @@
 import React from 'react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+import { getLogoBase64DataURL } from '../../utils/logoBase64';
 
 const PDFGenerator = {
   // Data arrays (same as patient dental chart)
@@ -20,7 +21,7 @@ const PDFGenerator = {
   ],
 
   // Generate comprehensive PDF HTML template matching the exact design from patient side printing
-  generatePDFHTML: (patient, dentalChart, currentDate, chartSymbols, medicalHistory, medicalConditions, dentalHistory, physicianInfo, enhancedChartSymbols) => {
+  generatePDFHTML: (patient, dentalChart, currentDate, chartSymbols, medicalHistory, medicalConditions, dentalHistory, physicianInfo, enhancedChartSymbols, logoBase64 = '') => {
     // Temporary teeth layout
     const temporaryTeeth = {
       upperRight: ['A', 'B', 'C', 'D', 'E'],
@@ -802,7 +803,7 @@ const PDFGenerator = {
       <body>
         <!-- Print Header (only on first page) -->
         <div class="print-header">
-          <img src="${window.location.origin}/src/assets/Logo.png" alt="Silario Dental Clinic Logo" class="logo-img" />
+          <img src="${logoBase64 || window.location.origin + '/Logo.png'}" alt="Silario Dental Clinic Logo" class="logo-img" />
           <div class="clinic-info">
             <div class="clinic-name">SILARIO DENTAL CLINIC</div>
             <div class="clinic-address">Cabugao/San Juan, Ilocos Sur</div>
@@ -1231,6 +1232,9 @@ const PDFGenerator = {
         return;
       }
 
+      // Get logo as base64 for production compatibility
+      const logoBase64 = await getLogoBase64DataURL();
+
       let printHTML;
       try {
         printHTML = PDFGenerator.generatePDFHTML(
@@ -1242,7 +1246,8 @@ const PDFGenerator = {
           medicalConditions, 
           dentalHistory, 
           physicianInfo, 
-          enhancedChartSymbols
+          enhancedChartSymbols,
+          logoBase64
         );
         console.log('Generated HTML length:', printHTML ? printHTML.length : 'undefined');
         console.log('HTML preview:', printHTML ? printHTML.substring(0, 200) : 'undefined');

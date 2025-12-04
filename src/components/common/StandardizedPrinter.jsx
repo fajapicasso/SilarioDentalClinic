@@ -1,6 +1,7 @@
 // src/components/common/StandardizedPrinter.jsx - Standardized Printing Component
 import React from 'react';
 import { toast } from 'react-toastify';
+import { getLogoBase64DataURL } from '../../utils/logoBase64';
 
 const StandardizedPrinter = {
   // Calculate age from birthday
@@ -188,7 +189,7 @@ const StandardizedPrinter = {
   },
 
   // Generate standardized print HTML template with all sections
-  generateStandardizedPrintHTML: (patient, dentalChart, currentDate, enhancedChartSymbols) => {
+  generateStandardizedPrintHTML: (patient, dentalChart, currentDate, enhancedChartSymbols, logoBase64 = '') => {
     const dentalChartHtml = StandardizedPrinter.generateStandardizedDentalChartHTML(dentalChart, enhancedChartSymbols);
     
     // Use local data arrays (same as patient dental chart)
@@ -868,7 +869,7 @@ const StandardizedPrinter = {
   <body>
     <!-- Print Header (only on first page) -->
     <div class="print-header">
-      <img src="${window.location.origin}/src/assets/Logo.png" alt="Silario Dental Clinic Logo" class="logo-img" />
+      <img src="${logoBase64 || window.location.origin + '/Logo.png'}" alt="Silario Dental Clinic Logo" class="logo-img" />
       <div class="clinic-info">
         <div class="clinic-name">SILARIO DENTAL CLINIC</div>
         <div class="clinic-address">Cabugao/San Juan, Ilocos Sur</div>
@@ -1266,13 +1267,16 @@ const StandardizedPrinter = {
   },
 
   // Print standardized dental chart
-  printStandardizedDentalChart: (patient, dentalChart, enhancedChartSymbols, toast) => {
+  printStandardizedDentalChart: async (patient, dentalChart, enhancedChartSymbols, toast) => {
     try {
       // Check if patient data is available
       if (!patient) {
         toast.error('Patient data not available. Please refresh the page and try again.');
         return;
       }
+
+      // Get logo as base64 for production compatibility
+      const logoBase64 = await getLogoBase64DataURL();
 
       const currentDate = new Date().toLocaleDateString('en-US', {
         year: 'numeric',
@@ -1285,7 +1289,8 @@ const StandardizedPrinter = {
         patient, 
         dentalChart, 
         currentDate, 
-        enhancedChartSymbols
+        enhancedChartSymbols,
+        logoBase64
       );
 
       if (!printHTML) {
