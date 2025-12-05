@@ -951,6 +951,66 @@ const PatientAppointments = () => {
     return `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
   };
 
+  /**
+   * Find the next available time slot when there's a conflict
+   * @param {string} date - Date in YYYY-MM-DD format
+   * @param {string} branch - Branch name
+   * @param {string} requestedTime - Requested time in HH:MM format
+   * @param {number} durationMinutes - Duration in minutes
+   * @param {string} excludeAppointmentId - Appointment ID to exclude from conflict check (for rescheduling)
+   * @returns {Promise<{nextTime: string, nextDate: string, found: boolean}>}
+   */
+  const findNextAvailableTimeSlot = async (date, branch, requestedTime, durationMinutes = 30, excludeAppointmentId = null) => {
+    try {
+      console.log('🔍 Finding next available time slot...', { date, branch, requestedTime, durationMinutes });
+      
+      // First, try to find next available slot on the same date
+      const slotsResult = await ScheduleService.getAvailableTimeSlots(branch, date, durationMinutes, null);
+      
+      if (slotsResult && slotsResult.availableSlots && slotsResult.availableSlots.length > 0) {
+        // Parse requested time to minutes for comparison
+        const [reqHour, reqMinute] = requestedTime.split(':').map(Number);
+        const requestedMinutes = reqHour * 60 + reqMinute;
+        
+        // Find the first available slot after the requested time
+        const nextSlot = slotsResult.availableSlots.find(slot => {
+          const [slotHour, slotMinute] = slot.split(':').map(Number);
+          const slotMinutes = slotHour * 60 + slotMinute;
+          return slotMinutes > requestedMinutes;
+        });
+        
+        if (nextSlot) {
+          console.log('✅ Found next available slot on same date:', nextSlot);
+          return { nextTime: nextSlot, nextDate: date, found: true };
+        }
+      }
+      
+      // If no slot found on same date, try next 7 days
+      console.log('⚠️ No available slot on same date, checking next days...');
+      let currentDate = new Date(date);
+      
+      for (let i = 1; i <= 7; i++) {
+        currentDate.setDate(currentDate.getDate() + 1);
+        const nextDateStr = formatDateLocal(currentDate);
+        
+        const nextSlotsResult = await ScheduleService.getAvailableTimeSlots(branch, nextDateStr, durationMinutes, null);
+        
+        if (nextSlotsResult && nextSlotsResult.availableSlots && nextSlotsResult.availableSlots.length > 0) {
+          // Get the first available slot of the day
+          const firstSlot = nextSlotsResult.availableSlots[0];
+          console.log('✅ Found next available slot on', nextDateStr, ':', firstSlot);
+          return { nextTime: firstSlot, nextDate: nextDateStr, found: true };
+        }
+      }
+      
+      console.log('❌ No available slots found in next 7 days');
+      return { nextTime: null, nextDate: null, found: false };
+    } catch (error) {
+      console.error('❌ Error finding next available time slot:', error);
+      return { nextTime: null, nextDate: null, found: false };
+    }
+  };
+
   // Fallback time slot generation (original hardcoded logic)
   const generateFallbackTimeSlots = async (date, branch, durationMinutes = 30) => {
     try {
@@ -1187,7 +1247,52 @@ const PatientAppointments = () => {
           return;
         }
         
-        // Automatic doctor assignment
+        // Check for time slot conflicts before inserting
+        const { data: conflictingAppointments, error: conflictCheckError } = await supabase
+          .from('appointments')
+          .select('id, appointment_time, patient_id')
+          .eq('appointment_date', appointmentData.appointment_date)
+          .eq('appointment_time', appointmentData.appointment_time)
+          .eq('branch', appointmentData.branch)
+          .in('status', ['pending', 'confirmed']);
+        
+        if (conflictCheckError) {
+          console.error('Error checking for conflicts:', conflictCheckError);
+          throw conflictCheckError;
+        }
+        
+        // If conflict detected, automatically reschedule to next available time
+        if (conflictingAppointments && conflictingAppointments.length > 0) {
+          console.log('⚠️ Time slot conflict detected, finding next available slot...');
+          
+          const nextSlotResult = await findNextAvailableTimeSlot(
+            appointmentData.appointment_date,
+            appointmentData.branch,
+            appointmentData.appointment_time,
+            duration
+          );
+          
+          if (nextSlotResult.found) {
+            // Update appointment data with next available time
+            appointmentData.appointment_date = nextSlotResult.nextDate;
+            appointmentData.appointment_time = nextSlotResult.nextTime;
+            
+            // Show notification to user
+            toast.warning(
+              `The requested time slot was already taken. Your appointment has been automatically rescheduled to ${formatDate(nextSlotResult.nextDate)} at ${formatTime(nextSlotResult.nextTime)}.`,
+              { autoClose: 6000 }
+            );
+            
+            console.log('✅ Auto-rescheduled to:', nextSlotResult.nextDate, nextSlotResult.nextTime);
+          } else {
+            // No available slots found
+            toast.error('The requested time slot is already taken, and no available slots were found in the next 7 days. Please try selecting a different time manually.');
+            setSubmitting(false);
+            return;
+          }
+        }
+        
+        // Automatic doctor assignment (after conflict resolution, so doctor is assigned to final time)
         let assignedDoctorId = null;
         let assignmentMessage = '';
         
@@ -1754,10 +1859,11 @@ const PatientAppointments = () => {
       }
 
       // Check if the new time slot is available
+      const rescheduleDateStr = rescheduleDate.toISOString().split('T')[0];
       const { data: conflictingAppointments, error: conflictError } = await supabase
         .from('appointments')
         .select('id, appointment_time, patient_id')
-        .eq('appointment_date', rescheduleDate.toISOString().split('T')[0])
+        .eq('appointment_date', rescheduleDateStr)
         .eq('appointment_time', rescheduleTimeSlot)
         .eq('branch', rescheduleBranch)
         .neq('id', selectedAppointmentForAction.id)
@@ -1768,18 +1874,51 @@ const PatientAppointments = () => {
         throw new Error(`Failed to check availability: ${conflictError.message}`);
       }
       
+      // If conflict detected, automatically reschedule to next available time
+      let finalRescheduleDate = rescheduleDateStr;
+      let finalRescheduleTime = rescheduleTimeSlot;
+      
       if (conflictingAppointments && conflictingAppointments.length > 0) {
-        toast.error('This time slot is already taken. Please select another time.');
-        return;
+        console.log('⚠️ Time slot conflict detected during reschedule, finding next available slot...');
+        
+        // Get duration for the appointment
+        const appointmentDuration = duration || 30;
+        
+        const nextSlotResult = await findNextAvailableTimeSlot(
+          rescheduleDateStr,
+          rescheduleBranch,
+          rescheduleTimeSlot,
+          appointmentDuration,
+          selectedAppointmentForAction.id
+        );
+        
+        if (nextSlotResult.found) {
+          // Update to next available time
+          finalRescheduleDate = nextSlotResult.nextDate;
+          finalRescheduleTime = nextSlotResult.nextTime;
+          
+          // Show notification to user
+          toast.warning(
+            `The requested time slot was already taken. Your appointment has been automatically rescheduled to ${formatDate(nextSlotResult.nextDate)} at ${formatTime(nextSlotResult.nextTime)}.`,
+            { autoClose: 6000 }
+          );
+          
+          console.log('✅ Auto-rescheduled to:', nextSlotResult.nextDate, nextSlotResult.nextTime);
+        } else {
+          // No available slots found
+          toast.error('The requested time slot is already taken, and no available slots were found in the next 7 days. Please try selecting a different time manually.');
+          setSubmitting(false);
+          return;
+        }
       }
 
       // Determine if we need to change status to pending for rejected/cancelled appointments
       const shouldChangeToPending = ['rejected', 'cancelled'].includes(selectedAppointmentForAction.status);
       
-      // Start with basic fields
+      // Start with basic fields (use final reschedule date/time which may have been auto-adjusted)
       const updateData = { 
-        appointment_date: rescheduleDate.toISOString().split('T')[0], 
-        appointment_time: rescheduleTimeSlot,
+        appointment_date: finalRescheduleDate, 
+        appointment_time: finalRescheduleTime,
         branch: rescheduleBranch
       };
       

@@ -151,13 +151,13 @@ const PDFGenerator = {
             margin: 0;
             padding: 0;
             font-size: 15px;
-            color: #222;
-            background: #f7fafd;
+            color: #000000;
+            background: #ffffff;
           }
           .print-header {
             display: flex;
             align-items: center;
-            border-bottom: 1.5px solid #e5e7eb;
+            border-bottom: 1.5px solid #000000;
             padding-bottom: 4px;
             margin-bottom: 8px;
             position: relative;
@@ -180,12 +180,12 @@ const PDFGenerator = {
           .clinic-name {
             font-size: 17px;
             font-weight: bold;
-            color: #2563eb;
+            color: #0000ff;
             margin-bottom: 1px;
           }
           .clinic-address, .clinic-email {
             font-size: 12px;
-            color: #555;
+            color: #000000;
             margin-bottom: 1px;
           }
           .header-right {
@@ -196,38 +196,38 @@ const PDFGenerator = {
             top: 0;
           }
           .header-label {
-            color: #888;
+            color: #000000;
             font-size: 12px;
           }
           .header-value {
             font-weight: bold;
             font-size: 20px;
-            color: #2563eb;
+            color: #0000ff;
           }
           .divider {
-            border-bottom: 1px solid #e5e7eb;
+            border-bottom: 1px solid #000000;
             margin: 4px 0 6px 0;
           }
           .card {
             background: #fff;
-            border-radius: 6px;
-            box-shadow: 0 1px 4px 0 rgba(0,0,0,0.03);
-            border: 1px solid #e5e7eb;
+            border-radius: 0;
+            box-shadow: none;
+            border: none;
             padding: 16px 18px;
             margin-bottom: 12px;
           }
           .card-title {
-            font-size: 12px;
+            font-size: 14px;
             font-weight: bold;
-            color: #2563eb;
+            color: #0000ff;
             margin-bottom: 4px;
             margin-top: 6px;
             letter-spacing: 0.2px;
           }
           .section-title {
-            font-size: 12px;
+            font-size: 14px;
             font-weight: bold;
-            color: #2563eb;
+            color: #0000ff;
             margin-bottom: 4px;
             margin-top: 6px;
             letter-spacing: 0.2px;
@@ -240,13 +240,13 @@ const PDFGenerator = {
             margin-bottom: 4px;
           }
           .info-label {
-            color: #222;
+            color: #000000;
             font-weight: bold;
             margin-right: 6px;
           }
           .info-value {
             font-weight: 600;
-            color: #222;
+            color: #000000;
           }
           .section-block {
             margin-bottom: 10px;
@@ -256,14 +256,14 @@ const PDFGenerator = {
           }
           .question-label {
             font-weight: 500;
-            color: #222;
+            color: #000000;
             margin-bottom: 1px;
             display: block;
             font-size: 12px;
           }
           .question-response {
             margin-left: 12px;
-            color: #444;
+            color: #000000;
             font-size: 12px;
           }
           .medical-history-grid {
@@ -289,17 +289,17 @@ const PDFGenerator = {
             gap: 4px;
           }
           .for-minors-section {
-            background: #f0f9ff;
-            border: 1px solid #0ea5e9;
-            border-radius: 6px;
+            background: #ffffff;
+            border: none;
+            border-radius: 0;
             padding: 12px;
             margin: 12px 0;
           }
           .minors-title {
             font-weight: bold;
-            color: #0c4a6e;
+            color: #0000ff;
             margin-bottom: 8px;
-            font-size: 12px;
+            font-size: 14px;
           }
           .minors-grid {
             display: grid;
@@ -315,13 +315,13 @@ const PDFGenerator = {
           .medical-conditions-section {
             margin-top: 6px;
             padding: 8px;
-            background: #f9fafb;
-            border-radius: 6px;
-            border: 1px solid #e5e7eb;
+            background: #ffffff;
+            border-radius: 0;
+            border: none;
           }
           .conditions-title {
             font-weight: bold;
-            color: #374151;
+            color: #000000;
             margin-bottom: 4px;
             font-size: 12px;
           }
@@ -357,18 +357,18 @@ const PDFGenerator = {
             font-weight: bold;
           }
           .checkbox {
-            width: 14px;
-            height: 14px;
-            border: 2px solid #2563eb;
+            width: 12px;
+            height: 12px;
+            border: 1px solid #000000;
             margin-right: 6px;
             display: inline-block;
             background: #fff;
-            border-radius: 2px;
+            border-radius: 0;
             position: relative;
             flex-shrink: 0;
           }
           .checkbox.checked {
-            background: #2563eb;
+            background: #000000;
           }
           .checkbox.checked::after {
             content: '✓';
@@ -377,7 +377,7 @@ const PDFGenerator = {
             left: 1px;
             color: white;
             font-weight: bold;
-            font-size: 12px;
+            font-size: 10px;
             line-height: 1;
           }
           .page-break {
@@ -386,9 +386,9 @@ const PDFGenerator = {
           }
           .dental-chart-section {
             background: #fff;
-            border-radius: 6px;
-            box-shadow: 0 1px 4px 0 rgba(0,0,0,0.03);
-            border: 1px solid #e5e7eb;
+            border-radius: 0;
+            box-shadow: none;
+            border: none;
             padding: 16px 18px;
             margin-bottom: 12px;
             margin-top: -30px;
@@ -435,17 +435,17 @@ const PDFGenerator = {
             margin-top: 10px;
           }
           .chart-title {
-            font-size: 12px;
+            font-size: 16px;
             font-weight: bold;
-            color: #2563eb;
+            color: #0000ff;
             margin-bottom: 8px;
             text-align: center;
             letter-spacing: 0.2px;
           }
           .section-title {
-            font-size: 12px;
+            font-size: 14px;
             font-weight: bold;
-            color: #2563eb;
+            color: #0000ff;
             margin-bottom: 6px;
             text-align: left;
             letter-spacing: 0.1px;
@@ -453,7 +453,7 @@ const PDFGenerator = {
           .temporary-teeth-section {
             margin-bottom: 20px;
             padding-bottom: 12px;
-            border-bottom: 2px solid #f3f4f6;
+            border-bottom: 2px solid #000000;
           }
           .permanent-teeth-section {
             margin-top: 12px;
@@ -461,7 +461,7 @@ const PDFGenerator = {
           .tooth-letter {
             font-size: 12px;
             font-weight: bold;
-            color: #2563eb;
+            color: #000000;
             text-align: center;
             margin-top: 1px;
           }
@@ -517,7 +517,7 @@ const PDFGenerator = {
             font-weight: bold;
             margin-bottom: 4px;
             font-size: 12px;
-            color: #2563eb;
+            color: #0000ff;
           }
           .teeth-row {
             display: flex;
@@ -527,7 +527,7 @@ const PDFGenerator = {
           .tooth {
             width: 18px;
             height: 22px;
-            border: 1px solid #2563eb;
+            border: 1px solid #000000;
             margin: 1px;
             display: flex;
             flex-direction: column;
@@ -535,23 +535,23 @@ const PDFGenerator = {
             justify-content: center;
             font-size: 10px;
             position: relative;
-            background: #f3f6fa;
-            border-radius: 3px;
+            background: #ffffff;
+            border-radius: 0;
           }
           .tooth-number {
             font-weight: bold;
             font-size: 10px;
-            color: #2563eb;
+            color: #000000;
           }
           .tooth-symbol {
             font-weight: bold;
-            color: #e11d48;
+            color: #000000;
             font-size: 10px;
           }
           .legend-section {
-            background: #f7fafd;
-            border-radius: 6px;
-            border: 1px solid #e5e7eb;
+            background: #ffffff;
+            border-radius: 0;
+            border: none;
             padding: 10px 12px;
             font-size: 12px;
             margin-bottom: 8px;
@@ -561,8 +561,8 @@ const PDFGenerator = {
             text-align: left;
             margin-bottom: 8px;
             font-size: 14px;
-            color: #2563eb;
-            text-decoration: underline;
+            color: #0000ff;
+            text-decoration: none;
           }
           .legend-grid {
             display: grid;
@@ -577,9 +577,9 @@ const PDFGenerator = {
           .legend-column-title {
             font-weight: bold;
             font-size: 12px;
-            color: #374151;
+            color: #000000;
             margin-bottom: 6px;
-            border-bottom: 1px solid #e5e7eb;
+            border-bottom: 1px solid #000000;
             padding-bottom: 2px;
           }
           .legend-items {
@@ -598,25 +598,27 @@ const PDFGenerator = {
             width: 16px;
             height: 16px;
             text-align: center;
-            border-radius: 3px;
-            border: 1px solid;
+            border-radius: 0;
+            border: 1px solid #000000;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 12px;
+            font-size: 10px;
             flex-shrink: 0;
+            background-color: #ffffff;
+            color: #000000;
           }
           .legend-item span {
             font-size: 10px;
-            color: #374151;
+            color: #000000;
             line-height: 1.2;
           }
           .screening-section {
             margin-top: 12px;
             padding: 8px;
-            background: #f9fafb;
-            border-radius: 6px;
-            border: 1px solid #e5e7eb;
+            background: #ffffff;
+            border-radius: 0;
+            border: none;
           }
           .screening-grid {
             display: grid;
@@ -630,9 +632,9 @@ const PDFGenerator = {
           .screening-title {
             font-weight: bold;
             font-size: 12px;
-            color: #374151;
+            color: #000000;
             margin-bottom: 6px;
-            border-bottom: 1px solid #e5e7eb;
+            border-bottom: 1px solid #000000;
             padding-bottom: 2px;
           }
           .screening-items {
@@ -649,13 +651,13 @@ const PDFGenerator = {
           .screening-checkbox {
             width: 12px;
             height: 12px;
-            border: 1px solid #6b7280;
-            border-radius: 2px;
+            border: 1px solid #000000;
+            border-radius: 0;
             flex-shrink: 0;
           }
           .screening-checkbox.checked {
-            background-color: #10b981;
-            border-color: #10b981;
+            background-color: #000000;
+            border-color: #000000;
             position: relative;
           }
           .screening-checkbox.checked::after {
@@ -665,12 +667,12 @@ const PDFGenerator = {
             left: 50%;
             transform: translate(-50%, -50%);
             color: white;
-            font-size: 12px;
+            font-size: 10px;
             font-weight: bold;
           }
           .screening-item span {
             font-size: 10px;
-            color: #374151;
+            color: #000000;
             line-height: 1.2;
           }
           .screening-lines {
@@ -679,7 +681,7 @@ const PDFGenerator = {
           }
           .screening-line {
             height: 12px;
-            border-bottom: 1px solid #d1d5db;
+            border-bottom: 1px solid #000000;
             margin-bottom: 2px;
           }
           .conditions-section {
@@ -689,9 +691,9 @@ const PDFGenerator = {
             margin-bottom: 8px;
           }
           .condition-box {
-            background: #f7fafd;
-            border-radius: 6px;
-            border: 1px solid #e5e7eb;
+            background: #ffffff;
+            border-radius: 0;
+            border: none;
             padding: 10px 12px;
             font-size: 12px;
           }
@@ -699,9 +701,9 @@ const PDFGenerator = {
             font-weight: bold;
             text-align: left;
             margin-bottom: 4px;
-            text-decoration: underline;
+            text-decoration: none;
             font-size: 12px;
-            color: #2563eb;
+            color: #0000ff;
           }
           .checkbox-item {
             display: flex;
@@ -710,9 +712,9 @@ const PDFGenerator = {
           }
           .consent-section {
             background: #fff;
-            border-radius: 6px;
-            box-shadow: 0 1px 4px 0 rgba(0,0,0,0.03);
-            border: 1px solid #e5e7eb;
+            border-radius: 0;
+            box-shadow: none;
+            border: none;
             padding: 8px 18px;
             font-size: 12px;
             line-height: 1.4;
@@ -724,57 +726,61 @@ const PDFGenerator = {
             text-align: left;
             margin-bottom: 8px;
             font-size: 14px;
-            color: #2563eb;
-            text-decoration: underline;
+            color: #000000;
+            text-decoration: none;
+            text-transform: uppercase;
           }
           .consent-content {
             font-size: 12px;
             line-height: 1.5;
             text-align: justify;
             margin-bottom: 8px;
+            color: #000000;
           }
-          .consent-title {
+          .consent-content p {
+            margin-bottom: 8px;
+            color: #000000;
+          }
+          .consent-content strong {
             font-weight: bold;
-            font-size: 12px;
-            color: #1f2937;
-            margin-bottom: 6px;
+            color: #000000;
             text-transform: uppercase;
           }
           .consent-text {
             margin-bottom: 8px;
-            color: #374151;
+            color: #000000;
             text-align: justify;
-            font-size: 10px;
-            line-height: 1.3;
+            font-size: 12px;
+            line-height: 1.5;
           }
           .signature-section {
             display: flex;
             justify-content: space-between;
             margin-top: 12px;
             padding-top: 6px;
-            border-top: 1px solid #e5e7eb;
+            border-top: 1px solid #000000;
           }
           .signature-box {
             text-align: center;
             width: 120px;
           }
           .signature-line {
-            border-top: 1px solid #e5e7eb;
+            border-top: 1px solid #000000;
             margin-top: 14px;
             padding-top: 3px;
             font-size: 12px;
-            color: #888;
+            color: #000000;
           }
           .footer {
             text-align: center;
             margin-top: 12px;
-            color: #2563eb;
+            color: #0000ff;
             font-size: 12px;
             font-weight: bold;
           }
           .footer-contact {
             text-align: center;
-            color: #888;
+            color: #000000;
             font-size: 10px;
             margin-top: 2px;
             font-weight: 400;
@@ -788,7 +794,7 @@ const PDFGenerator = {
               print-color-adjust: exact !important;
             }
             .checkbox {
-              border: 2px solid #000 !important;
+              border: 1px solid #000 !important;
               background: #fff !important;
             }
             .checkbox.checked {
@@ -796,6 +802,12 @@ const PDFGenerator = {
             }
             .checkbox.checked::after {
               color: white !important;
+            }
+            .screening-checkbox {
+              border: 1px solid #000 !important;
+            }
+            .screening-checkbox.checked {
+              background: #000 !important;
             }
           }
         </style>

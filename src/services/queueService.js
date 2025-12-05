@@ -82,7 +82,7 @@ export class QueueService {
             `)
             .eq('appointment_date', todayDate)
             .eq('appointment_time', appointment.appointment_time)
-            .in('status', ['confirmed', 'appointed'])
+            .in('status', ['confirmed', 'appointed', 'pending'])
             .neq('id', appointment.id);
 
           if (similarError) {

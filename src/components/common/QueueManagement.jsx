@@ -583,7 +583,7 @@ const QueueManagement = () => {
         });
       }
       
-             // Fetch today's confirmed/appointed appointments - these should be auto-integrated into queue
+             // Fetch today's confirmed/appointed/pending appointments - these should be auto-integrated into queue
        const { data: todayAppointments, error: appointmentsError } = await supabase
          .from('appointments')
          .select(`
@@ -601,7 +601,7 @@ const QueueManagement = () => {
            updated_at
          `)
          .eq('appointment_date', todayDate)
-         .in('status', ['confirmed', 'appointed'])
+         .in('status', ['confirmed', 'appointed', 'pending'])
          .order('appointment_time', { ascending: true });
       
       if (appointmentsError) {
@@ -609,7 +609,7 @@ const QueueManagement = () => {
         throw appointmentsError;
       }
       
-             console.log(`Found ${todayAppointments?.length || 0} confirmed/appointed appointments for today`);
+             console.log(`Found ${todayAppointments?.length || 0} confirmed/appointed/pending appointments for today`);
       
       // Fetch patient profiles for appointments
       const appointmentPatientIds = [...new Set((todayAppointments || []).map(a => a.patient_id))];
@@ -795,7 +795,7 @@ const QueueManagement = () => {
       
       console.log(`Found ${queueData?.length || 0} active queue entries (waiting/serving)`);
       
-             // Check for today's confirmed/appointed appointments that should be in queue but aren't
+             // Check for today's confirmed/appointed/pending appointments that should be in queue but aren't
        const currentQueue = queueData || [];
        const queuePatientIds = new Set(currentQueue.map(q => q.patient_id));
        const queueAppointmentIds = new Set(currentQueue.map(q => q.appointment_id).filter(Boolean));
@@ -808,8 +808,8 @@ const QueueManagement = () => {
        const now = new Date();
        
        Object.values(processedAppointments).forEach(appointment => {
-         // Only add confirmed/appointed appointments to queue
-         if (appointment.status === 'confirmed' || appointment.status === 'appointed') {
+         // Add confirmed/appointed/pending appointments to queue
+         if (appointment.status === 'confirmed' || appointment.status === 'appointed' || appointment.status === 'pending') {
            const isAppointmentInQueue = queueAppointmentIds.has(appointment.id);
            const isPatientInQueue = queuePatientIds.has(appointment.patient_id);
            
@@ -899,11 +899,11 @@ const QueueManagement = () => {
          }
        }
        
-       // Auto-add missing confirmed/appointed appointments to queue
+       // Auto-add missing confirmed/appointed/pending appointments to queue
        // ONLY DOCTORS can auto-add appointments to prevent duplication
        // Staff and Admin roles will only see the queue, not add to it
        if (missingAppointments.length > 0 && !isAutoAddingRef.current && !hasAutoAddBeenProcessed && !skipAutoAdd && userRole === 'doctor') {
-         console.log(`👨‍⚕️ DOCTOR ROLE: Auto-adding ${missingAppointments.length} confirmed/appointed appointments to queue`);
+         console.log(`👨‍⚕️ DOCTOR ROLE: Auto-adding ${missingAppointments.length} confirmed/appointed/pending appointments to queue`);
          
          // Mark that auto-add is being processed globally
          sessionStorage.setItem(globalAutoAddKey, 'true');
@@ -936,7 +936,7 @@ const QueueManagement = () => {
            const todayKey = getTodayDate();
            if (autoAddToastKeyRef.current !== todayKey) {
              autoAddToastKeyRef.current = todayKey;
-             toast.success(`Auto-added ${addedCount} confirmed/appointed appointments to today's queue`);
+             toast.success(`Auto-added ${addedCount} confirmed/appointed/pending appointments to today's queue`);
            }
            return;
          }
@@ -1407,7 +1407,7 @@ const QueueManagement = () => {
           profiles:patient_id(id, full_name, phone, email)
         `)
         .eq('appointment_date', todayDate)
-        .in('status', ['confirmed', 'in_progress'])
+        .in('status', ['confirmed', 'pending', 'in_progress'])
         .order('appointment_time');
       
       if (appointmentsError) throw appointmentsError;
@@ -1919,7 +1919,7 @@ const QueueManagement = () => {
         `)
         .eq('patient_id', selectedPatientId)
         .eq('appointment_date', todayDate)
-        .in('status', ['confirmed', 'in_progress'])
+        .in('status', ['confirmed', 'pending', 'in_progress'])
         .order('appointment_time', { ascending: true })
         .limit(1);
       
@@ -2088,7 +2088,7 @@ const QueueManagement = () => {
                  <FiInfo className="h-4 w-4 mr-1" />
                  <span>
                    {userRole === 'doctor' 
-                     ? "Today's confirmed/appointed appointments auto-added to queue. Click complete button to generate invoice."
+                     ? "Today's confirmed/appointed/pending appointments auto-added to queue. Click complete button to generate invoice."
                      : "Queue management view. Only doctors can auto-add appointments to prevent duplication."
                    }
                  </span>
@@ -2423,7 +2423,7 @@ const QueueManagement = () => {
                     <div className="text-sm text-gray-500 space-y-2">
                       <p>Possible reasons:</p>
                       <ul className="list-disc list-inside text-left max-w-md mx-auto">
-                        <li>No appointments confirmed for today yet</li>
+                        <li>No confirmed/pending appointments for today yet</li>
                         <li>All active patients have been served</li>
                         <li>No active queue entries found</li>
                       </ul>
@@ -2588,7 +2588,7 @@ const QueueManagement = () => {
                   </div>
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900">Add Walk-in Patient</h3>
-                    <p className="text-xs text-gray-500">Patients with confirmed appointments today are auto-added</p>
+                    <p className="text-xs text-gray-500">Patients with confirmed/pending appointments today are auto-added</p>
                   </div>
                 </div>
               </div>

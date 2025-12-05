@@ -88,7 +88,7 @@ const QueueMonitoring = () => {
           appointment_services(id, service_id)
         `)
         .eq('appointment_date', todayDate)
-        .in('status', ['confirmed', 'appointed', 'in_progress'])
+        .in('status', ['confirmed', 'appointed', 'pending', 'in_progress'])
         .order('appointment_time', { ascending: true });
       
       if (selectedBranch !== 'all') {
