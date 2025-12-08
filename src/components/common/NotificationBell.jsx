@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { useNotification } from '../../contexts/NotificationContext';
 import { 
   FiBell, 
   FiCheck, 
@@ -29,14 +30,17 @@ const NotificationBell = () => {
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
+  const hasFetchedRef = useRef(false);
 
   // Use notification context with proper error handling
   let notificationContext = null;
+  let hasContext = false;
   try {
-    const { useNotification } = require('../../contexts/NotificationContext');
     notificationContext = useNotification();
+    hasContext = true;
   } catch (err) {
     console.warn('NotificationContext not available:', err);
+    hasContext = false;
   }
 
   const {
@@ -50,20 +54,21 @@ const NotificationBell = () => {
     connectionStatus: contextConnectionStatus = 'disconnected'
   } = notificationContext || {};
 
-  // Update local state from context
+  // Update local state from context - only when context values actually change
   useEffect(() => {
-    if (notificationContext) {
+    if (hasContext && notificationContext) {
       setNotifications(contextNotifications);
       setUnreadCount(contextUnreadCount);
       setIsLoading(contextLoading);
       setConnectionStatus(contextConnectionStatus);
       setError(null);
     }
-  }, [contextNotifications, contextUnreadCount, contextLoading, contextConnectionStatus, notificationContext]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contextNotifications, contextUnreadCount, contextLoading, contextConnectionStatus, hasContext]);
 
   // Fallback notification fetch if context is not available
   const fallbackFetchNotifications = async () => {
-    if (!user || notificationContext) return;
+    if (!user || hasContext) return;
     
     setIsLoading(true);
     setError(null);
@@ -157,18 +162,24 @@ const NotificationBell = () => {
 
   // Initialize notifications on mount
   useEffect(() => {
-    if (user) {
-      if (notificationContext && fetchNotifications) {
+    if (user && !hasFetchedRef.current) {
+      hasFetchedRef.current = true;
+      if (hasContext && fetchNotifications) {
         fetchNotifications();
       } else {
         fallbackFetchNotifications();
       }
     }
-  }, [user, notificationContext, fetchNotifications]);
+    // Reset fetch flag when user changes
+    if (!user) {
+      hasFetchedRef.current = false;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, hasContext]);
 
   // Set up real-time subscription for fallback mode
   useEffect(() => {
-    if (!user || notificationContext) return;
+    if (!user || hasContext) return;
 
     let channel;
     
@@ -223,7 +234,7 @@ const NotificationBell = () => {
         cleanup();
       }
     };
-  }, [user, notificationContext]);
+  }, [user, hasContext]);
 
   // Close dropdown when clicking outside
   useEffect(() => {

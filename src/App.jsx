@@ -7,6 +7,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { ClinicProvider } from './contexts/ClinicContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import DebugLockoutFix from './components/common/DebugLockoutFix';
+import BracesCheckupReminderService from './components/common/BracesCheckupReminderService';
 
 // Public Pages
 import Home from './pages/public/Home';
@@ -143,6 +144,8 @@ function App() {
     <AuthProvider>
       <ClinicProvider>
         <NotificationProvider>
+          {/* Background service to check for braces checkup reminders */}
+          <BracesCheckupReminderService />
           <Router>
             {/* Always render the debug helper - it will only show when URL has ?debug=unlock */}
             <DebugLockoutFix />

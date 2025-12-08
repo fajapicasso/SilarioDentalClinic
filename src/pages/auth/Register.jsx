@@ -968,7 +968,7 @@ const Register = () => {
                             ? 'border-red-400 text-red-600 placeholder-red-300 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 bg-red-50'
                             : 'border-gray-300 text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white'
                         } transition-all duration-200`}
-                          placeholder={(touched.first_name && errors.first_name) ? errors.first_name : 'Name'}
+                          placeholder={(touched.first_name && errors.first_name) ? errors.first_name : 'First Name'}
                         style={{ color: errors.first_name && touched.first_name ? 'rgb(220, 38, 38)' : 'rgb(55, 65, 81)' }}
                         onChange={(e) => {
                           const capitalized = capitalizeWords(e.target.value);
@@ -1175,7 +1175,7 @@ const Register = () => {
                             ? 'border-red-400 text-red-600 placeholder-red-300 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 bg-red-50'
                             : 'border-gray-300 text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white'
                         } transition-all duration-200`}
-                        placeholder={(touched.email && errors.email) ? errors.email : '@r@gmail.com'}
+                        placeholder={(touched.email && errors.email) ? errors.email : 'you@gmail.com'}
                         style={{ color: errors.email && touched.email ? 'rgb(220, 38, 38)' : 'rgb(55, 65, 81)' }}
                       />
                     </div>

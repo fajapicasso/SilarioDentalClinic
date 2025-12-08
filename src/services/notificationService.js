@@ -465,6 +465,150 @@ class NotificationService {
       return { success: false, error, count: 0 };
     }
   }
+
+  // Braces checkup reminder notifications
+  async checkAndNotifyBracesCheckups() {
+    try {
+      await this.initialize();
+
+      // Calculate tomorrow's date (1 day in advance)
+      // Use local date to avoid timezone issues
+      const now = new Date();
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      // Format as YYYY-MM-DD for date comparison (using local date, not UTC)
+      const year = tomorrow.getFullYear();
+      const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
+      const day = String(tomorrow.getDate()).padStart(2, '0');
+      const tomorrowDateStr = `${year}-${month}-${day}`;
+
+      console.log('[BracesCheckupReminder] Checking for braces checkups on:', tomorrowDateStr);
+      console.log('[BracesCheckupReminder] Today is:', new Date().toISOString().split('T')[0]);
+
+      // Get all braces checkups scheduled for tomorrow that haven't been attended
+      // Since appointment_date is stored as a date (not datetime), we can use eq for exact match
+      const { data: upcomingCheckups, error: checkupError } = await supabase
+        .from('braces_checkups')
+        .select(`
+          id,
+          patient_id,
+          appointment_date,
+          doctor_id,
+          patients:profiles!patient_id(id, full_name, disabled),
+          doctor:profiles!doctor_id(id, full_name)
+        `)
+        .eq('attended', false)
+        .eq('appointment_date', tomorrowDateStr)
+        .not('appointment_date', 'is', null); // Ensure appointment_date is not null
+
+      if (checkupError) {
+        console.error('[BracesCheckupReminder] Error fetching checkups:', checkupError);
+        throw checkupError;
+      }
+
+      console.log('[BracesCheckupReminder] Found', upcomingCheckups?.length || 0, 'checkups for tomorrow');
+
+      if (!upcomingCheckups || upcomingCheckups.length === 0) {
+        console.log('[BracesCheckupReminder] No braces checkups scheduled for tomorrow');
+        return { success: true, count: 0 };
+      }
+
+      // Filter out disabled patients
+      const activeCheckups = upcomingCheckups.filter(
+        checkup => !checkup.patients?.disabled
+      );
+
+      if (activeCheckups.length === 0) {
+        console.log('No active patients with braces checkups tomorrow');
+        return { success: true, count: 0 };
+      }
+
+      // Check for existing notifications to avoid duplicates
+      const today = new Date().toISOString().split('T')[0];
+      const { data: existingNotifications, error: notifError } = await supabase
+        .from('notifications')
+        .select('metadata')
+        .eq('category', 'braces_checkup')
+        .gte('created_at', `${today}T00:00:00.000Z`)
+        .lte('created_at', `${today}T23:59:59.999Z`);
+
+      if (notifError) {
+        console.warn('Error checking existing notifications:', notifError);
+      }
+
+      const existingCheckupIds = new Set(
+        (existingNotifications || [])
+          .map(n => n.metadata?.checkupId)
+          .filter(Boolean)
+      );
+
+      let notificationsCreated = 0;
+
+      // Create notifications for each patient
+      for (const checkup of activeCheckups) {
+        // Skip if notification already exists for this checkup today
+        if (existingCheckupIds.has(checkup.id)) {
+          console.log(`Notification already exists for checkup ${checkup.id}`);
+          continue;
+        }
+
+        if (!checkup.patient_id || !checkup.patients) {
+          console.warn('Skipping checkup with missing patient data:', checkup.id);
+          continue;
+        }
+
+        const appointmentDate = new Date(checkup.appointment_date);
+        const formattedDate = appointmentDate.toLocaleDateString('en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+
+        // Get doctor's name
+        const doctorName = checkup.doctor?.full_name || 'your doctor';
+        const doctorTitle = doctorName.startsWith('Dr.') ? doctorName : `Dr. ${doctorName}`;
+
+        // Set expiration to end of appointment day
+        const expirationDate = new Date(appointmentDate);
+        expirationDate.setHours(23, 59, 59, 999);
+
+        const result = await this.createNotification({
+          recipientId: checkup.patient_id,
+          senderId: checkup.doctor_id,
+          title: 'Braces Checkup Reminder',
+          message: `You have a braces checkup scheduled for tomorrow (${formattedDate}) with ${doctorTitle}. Please make sure to attend your appointment.`,
+          type: 'appointment',
+          category: 'braces_checkup',
+          priority: 'high',
+          actionUrl: '/patient/appointments',
+          actionLabel: 'View Appointments',
+          metadata: {
+            checkupId: checkup.id,
+            appointmentDate: checkup.appointment_date,
+            doctorId: checkup.doctor_id,
+            doctorName: doctorName,
+            action: 'checkup_reminder'
+          },
+          expiresAt: expirationDate.toISOString() // Expire at end of appointment day
+        });
+
+        if (result.success) {
+          notificationsCreated++;
+          console.log(`[BracesCheckupReminder] Created reminder notification for patient ${checkup.patients.full_name} (checkup ID: ${checkup.id})`);
+        } else {
+          console.error(`[BracesCheckupReminder] Failed to create notification for checkup ${checkup.id}:`, result.error);
+        }
+      }
+
+      console.log(`[BracesCheckupReminder] Successfully created ${notificationsCreated} reminder notification(s)`);
+      return { success: true, count: notificationsCreated };
+    } catch (error) {
+      console.error('[BracesCheckupReminder] Error checking and notifying braces checkups:', error);
+      return { success: false, error: error.message || error };
+    }
+  }
 }
 
 // Create and export singleton instance
@@ -487,5 +631,6 @@ export const {
   sendTestNotification,
   markNotificationAsRead,
   deleteNotification,
-  getUnreadCount
+  getUnreadCount,
+  checkAndNotifyBracesCheckups
 } = notificationService;

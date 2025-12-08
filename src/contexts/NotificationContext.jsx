@@ -108,9 +108,9 @@ export function NotificationProvider({ children }) {
 
     const roleBasedRules = {
       patient: {
-        allowedCategories: ['appointment', 'payment', 'dental_chart', 'system', 'personal', 'health', 'prescription'],
-        allowedTypes: ['appointment_status', 'payment_update', 'dental_chart_update', 'welcome', 'dental_checkup_due', 'prescription_ready', 'birthday_greeting'],
-        description: 'Patients see: appointment status, payment updates, dental chart updates'
+        allowedCategories: ['appointment', 'braces_checkup', 'payment', 'dental_chart', 'system', 'personal', 'health', 'prescription'],
+        allowedTypes: ['appointment', 'appointment_status', 'payment_update', 'dental_chart_update', 'welcome', 'dental_checkup_due', 'prescription_ready', 'birthday_greeting'],
+        description: 'Patients see: appointment status, braces checkup reminders, payment updates, dental chart updates'
       },
       doctor: {
         allowedCategories: ['appointment', 'queue', 'payment', 'patient_record', 'system'],
@@ -612,16 +612,28 @@ export function NotificationProvider({ children }) {
 
             if (!error && data) {
               debugLog('Real-time: Successfully fetched complete notification', {
-                notificationId: data.id
+                notificationId: data.id,
+                category: data.category
               });
               
-              setNotifications(prev => [data, ...prev]);
-              setUnreadCount(prev => prev + 1);
+              // Filter the notification to ensure it's allowed for this role
+              const filtered = filterNotificationsByRole([data], userRole);
               
-              // Show toast notification if preferences allow
-              if (preferences?.push_notifications !== false) {
-                toast.info(data.title, {
-                  onClick: () => markAsRead(data.id)
+              if (filtered.length > 0) {
+                setNotifications(prev => [data, ...prev]);
+                setUnreadCount(prev => prev + 1);
+                
+                // Show toast notification if preferences allow
+                if (preferences?.push_notifications !== false) {
+                  toast.info(data.title, {
+                    onClick: () => markAsRead(data.id)
+                  });
+                }
+              } else {
+                debugLog('Real-time: Notification filtered out by role rules', {
+                  notificationId: data.id,
+                  category: data.category,
+                  userRole: userRole
                 });
               }
             } else {

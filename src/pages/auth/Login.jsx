@@ -154,7 +154,7 @@ const Login = () => {
                               : 'border-gray-200'
                           }
                         `}
-                        placeholder="you@example.com"
+                        placeholder="you@gmail.com"
                       />
                     </div>
                     <ErrorMessage
