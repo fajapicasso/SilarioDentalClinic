@@ -715,21 +715,91 @@ const PatientAnalytics = () => {
         window.branchTrend.destroy();
       }
 
-      const branches = [...new Set(metrics.branchTrend.map(t => t.branch))];
+      // Get unique branches from data
+      const uniqueBranches = [...new Set(metrics.branchTrend.map(t => t.branch))];
+      
+      // Find the exact branch names (handle any case/spacing variations)
+      let sanJuanBranch = null;
+      let cabugaoBranch = null;
+      
+      uniqueBranches.forEach(branch => {
+        const branchLower = branch.trim().toLowerCase();
+        if ((branchLower.includes('san juan') || branchLower === 'sanjuan') && !sanJuanBranch) {
+          sanJuanBranch = branch; // Keep original case
+        }
+        if (branchLower.includes('cabugao') && !cabugaoBranch) {
+          cabugaoBranch = branch; // Keep original case
+        }
+      });
+      
+      // Create datasets in EXPLICIT order: Cabugao first (GREEN), then San Juan (BLUE)
       const dates = [...new Set(metrics.branchTrend.map(t => t.date))].sort();
-
-      const datasets = branches.map((branch, index) => {
-        const colors = ['#3b82f6', '#10b981', '#f59e0b'];
-        return {
-          label: branch,
-          data: dates.map(date => {
+      const datasets = [];
+      
+      // 1. Add Cabugao dataset FIRST with GREEN color
+      if (cabugaoBranch) {
+        const cabugaoData = dates.map(date => {
+          const item = metrics.branchTrend.find(t => t.date === date && t.branch === cabugaoBranch);
+          return item ? item.count : 0;
+        });
+        
+        datasets.push({
+          label: cabugaoBranch,
+          data: cabugaoData,
+          borderColor: '#10b981', // GREEN for Cabugao
+          backgroundColor: 'rgba(16, 185, 129, 0.1)',
+          pointBackgroundColor: '#10b981', // GREEN point fill
+          pointBorderColor: '#10b981', // GREEN point border
+          pointHoverBackgroundColor: '#059669', // Darker green on hover
+          pointHoverBorderColor: '#059669',
+          tension: 0.3,
+          pointRadius: 4,
+          pointHoverRadius: 6
+        });
+      }
+      
+      // 2. Add San Juan dataset SECOND with BLUE color
+      if (sanJuanBranch) {
+        const sanJuanData = dates.map(date => {
+          const item = metrics.branchTrend.find(t => t.date === date && t.branch === sanJuanBranch);
+          return item ? item.count : 0;
+        });
+        
+        datasets.push({
+          label: sanJuanBranch,
+          data: sanJuanData,
+          borderColor: '#3b82f6', // BLUE for San Juan
+          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          pointBackgroundColor: '#3b82f6', // BLUE point fill
+          pointBorderColor: '#3b82f6', // BLUE point border
+          pointHoverBackgroundColor: '#2563eb', // Darker blue on hover
+          pointHoverBorderColor: '#2563eb',
+          tension: 0.3,
+          pointRadius: 4,
+          pointHoverRadius: 6
+        });
+      }
+      
+      // 3. Add any other branches (shouldn't happen, but just in case)
+      uniqueBranches.forEach(branch => {
+        const branchLower = branch.trim().toLowerCase();
+        const isSanJuan = branchLower.includes('san juan') || branchLower === 'sanjuan';
+        const isCabugao = branchLower.includes('cabugao');
+        
+        if (!isSanJuan && !isCabugao) {
+          const otherData = dates.map(date => {
             const item = metrics.branchTrend.find(t => t.date === date && t.branch === branch);
             return item ? item.count : 0;
-          }),
-          borderColor: colors[index % colors.length],
-          backgroundColor: colors[index % colors.length] + '40',
-          tension: 0.3
-        };
+          });
+          
+          datasets.push({
+            label: branch,
+            data: otherData,
+            borderColor: '#f59e0b', // Orange for other branches
+            backgroundColor: '#f59e0b40',
+            tension: 0.3
+          });
+        }
       });
 
       window.branchTrend = new Chart(ctx, {

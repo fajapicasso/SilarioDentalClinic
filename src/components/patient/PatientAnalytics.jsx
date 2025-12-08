@@ -18,6 +18,80 @@ const PatientAnalytics = () => {
   const [loading, setLoading] = useState(false);
   const [customStartDate, setCustomStartDate] = useState(null);
   const [customEndDate, setCustomEndDate] = useState(null);
+  const [patientName, setPatientName] = useState('');
+
+  // Fetch patient name
+  useEffect(() => {
+    const fetchPatientName = async () => {
+      if (!user?.id) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('full_name, first_name, middle_name, last_name')
+          .eq('id', user.id)
+          .single();
+        
+        if (error) throw error;
+        
+        if (data) {
+          // Use full_name if available, otherwise construct from parts
+          const name = data.full_name || 
+            [data.first_name, data.middle_name, data.last_name]
+              .filter(Boolean)
+              .join(' ') ||
+            user.user_metadata?.full_name ||
+            [user.user_metadata?.first_name, user.user_metadata?.middle_name, user.user_metadata?.last_name]
+              .filter(Boolean)
+              .join(' ') ||
+            user.email?.split('@')[0] ||
+            'Patient';
+          setPatientName(name);
+        }
+      } catch (error) {
+        console.error('Error fetching patient name:', error);
+        // Fallback to user metadata
+        const name = user.user_metadata?.full_name ||
+          [user.user_metadata?.first_name, user.user_metadata?.middle_name, user.user_metadata?.last_name]
+            .filter(Boolean)
+            .join(' ') ||
+          user.email?.split('@')[0] ||
+          'Patient';
+        setPatientName(name);
+      }
+    };
+
+    fetchPatientName();
+  }, [user]);
+
+  // Helper function to get consistent color for branch
+  // San Juan = Blue, Cabugao = Green (consistent across all charts)
+  const getBranchColor = (branchName) => {
+    if (!branchName) {
+      console.warn('getBranchColor: branchName is empty');
+      return '#3b82f6'; // Default to blue
+    }
+    
+    // Normalize branch name (trim whitespace, handle case)
+    const normalized = branchName.trim();
+    const lower = normalized.toLowerCase();
+    
+    // Check for San Juan (case-insensitive, handles variations)
+    if (lower.includes('san juan') || lower === 'sanjuan' || lower.startsWith('san juan')) {
+      console.log(`getBranchColor: "${branchName}" -> San Juan -> Blue`);
+      return '#3b82f6'; // Blue
+    }
+    
+    // Check for Cabugao (case-insensitive, handles variations)
+    if (lower.includes('cabugao') || lower.startsWith('cabugao')) {
+      console.log(`getBranchColor: "${branchName}" -> Cabugao -> Green`);
+      return '#10b981'; // Green
+    }
+    
+    // Default to blue for unknown branches
+    console.warn(`getBranchColor: "${branchName}" -> Unknown branch, defaulting to Blue`);
+    return '#3b82f6';
+  };
 
   // Chart refs
   const appointmentTrendRef = useRef(null);
@@ -979,10 +1053,29 @@ const PatientAnalytics = () => {
         window.branchUsage.destroy();
       }
 
-      const branches = Object.keys(metrics.visitsPerBranch);
+      // Sort branches consistently (San Juan first, then Cabugao, then others)
+      const branchKeys = Object.keys(metrics.visitsPerBranch);
+      const branches = branchKeys.sort((a, b) => {
+        const aLower = a.trim().toLowerCase();
+        const bLower = b.trim().toLowerCase();
+        
+        if (aLower.includes('san juan') || aLower === 'sanjuan') return -1;
+        if (bLower.includes('san juan') || bLower === 'sanjuan') return 1;
+        if (aLower.includes('cabugao')) return -1;
+        if (bLower.includes('cabugao')) return 1;
+        return a.localeCompare(b);
+      });
+      
       const visits = branches.map(b => metrics.visitsPerBranch[b]);
       const total = visits.reduce((a, b) => a + b, 0);
       const percentages = visits.map(v => Math.round((v / total) * 100));
+
+      // Use consistent colors based on branch name
+      const branchColors = branches.map(branch => {
+        const color = getBranchColor(branch);
+        console.log(`Branch Usage Chart - Branch: "${branch}", Color: ${color} (${color === '#3b82f6' ? 'Blue' : 'Green'})`);
+        return color;
+      });
 
       window.branchUsage = new Chart(ctx, {
         type: 'doughnut',
@@ -990,7 +1083,7 @@ const PatientAnalytics = () => {
           labels: branches.map((b, i) => `${b} (${percentages[i]}%)`),
           datasets: [{
             data: visits,
-            backgroundColor: ['#3b82f6', '#10b981', '#f59e0b'],
+            backgroundColor: branchColors,
             borderWidth: 2,
             borderColor: '#fff'
           }]
@@ -1043,22 +1136,103 @@ const PatientAnalytics = () => {
         window.branchTrend.destroy();
       }
 
-      const branches = [...new Set(metrics.branchTrend.map(t => t.branch))];
+      // Get unique branches from data
+      const uniqueBranches = [...new Set(metrics.branchTrend.map(t => t.branch))];
+      console.log('🔍 Raw branch names from data:', uniqueBranches);
+      
+      // Find the exact branch names (handle any case/spacing variations)
+      let sanJuanBranch = null;
+      let cabugaoBranch = null;
+      
+      uniqueBranches.forEach(branch => {
+        const branchLower = branch.trim().toLowerCase();
+        if ((branchLower.includes('san juan') || branchLower === 'sanjuan') && !sanJuanBranch) {
+          sanJuanBranch = branch; // Keep original case
+        }
+        if (branchLower.includes('cabugao') && !cabugaoBranch) {
+          cabugaoBranch = branch; // Keep original case
+        }
+      });
+      
+      console.log('📍 Identified branches - San Juan:', sanJuanBranch, 'Cabugao:', cabugaoBranch);
+      
+      // Create datasets in EXPLICIT order: Cabugao first (GREEN), then San Juan (BLUE)
       const dates = [...new Set(metrics.branchTrend.map(t => t.date))].sort();
-
-      const datasets = branches.map((branch, index) => {
-        const colors = ['#3b82f6', '#10b981', '#f59e0b'];
-        return {
-          label: branch,
-          data: dates.map(date => {
+      const datasets = [];
+      
+      // 1. Add Cabugao dataset FIRST with GREEN color
+      if (cabugaoBranch) {
+        const cabugaoData = dates.map(date => {
+          const item = metrics.branchTrend.find(t => t.date === date && t.branch === cabugaoBranch);
+          return item ? item.count : 0;
+        });
+        
+        datasets.push({
+          label: cabugaoBranch,
+          data: cabugaoData,
+          borderColor: '#10b981', // GREEN for Cabugao
+          backgroundColor: 'rgba(16, 185, 129, 0.1)',
+          pointBackgroundColor: '#10b981', // GREEN point fill
+          pointBorderColor: '#10b981', // GREEN point border
+          pointHoverBackgroundColor: '#059669', // Darker green on hover
+          pointHoverBorderColor: '#059669',
+          tension: 0.3,
+          pointRadius: 4,
+          pointHoverRadius: 6
+        });
+        console.log(`✅ Added Cabugao dataset: "${cabugaoBranch}" with GREEN color (#10b981)`);
+      }
+      
+      // 2. Add San Juan dataset SECOND with BLUE color
+      if (sanJuanBranch) {
+        const sanJuanData = dates.map(date => {
+          const item = metrics.branchTrend.find(t => t.date === date && t.branch === sanJuanBranch);
+          return item ? item.count : 0;
+        });
+        
+        datasets.push({
+          label: sanJuanBranch,
+          data: sanJuanData,
+          borderColor: '#3b82f6', // BLUE for San Juan
+          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          pointBackgroundColor: '#3b82f6', // BLUE point fill
+          pointBorderColor: '#3b82f6', // BLUE point border
+          pointHoverBackgroundColor: '#2563eb', // Darker blue on hover
+          pointHoverBorderColor: '#2563eb',
+          tension: 0.3,
+          pointRadius: 4,
+          pointHoverRadius: 6
+        });
+        console.log(`✅ Added San Juan dataset: "${sanJuanBranch}" with BLUE color (#3b82f6)`);
+      }
+      
+      // 3. Add any other branches (shouldn't happen, but just in case)
+      uniqueBranches.forEach(branch => {
+        const branchLower = branch.trim().toLowerCase();
+        const isSanJuan = branchLower.includes('san juan') || branchLower === 'sanjuan';
+        const isCabugao = branchLower.includes('cabugao');
+        
+        if (!isSanJuan && !isCabugao) {
+          const otherData = dates.map(date => {
             const item = metrics.branchTrend.find(t => t.date === date && t.branch === branch);
             return item ? item.count : 0;
-          }),
-          borderColor: colors[index % colors.length],
-          backgroundColor: colors[index % colors.length] + '40',
-          tension: 0.3
-        };
+          });
+          
+          datasets.push({
+            label: branch,
+            data: otherData,
+            borderColor: '#f59e0b', // Orange for other branches
+            backgroundColor: '#f59e0b40',
+            tension: 0.3
+          });
+          console.log(`⚠️ Added other branch dataset: "${branch}" with ORANGE color`);
+        }
       });
+      
+      console.log('Final datasets for Branch Trend:', datasets.map(d => ({ label: d.label, borderColor: d.borderColor })));
+
+      // Use datasets directly - they're already in correct order (Cabugao GREEN first, San Juan BLUE second)
+      // No need to sort since we're adding them in the correct order already
 
       window.branchTrend = new Chart(ctx, {
         type: 'line',
@@ -1067,7 +1241,7 @@ const PatientAnalytics = () => {
             const date = new Date(d);
             return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
           }),
-          datasets
+          datasets: datasets
         },
         options: {
           responsive: true,
@@ -1076,7 +1250,9 @@ const PatientAnalytics = () => {
           plugins: {
             legend: {
               position: 'top',
-              labels: { font: { size: 10 } }
+              labels: { 
+                font: { size: 10 }
+              }
             }
           },
           scales: {
@@ -1139,7 +1315,7 @@ const PatientAnalytics = () => {
   };
 
   // Shared helper function to build report HTML (used by both print and PDF)
-  const buildReportHTML = (chartImages, apptMetrics, treatMetrics, branchMetricsData, printDate, logoDataURL = '') => {
+  const buildReportHTML = (chartImages, apptMetrics, treatMetrics, branchMetricsData, printDate, logoDataURL = '', patientName = '') => {
     // Helper function to format date
     const formatDate = (dateStr) => {
       if (!dateStr) return 'N/A';
@@ -1470,6 +1646,7 @@ const PatientAnalytics = () => {
             ${logoDataURL && logoDataURL !== 'data:,' ? `<img src="${logoDataURL}" alt="Silario Clinic Logo" class="logo" />` : ''}
             <div class="header-content">
               <h1>Patient Analytics Report</h1>
+              ${patientName ? `<div class="patient-name" style="margin: 4px 0; font-size: 10pt;"><strong>Patient:</strong> ${patientName}</div>` : ''}
               <div class="filter-info">
                 <strong>Filter:</strong> ${getFilterDisplayText()}
               </div>
@@ -2117,6 +2294,7 @@ const PatientAnalytics = () => {
             ${logoDataURL && logoDataURL !== 'data:,' ? `<img src="${logoDataURL}" alt="Silario Clinic Logo" class="logo" />` : ''}
             <div class="header-content">
               <h1>Patient Analytics Report</h1>
+              ${patientName ? `<div class="patient-name" style="margin: 4px 0; font-size: 10pt;"><strong>Patient:</strong> ${patientName}</div>` : ''}
               <div class="filter-info">
                 <strong>Filter:</strong> ${getFilterDisplayText()}
               </div>
@@ -3071,6 +3249,7 @@ const PatientAnalytics = () => {
             ${logoDataURL && logoDataURL !== 'data:,' ? `<img src="${logoDataURL}" alt="Silario Clinic Logo" class="logo" />` : ''}
             <div class="header-content">
               <h1>Patient Analytics Report</h1>
+              ${patientName ? `<div class="patient-name" style="margin: 4px 0; font-size: 10pt;"><strong>Patient:</strong> ${patientName}</div>` : ''}
               <div class="filter-info">
                 <strong>Filter:</strong> ${getFilterDisplayText()}
               </div>
