@@ -146,7 +146,7 @@ const PatientAnalytics = () => {
           window.appointmentComparison.resize();
         }
         // Re-render if charts don't exist
-        if (!window.appointmentTrend && (appointmentMetrics.trend.length > 0 || appointmentMetrics.total > 0)) {
+        if (!window.appointmentTrend && appointmentMetrics && (appointmentMetrics?.trend?.length > 0 || appointmentMetrics?.total > 0)) {
           renderAppointmentCharts();
         }
       } else if (activeTab === 'treatments') {
@@ -157,7 +157,7 @@ const PatientAnalytics = () => {
           window.treatmentPie.resize();
         }
         // Re-render if charts don't exist
-        if (!window.treatmentCount && (treatmentMetrics.countByTimeframe.length > 0 || treatmentMetrics.mostCommon.length > 0)) {
+        if (!window.treatmentCount && treatmentMetrics && (treatmentMetrics.countByTimeframe?.length > 0 || treatmentMetrics.mostCommon?.length > 0)) {
           renderTreatmentCharts();
         }
       } else if (activeTab === 'branch') {
@@ -168,7 +168,7 @@ const PatientAnalytics = () => {
           window.branchTrend.resize();
         }
         // Re-render if charts don't exist
-        if (!window.branchTrend && (branchMetrics.branchTrend.length > 0 || Object.keys(branchMetrics.visitsPerBranch).length > 0)) {
+        if (!window.branchTrend && branchMetrics && (branchMetrics.branchTrend?.length > 0 || Object.keys(branchMetrics.visitsPerBranch || {}).length > 0)) {
           renderBranchCharts();
         }
       }
@@ -234,9 +234,9 @@ const PatientAnalytics = () => {
       };
 
       // Check if we have any data to render
-      const hasAppointmentData = appointmentMetrics.trend.length > 0 || appointmentMetrics.total > 0;
-      const hasTreatmentData = treatmentMetrics.countByTimeframe.length > 0 || treatmentMetrics.mostCommon.length > 0;
-      const hasBranchData = branchMetrics.branchTrend.length > 0 || Object.keys(branchMetrics.visitsPerBranch).length > 0;
+      const hasAppointmentData = appointmentMetrics && (appointmentMetrics?.trend?.length > 0 || appointmentMetrics?.total > 0);
+      const hasTreatmentData = treatmentMetrics && (treatmentMetrics.countByTimeframe?.length > 0 || treatmentMetrics.mostCommon?.length > 0);
+      const hasBranchData = branchMetrics && (branchMetrics.branchTrend?.length > 0 || Object.keys(branchMetrics.visitsPerBranch || {}).length > 0);
 
       if (!hasAppointmentData && !hasTreatmentData && !hasBranchData) {
         console.log('No analytics data available yet, skipping chart rendering');
@@ -426,10 +426,15 @@ const PatientAnalytics = () => {
         })
       ]);
       
-      // Update state with fetched data
-      setAppointmentMetrics(apptMetrics);
-      setTreatmentMetrics(treatMetrics);
-      setBranchMetrics(branchMetricsData);
+      // Ensure all metrics have valid structure even if fetch returns undefined
+      const safeApptMetrics = apptMetrics || { total: 0, completed: 0, cancelled: 0, trend: [], avgTimeBetween: 0 };
+      const safeTreatMetrics = treatMetrics || { mostCommon: [], countByTimeframe: [], dentistFrequency: [] };
+      const safeBranchMetrics = branchMetricsData || { visitsPerBranch: {}, branchTrend: [] };
+      
+      // Update state with fetched data (using safe defaults)
+      setAppointmentMetrics(safeApptMetrics);
+      setTreatmentMetrics(safeTreatMetrics);
+      setBranchMetrics(safeBranchMetrics);
       
       console.log('All analytics data fetched successfully');
     } catch (error) {
@@ -472,14 +477,15 @@ const PatientAnalytics = () => {
       console.log('Appointment analytics data fetched:', data?.length || 0, 'records');
 
       if (!data || data.length === 0) {
-        setAppointmentMetrics({
+        const emptyMetrics = {
           total: 0,
           completed: 0,
           cancelled: 0,
           trend: [],
           avgTimeBetween: 0
-        });
-        return;
+        };
+        setAppointmentMetrics(emptyMetrics);
+        return emptyMetrics;
       }
 
       const total = data.length;
@@ -745,7 +751,22 @@ const PatientAnalytics = () => {
   };
 
   const renderAppointmentCharts = (metricsData = null) => {
-    const metrics = metricsData || appointmentMetrics;
+    // Ensure metrics exists with default values
+    const defaultMetrics = {
+      total: 0,
+      completed: 0,
+      cancelled: 0,
+      trend: [],
+      avgTimeBetween: 0
+    };
+    const metrics = metricsData || appointmentMetrics || defaultMetrics;
+    
+    // Safety check: ensure metrics has all required properties
+    if (!metrics || typeof metrics !== 'object') {
+      console.warn('renderAppointmentCharts: Invalid metrics, using defaults');
+      return;
+    }
+    
     // Appointment Trend Chart - render if we have trend data
     // Try ref first, then fallback to DOM query
     let trendCanvas = appointmentTrendRef.current;
@@ -831,7 +852,7 @@ const PatientAnalytics = () => {
       }
     }
     
-    if (comparisonCanvas && metrics.total >= 0) {
+    if (comparisonCanvas && metrics && typeof metrics.total === 'number' && metrics.total >= 0) {
       // Ensure canvas has dimensions before rendering
       if (comparisonCanvas.width === 0 || comparisonCanvas.height === 0) {
         const parent = comparisonCanvas.parentElement;
@@ -885,7 +906,19 @@ const PatientAnalytics = () => {
   };
 
   const renderTreatmentCharts = (metricsData = null) => {
-    const metrics = metricsData || treatmentMetrics;
+    // Ensure metrics exists with default values
+    const defaultMetrics = {
+      mostCommon: [],
+      countByTimeframe: [],
+      dentistFrequency: []
+    };
+    const metrics = metricsData || treatmentMetrics || defaultMetrics;
+    
+    // Safety check: ensure metrics has all required properties
+    if (!metrics || typeof metrics !== 'object') {
+      console.warn('renderTreatmentCharts: Invalid metrics, using defaults');
+      return;
+    }
     // Treatment Count Chart - render if we have data
     let treatmentCountCanvas = treatmentCountRef.current;
     if (!treatmentCountCanvas) {
@@ -1018,7 +1051,18 @@ const PatientAnalytics = () => {
   };
 
   const renderBranchCharts = (metricsData = null) => {
-    const metrics = metricsData || branchMetrics;
+    // Ensure metrics exists with default values
+    const defaultMetrics = {
+      visitsPerBranch: {},
+      branchTrend: []
+    };
+    const metrics = metricsData || branchMetrics || defaultMetrics;
+    
+    // Safety check: ensure metrics has all required properties
+    if (!metrics || typeof metrics !== 'object') {
+      console.warn('renderBranchCharts: Invalid metrics, using defaults');
+      return;
+    }
     // Branch Usage Chart - render if we have branch data
     let branchUsageCanvas = branchUsageRef.current;
     if (!branchUsageCanvas) {
@@ -1325,8 +1369,23 @@ const PatientAnalytics = () => {
 
     // Build all sections HTML using the fetched data directly
     const buildAppointmentSection = () => {
-      const metrics = apptMetrics || appointmentMetrics;
-      if (metrics.total === 0 && (!metrics.trend || metrics.trend.length === 0)) {
+      const defaultMetrics = {
+        total: 0,
+        completed: 0,
+        cancelled: 0,
+        trend: [],
+        avgTimeBetween: 0
+      };
+      const metrics = apptMetrics || appointmentMetrics || defaultMetrics;
+      // Ensure metrics has all required properties
+      const safeMetrics = {
+        total: metrics?.total ?? 0,
+        completed: metrics?.completed ?? 0,
+        cancelled: metrics?.cancelled ?? 0,
+        trend: metrics?.trend ?? [],
+        avgTimeBetween: metrics?.avgTimeBetween ?? 0
+      };
+      if (safeMetrics.total === 0 && (!safeMetrics.trend || safeMetrics.trend.length === 0)) {
         return '<div class="print-section"><h2>&#128197; Appointment Analytics</h2><p>No appointment data available.</p></div>';
       }
 
@@ -1339,19 +1398,19 @@ const PatientAnalytics = () => {
           <div class="metrics-row">
             <div class="metric-box">
               <div class="metric-label">Total Appointments</div>
-              <div class="metric-value">${metrics.total}</div>
+              <div class="metric-value">${safeMetrics.total}</div>
             </div>
             <div class="metric-box">
               <div class="metric-label">Completed</div>
-              <div class="metric-value">${metrics.completed}</div>
+              <div class="metric-value">${safeMetrics.completed}</div>
             </div>
             <div class="metric-box">
               <div class="metric-label">Cancelled</div>
-              <div class="metric-value">${metrics.cancelled}</div>
+              <div class="metric-value">${safeMetrics.cancelled}</div>
             </div>
             <div class="metric-box">
               <div class="metric-label">Avg. Days Between Visits</div>
-              <div class="metric-value">${metrics.avgTimeBetween}</div>
+              <div class="metric-value">${safeMetrics.avgTimeBetween}</div>
             </div>
           </div>
           <div class="charts-row">
@@ -1369,16 +1428,27 @@ const PatientAnalytics = () => {
     };
 
     const buildTreatmentSection = () => {
-      const metrics = treatMetrics || treatmentMetrics;
+      const defaultMetrics = {
+        mostCommon: [],
+        countByTimeframe: [],
+        dentistFrequency: []
+      };
+      const metrics = treatMetrics || treatmentMetrics || defaultMetrics;
+      // Ensure metrics has all required properties
+      const safeMetrics = {
+        mostCommon: metrics?.mostCommon ?? [],
+        countByTimeframe: metrics?.countByTimeframe ?? [],
+        dentistFrequency: metrics?.dentistFrequency ?? []
+      };
       const treatmentCountImg = chartImages.treatmentCount ? `<img src="${chartImages.treatmentCount}" style="max-width: 100%; height: auto; display: block; max-height: 140px;" alt="Treatment Count Chart" />` : '<div style="padding: 10px; text-align: center; color: #999; font-size: 8pt;">Chart not available</div>';
       const treatmentPieImg = chartImages.treatmentPie ? `<img src="${chartImages.treatmentPie}" style="max-width: 100%; height: auto; display: block; max-height: 140px;" alt="Treatment Distribution Chart" />` : '<div style="padding: 10px; text-align: center; color: #999; font-size: 8pt;">Chart not available</div>';
       
-      const mostCommonList = metrics.mostCommon && metrics.mostCommon.length > 0
-        ? metrics.mostCommon.map(t => `<li>${t.name}: ${t.count} time(s)</li>`).join('')
+      const mostCommonList = safeMetrics.mostCommon && safeMetrics.mostCommon.length > 0
+        ? safeMetrics.mostCommon.map(t => `<li>${t.name}: ${t.count} time(s)</li>`).join('')
         : '<li>No data available</li>';
       
-      const dentistList = metrics.dentistFrequency && metrics.dentistFrequency.length > 0
-        ? metrics.dentistFrequency.map(d => `<li>${d.name}: ${d.count} visit(s)</li>`).join('')
+      const dentistList = safeMetrics.dentistFrequency && safeMetrics.dentistFrequency.length > 0
+        ? safeMetrics.dentistFrequency.map(d => `<li>${d.name}: ${d.count} visit(s)</li>`).join('')
         : '<li>No data available</li>';
 
       return `
@@ -1409,12 +1479,21 @@ const PatientAnalytics = () => {
     };
 
     const buildBranchSection = () => {
-      const metrics = branchMetricsData || branchMetrics;
+      const defaultMetrics = {
+        visitsPerBranch: {},
+        branchTrend: []
+      };
+      const metrics = branchMetricsData || branchMetrics || defaultMetrics;
+      // Ensure metrics has all required properties
+      const safeMetrics = {
+        visitsPerBranch: metrics?.visitsPerBranch ?? {},
+        branchTrend: metrics?.branchTrend ?? []
+      };
       const branchUsageImg = chartImages.branchUsage ? `<img src="${chartImages.branchUsage}" style="max-width: 100%; height: auto; display: block; max-height: 140px;" alt="Branch Preference Chart" />` : '<div style="padding: 10px; text-align: center; color: #999; font-size: 8pt;">Chart not available</div>';
       const branchTrendImg = chartImages.branchTrend ? `<img src="${chartImages.branchTrend}" style="max-width: 100%; height: auto; display: block; max-height: 140px;" alt="Branch Visit Trend Chart" />` : '<div style="padding: 10px; text-align: center; color: #999; font-size: 8pt;">Chart not available</div>';
       
       // Calculate branch percentage
-      const visitsPerBranch = metrics.visitsPerBranch || {};
+      const visitsPerBranch = safeMetrics.visitsPerBranch || {};
       const totalVisits = Object.values(visitsPerBranch).reduce((sum, visits) => sum + visits, 0);
       const calculateBranchPercentage = (branchName) => {
         const visits = visitsPerBranch[branchName] || 0;
@@ -1968,8 +2047,23 @@ const PatientAnalytics = () => {
 
       // Build all sections HTML using the fetched data directly
       const buildAppointmentSection = () => {
-        const metrics = apptMetrics || appointmentMetrics;
-        if (metrics.total === 0 && (!metrics.trend || metrics.trend.length === 0)) {
+        const defaultMetrics = {
+          total: 0,
+          completed: 0,
+          cancelled: 0,
+          trend: [],
+          avgTimeBetween: 0
+        };
+        const metrics = apptMetrics || appointmentMetrics || defaultMetrics;
+        // Ensure metrics has all required properties
+        const safeMetrics = {
+          total: metrics?.total ?? 0,
+          completed: metrics?.completed ?? 0,
+          cancelled: metrics?.cancelled ?? 0,
+          trend: metrics?.trend ?? [],
+          avgTimeBetween: metrics?.avgTimeBetween ?? 0
+        };
+        if (safeMetrics.total === 0 && (!safeMetrics.trend || safeMetrics.trend.length === 0)) {
           return '<div class="print-section"><h2>&#128197; Appointment Analytics</h2><p>No appointment data available.</p></div>';
         }
 
@@ -1982,19 +2076,19 @@ const PatientAnalytics = () => {
             <div class="metrics-row">
               <div class="metric-box">
                 <div class="metric-label">Total Appointments</div>
-                <div class="metric-value">${metrics.total}</div>
+                <div class="metric-value">${safeMetrics.total}</div>
               </div>
               <div class="metric-box">
                 <div class="metric-label">Completed</div>
-                <div class="metric-value">${metrics.completed}</div>
+                <div class="metric-value">${safeMetrics.completed}</div>
               </div>
               <div class="metric-box">
                 <div class="metric-label">Cancelled</div>
-                <div class="metric-value">${metrics.cancelled}</div>
+                <div class="metric-value">${safeMetrics.cancelled}</div>
               </div>
               <div class="metric-box">
                 <div class="metric-label">Avg. Days Between Visits</div>
-                <div class="metric-value">${metrics.avgTimeBetween}</div>
+                <div class="metric-value">${safeMetrics.avgTimeBetween}</div>
               </div>
             </div>
             <div class="charts-row">
@@ -2012,16 +2106,27 @@ const PatientAnalytics = () => {
       };
 
       const buildTreatmentSection = () => {
-        const metrics = treatMetrics || treatmentMetrics;
+        const defaultMetrics = {
+          mostCommon: [],
+          countByTimeframe: [],
+          dentistFrequency: []
+        };
+        const metrics = treatMetrics || treatmentMetrics || defaultMetrics;
+        // Ensure metrics has all required properties
+        const safeMetrics = {
+          mostCommon: metrics?.mostCommon ?? [],
+          countByTimeframe: metrics?.countByTimeframe ?? [],
+          dentistFrequency: metrics?.dentistFrequency ?? []
+        };
         const treatmentCountImg = chartImages.treatmentCount ? `<img src="${chartImages.treatmentCount}" style="max-width: 100%; height: auto; display: block; max-height: 140px;" alt="Treatment Count Chart" />` : '<div style="padding: 10px; text-align: center; color: #999; font-size: 8pt;">Chart not available</div>';
         const treatmentPieImg = chartImages.treatmentPie ? `<img src="${chartImages.treatmentPie}" style="max-width: 100%; height: auto; display: block; max-height: 140px;" alt="Treatment Distribution Chart" />` : '<div style="padding: 10px; text-align: center; color: #999; font-size: 8pt;">Chart not available</div>';
         
-        const mostCommonList = metrics.mostCommon && metrics.mostCommon.length > 0
-          ? metrics.mostCommon.map(t => `<li>${t.name}: ${t.count} time(s)</li>`).join('')
+        const mostCommonList = safeMetrics.mostCommon && safeMetrics.mostCommon.length > 0
+          ? safeMetrics.mostCommon.map(t => `<li>${t.name}: ${t.count} time(s)</li>`).join('')
           : '<li>No data available</li>';
         
-        const dentistList = metrics.dentistFrequency && metrics.dentistFrequency.length > 0
-          ? metrics.dentistFrequency.map(d => `<li>${d.name}: ${d.count} visit(s)</li>`).join('')
+        const dentistList = safeMetrics.dentistFrequency && safeMetrics.dentistFrequency.length > 0
+          ? safeMetrics.dentistFrequency.map(d => `<li>${d.name}: ${d.count} visit(s)</li>`).join('')
           : '<li>No data available</li>';
 
         return `
@@ -2052,12 +2157,21 @@ const PatientAnalytics = () => {
       };
 
       const buildBranchSection = () => {
-        const metrics = branchMetricsData || branchMetrics;
+        const defaultMetrics = {
+          visitsPerBranch: {},
+          branchTrend: []
+        };
+        const metrics = branchMetricsData || branchMetrics || defaultMetrics;
+        // Ensure metrics has all required properties
+        const safeMetrics = {
+          visitsPerBranch: metrics?.visitsPerBranch ?? {},
+          branchTrend: metrics?.branchTrend ?? []
+        };
         const branchUsageImg = chartImages.branchUsage ? `<img src="${chartImages.branchUsage}" style="max-width: 100%; height: auto; display: block; max-height: 140px;" alt="Branch Preference Chart" />` : '<div style="padding: 10px; text-align: center; color: #999; font-size: 8pt;">Chart not available</div>';
         const branchTrendImg = chartImages.branchTrend ? `<img src="${chartImages.branchTrend}" style="max-width: 100%; height: auto; display: block; max-height: 140px;" alt="Branch Visit Trend Chart" />` : '<div style="padding: 10px; text-align: center; color: #999; font-size: 8pt;">Chart not available</div>';
         
         // Calculate branch percentage
-        const visitsPerBranch = metrics.visitsPerBranch || {};
+        const visitsPerBranch = safeMetrics.visitsPerBranch || {};
         const totalVisits = Object.values(visitsPerBranch).reduce((sum, visits) => sum + visits, 0);
         const calculateBranchPercentage = (branchName) => {
           const visits = visitsPerBranch[branchName] || 0;
@@ -2962,8 +3076,23 @@ const PatientAnalytics = () => {
       
       // Build the same print HTML that's used for printing
       const buildAppointmentSection = () => {
-        const metrics = apptMetrics || appointmentMetrics;
-        if (metrics.total === 0 && (!metrics.trend || metrics.trend.length === 0)) {
+        const defaultMetrics = {
+          total: 0,
+          completed: 0,
+          cancelled: 0,
+          trend: [],
+          avgTimeBetween: 0
+        };
+        const metrics = apptMetrics || appointmentMetrics || defaultMetrics;
+        // Ensure metrics has all required properties
+        const safeMetrics = {
+          total: metrics?.total ?? 0,
+          completed: metrics?.completed ?? 0,
+          cancelled: metrics?.cancelled ?? 0,
+          trend: metrics?.trend ?? [],
+          avgTimeBetween: metrics?.avgTimeBetween ?? 0
+        };
+        if (safeMetrics.total === 0 && (!safeMetrics.trend || safeMetrics.trend.length === 0)) {
           return '<div class="print-section"><h2>Appointment Analytics</h2><p>No appointment data available.</p></div>';
         }
 
@@ -2978,19 +3107,19 @@ const PatientAnalytics = () => {
             <div class="metrics-row">
               <div class="metric-box">
                 <div class="metric-label">Total Appointments</div>
-                <div class="metric-value">${metrics.total}</div>
+                <div class="metric-value">${safeMetrics.total}</div>
               </div>
               <div class="metric-box">
                 <div class="metric-label">Completed</div>
-                <div class="metric-value">${metrics.completed}</div>
+                <div class="metric-value">${safeMetrics.completed}</div>
               </div>
               <div class="metric-box">
                 <div class="metric-label">Cancelled</div>
-                <div class="metric-value">${metrics.cancelled}</div>
+                <div class="metric-value">${safeMetrics.cancelled}</div>
               </div>
               <div class="metric-box">
                 <div class="metric-label">Avg. Days Between Visits</div>
-                <div class="metric-value">${metrics.avgTimeBetween}</div>
+                <div class="metric-value">${safeMetrics.avgTimeBetween}</div>
               </div>
             </div>
             <div class="charts-row">
@@ -3008,18 +3137,29 @@ const PatientAnalytics = () => {
       };
 
       const buildTreatmentSection = () => {
-        const metrics = treatMetrics || treatmentMetrics;
+        const defaultMetrics = {
+          mostCommon: [],
+          countByTimeframe: [],
+          dentistFrequency: []
+        };
+        const metrics = treatMetrics || treatmentMetrics || defaultMetrics;
+        // Ensure metrics has all required properties
+        const safeMetrics = {
+          mostCommon: metrics?.mostCommon ?? [],
+          countByTimeframe: metrics?.countByTimeframe ?? [],
+          dentistFrequency: metrics?.dentistFrequency ?? []
+        };
         const treatmentCountDims = chartDimensions.treatmentCount || { width: 350, height: 200 };
         const treatmentPieDims = chartDimensions.treatmentPie || { width: 350, height: 200 };
         const treatmentCountImg = chartImages.treatmentCount ? `<img src="${chartImages.treatmentCount}" width="${treatmentCountDims.width}" height="${treatmentCountDims.height}" style="max-width: 100%; height: auto; display: block; max-height: 140px;" alt="Treatment Count Chart" />` : '<div style="padding: 10px; text-align: center; color: #999; font-size: 8pt;">Chart not available</div>';
         const treatmentPieImg = chartImages.treatmentPie ? `<img src="${chartImages.treatmentPie}" width="${treatmentPieDims.width}" height="${treatmentPieDims.height}" style="max-width: 100%; height: auto; display: block; max-height: 140px;" alt="Treatment Distribution Chart" />` : '<div style="padding: 10px; text-align: center; color: #999; font-size: 8pt;">Chart not available</div>';
         
-        const mostCommonList = metrics.mostCommon && metrics.mostCommon.length > 0
-          ? metrics.mostCommon.map(t => `<li>${t.name}: ${t.count} time(s)</li>`).join('')
+        const mostCommonList = safeMetrics.mostCommon && safeMetrics.mostCommon.length > 0
+          ? safeMetrics.mostCommon.map(t => `<li>${t.name}: ${t.count} time(s)</li>`).join('')
           : '<li>No data available</li>';
         
-        const dentistList = metrics.dentistFrequency && metrics.dentistFrequency.length > 0
-          ? metrics.dentistFrequency.map(d => `<li>${d.name}: ${d.count} visit(s)</li>`).join('')
+        const dentistList = safeMetrics.dentistFrequency && safeMetrics.dentistFrequency.length > 0
+          ? safeMetrics.dentistFrequency.map(d => `<li>${d.name}: ${d.count} visit(s)</li>`).join('')
           : '<li>No data available</li>';
 
         return `
@@ -3050,13 +3190,22 @@ const PatientAnalytics = () => {
       };
 
       const buildBranchSection = () => {
-        const metrics = branchMetricsData || branchMetrics;
+        const defaultMetrics = {
+          visitsPerBranch: {},
+          branchTrend: []
+        };
+        const metrics = branchMetricsData || branchMetrics || defaultMetrics;
+        // Ensure metrics has all required properties
+        const safeMetrics = {
+          visitsPerBranch: metrics?.visitsPerBranch ?? {},
+          branchTrend: metrics?.branchTrend ?? []
+        };
         const branchUsageDims = chartDimensions.branchUsage || { width: 350, height: 200 };
         const branchTrendDims = chartDimensions.branchTrend || { width: 350, height: 200 };
         const branchUsageImg = chartImages.branchUsage ? `<img src="${chartImages.branchUsage}" width="${branchUsageDims.width}" height="${branchUsageDims.height}" style="max-width: 100%; height: auto; display: block; max-height: 140px;" alt="Branch Preference Chart" />` : '<div style="padding: 10px; text-align: center; color: #999; font-size: 8pt;">Chart not available</div>';
         const branchTrendImg = chartImages.branchTrend ? `<img src="${chartImages.branchTrend}" width="${branchTrendDims.width}" height="${branchTrendDims.height}" style="max-width: 100%; height: auto; display: block; max-height: 140px;" alt="Branch Visit Trend Chart" />` : '<div style="padding: 10px; text-align: center; color: #999; font-size: 8pt;">Chart not available</div>';
         
-        const visitsPerBranch = metrics.visitsPerBranch || {};
+        const visitsPerBranch = safeMetrics.visitsPerBranch || {};
         const totalVisits = Object.values(visitsPerBranch).reduce((sum, visits) => sum + visits, 0);
         const calculateBranchPercentage = (branchName) => {
           const visits = visitsPerBranch[branchName] || 0;
@@ -3625,19 +3774,19 @@ const PatientAnalytics = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-blue-50 rounded-lg p-4">
                   <div className="text-sm text-gray-600 mb-1">Total Appointments</div>
-                  <div className="text-2xl font-bold text-blue-600">{appointmentMetrics.total}</div>
+                  <div className="text-2xl font-bold text-blue-600">{appointmentMetrics?.total ?? 0}</div>
                 </div>
                 <div className="bg-green-50 rounded-lg p-4">
                   <div className="text-sm text-gray-600 mb-1">Completed</div>
-                  <div className="text-2xl font-bold text-green-600">{appointmentMetrics.completed}</div>
+                  <div className="text-2xl font-bold text-green-600">{appointmentMetrics?.completed ?? 0}</div>
                 </div>
                 <div className="bg-red-50 rounded-lg p-4">
                   <div className="text-sm text-gray-600 mb-1">Cancelled</div>
-                  <div className="text-2xl font-bold text-red-600">{appointmentMetrics.cancelled}</div>
+                  <div className="text-2xl font-bold text-red-600">{appointmentMetrics?.cancelled ?? 0}</div>
                 </div>
                 <div className="bg-purple-50 rounded-lg p-4">
                   <div className="text-sm text-gray-600 mb-1">Avg. Days Between Visits</div>
-                  <div className="text-2xl font-bold text-purple-600">{appointmentMetrics.avgTimeBetween}</div>
+                  <div className="text-2xl font-bold text-purple-600">{appointmentMetrics?.avgTimeBetween ?? 0}</div>
                 </div>
               </div>
 
@@ -3676,7 +3825,7 @@ const PatientAnalytics = () => {
               <div className="bg-gray-50 rounded-lg p-4">
                 <h3 className="text-lg font-semibold mb-3 text-gray-700">Most Common Treatments</h3>
                 <div className="space-y-2">
-                  {treatmentMetrics.mostCommon.length === 0 ? (
+                  {!treatmentMetrics?.mostCommon || treatmentMetrics.mostCommon.length === 0 ? (
                     <div className="text-center py-4 text-gray-500">No treatment data available</div>
                   ) : (
                     treatmentMetrics.mostCommon.map((treatment, index) => (
@@ -3693,7 +3842,7 @@ const PatientAnalytics = () => {
               <div className="bg-gray-50 rounded-lg p-4">
                 <h3 className="text-lg font-semibold mb-3 text-gray-700">Dentists Most Frequently Visited</h3>
                 <div className="space-y-2">
-                  {treatmentMetrics.dentistFrequency.length === 0 ? (
+                  {!treatmentMetrics?.dentistFrequency || treatmentMetrics.dentistFrequency.length === 0 ? (
                     <div className="text-center py-4 text-gray-500">No data available</div>
                   ) : (
                     treatmentMetrics.dentistFrequency.map((dentist, index) => (
@@ -3742,7 +3891,7 @@ const PatientAnalytics = () => {
             <div className="space-y-6">
               {/* Branch Statistics */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {Object.entries(branchMetrics.visitsPerBranch).map(([branch, visits]) => (
+                {Object.entries(branchMetrics?.visitsPerBranch || {}).map(([branch, visits]) => (
                   <div key={branch} className="bg-gray-50 rounded-lg p-4">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center">
