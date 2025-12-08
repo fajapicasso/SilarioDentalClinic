@@ -97,6 +97,16 @@ const Register = () => {
   const totalSteps = 4;
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
   const [isTablet, setIsTablet] = useState(window.innerWidth >= 768 && window.innerWidth < 1024);
+
+  // Helper function to capitalize first letter of each word
+  const capitalizeWords = (str) => {
+    if (!str) return str;
+    return str
+      .toLowerCase()
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
   
   // Philippine address cascading dropdowns
   const [provinces, setProvinces] = useState([]);
@@ -953,13 +963,17 @@ const Register = () => {
                           id="first_name"
                           name="first_name"
                         type="text"
-                        className={`block w-full pl-10 pr-3 py-3 sm:py-2.5 md:py-3 lg:py-3.5 border-2 rounded-lg text-sm sm:text-base md:text-base lg:text-lg touch-manipulation ${
+                        className={`block w-full pl-10 pr-3 py-2.5 border-2 rounded-lg ${
                             errors.first_name && touched.first_name
                             ? 'border-red-400 text-red-600 placeholder-red-300 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 bg-red-50'
                             : 'border-gray-300 text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white'
                         } transition-all duration-200`}
                           placeholder={(touched.first_name && errors.first_name) ? errors.first_name : 'Name'}
                         style={{ color: errors.first_name && touched.first_name ? 'rgb(220, 38, 38)' : 'rgb(55, 65, 81)' }}
+                        onChange={(e) => {
+                          const capitalized = capitalizeWords(e.target.value);
+                          setFieldValue('first_name', capitalized);
+                        }}
                       />
                     </div>
                     </div>
@@ -981,6 +995,10 @@ const Register = () => {
                           } transition-all duration-200`}
                           placeholder={(touched.middle_name && errors.middle_name) ? errors.middle_name : 'Middle Name'}
                           style={{ color: errors.middle_name && touched.middle_name ? 'rgb(220, 38, 38)' : 'rgb(55, 65, 81)' }}
+                          onChange={(e) => {
+                            const capitalized = capitalizeWords(e.target.value);
+                            setFieldValue('middle_name', capitalized);
+                          }}
                         />
                       </div>
                   </div>
@@ -1002,6 +1020,10 @@ const Register = () => {
                           } transition-all duration-200`}
                           placeholder={(touched.last_name && errors.last_name) ? errors.last_name : 'Last Name'}
                           style={{ color: errors.last_name && touched.last_name ? 'rgb(220, 38, 38)' : 'rgb(55, 65, 81)' }}
+                          onChange={(e) => {
+                            const capitalized = capitalizeWords(e.target.value);
+                            setFieldValue('last_name', capitalized);
+                          }}
                         />
                       </div>
                     </div>

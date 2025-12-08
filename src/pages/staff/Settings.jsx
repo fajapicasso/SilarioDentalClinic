@@ -131,11 +131,39 @@ const Settings = () => {
       }
     };
     
+  // Helper function to capitalize first letter of each word
+  const capitalizeWords = (str) => {
+    if (!str) return str;
+    return str
+      .toLowerCase()
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
+
   const handleProfileChange = (e) => {
     const { name, value } = e.target;
+    
+    // Apply auto-capitalization to name, address, nationality, and emergency contact fields
+    const fieldsToCapitalize = [
+      'first_name',
+      'middle_name',
+      'last_name',
+      'street',
+      'barangay',
+      'city',
+      'province',
+      'nationality',
+      'emergency_contact_name'
+    ];
+    
+    const processedValue = fieldsToCapitalize.includes(name) 
+      ? capitalizeWords(value)
+      : value;
+    
     setProfile(prev => ({
       ...prev,
-      [name]: value
+      [name]: processedValue
     }));
   };
 

@@ -5,9 +5,11 @@ import { Chart } from 'chart.js/auto';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import supabase from '../../config/supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
 import LoadingSpinner from '../common/LoadingSpinner';
+import { getLogoBase64DataURL } from '../../utils/logoBase64';
 
 const PatientAnalytics = () => {
   const { user } = useAuth();
@@ -49,34 +51,194 @@ const PatientAnalytics = () => {
     if (user) {
       // Only auto-fetch if not custom date range (custom requires manual Apply)
       if (timeFilter !== 'custom') {
-        console.log('Filter changed, fetching analytics for tab:', activeTab, 'with filter:', timeFilter);
-        fetchAnalytics();
+        console.log('Filter changed, fetching all analytics with filter:', timeFilter);
+        fetchAllAnalytics();
       }
     }
-  }, [user, timeFilter, activeTab]);
+  }, [user, timeFilter]);
+
+  // Resize and re-render charts when tab becomes active
+  useEffect(() => {
+    const handleTabChange = async () => {
+      // Wait for DOM to update
+      await new Promise(resolve => setTimeout(resolve, 150));
+
+      // Resize existing charts
+      if (activeTab === 'appointments') {
+        if (window.appointmentTrend && typeof window.appointmentTrend.resize === 'function') {
+          window.appointmentTrend.resize();
+        }
+        if (window.appointmentComparison && typeof window.appointmentComparison.resize === 'function') {
+          window.appointmentComparison.resize();
+        }
+        // Re-render if charts don't exist
+        if (!window.appointmentTrend && (appointmentMetrics.trend.length > 0 || appointmentMetrics.total > 0)) {
+          renderAppointmentCharts();
+        }
+      } else if (activeTab === 'treatments') {
+        if (window.treatmentCount && typeof window.treatmentCount.resize === 'function') {
+          window.treatmentCount.resize();
+        }
+        if (window.treatmentPie && typeof window.treatmentPie.resize === 'function') {
+          window.treatmentPie.resize();
+        }
+        // Re-render if charts don't exist
+        if (!window.treatmentCount && (treatmentMetrics.countByTimeframe.length > 0 || treatmentMetrics.mostCommon.length > 0)) {
+          renderTreatmentCharts();
+        }
+      } else if (activeTab === 'branch') {
+        if (window.branchUsage && typeof window.branchUsage.resize === 'function') {
+          window.branchUsage.resize();
+        }
+        if (window.branchTrend && typeof window.branchTrend.resize === 'function') {
+          window.branchTrend.resize();
+        }
+        // Re-render if charts don't exist
+        if (!window.branchTrend && (branchMetrics.branchTrend.length > 0 || Object.keys(branchMetrics.visitsPerBranch).length > 0)) {
+          renderBranchCharts();
+        }
+      }
+    };
+
+    handleTabChange();
+  }, [activeTab, appointmentMetrics, treatmentMetrics, branchMetrics]);
 
   useEffect(() => {
-    // Add delay to ensure DOM is ready before rendering charts
-    const timeoutId = setTimeout(() => {
-      // Always render all charts when data is available (not just for active tab)
-      // This ensures charts are ready for printing even if their tab isn't active
-      if (appointmentMetrics.trend.length > 0) {
+    // Don't render charts while loading - wait for data to be ready
+    if (loading) {
+      console.log('Still loading, skipping chart rendering');
+      return;
+    }
+
+    // Render all charts when data is available
+    // Since all sections are now always in DOM (using visibility instead of display:none),
+    // we can directly render charts without needing to show/hide sections
+    const renderAllCharts = async () => {
+      // Wait for DOM to be ready - use polling to wait for canvas elements
+      const waitForCanvasElements = async (maxAttempts = 10) => {
+        const canvasIds = [
+          'chart-appointmentTrend',
+          'chart-appointmentComparison',
+          'chart-treatmentCount',
+          'chart-treatmentPie',
+          'chart-branchUsage',
+          'chart-branchTrend'
+        ];
+
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+          let foundCount = 0;
+          canvasIds.forEach(id => {
+            if (document.getElementById(id)) {
+              foundCount++;
+            }
+          });
+
+          if (foundCount === canvasIds.length) {
+            console.log(`✓ All ${canvasIds.length} canvas elements found on attempt ${attempt + 1}`);
+            return true;
+          }
+
+          if (attempt < maxAttempts - 1) {
+            await new Promise(resolve => setTimeout(resolve, 200));
+          }
+        }
+
+        // Final check
+        let foundCount = 0;
+        canvasIds.forEach(id => {
+          const canvas = document.getElementById(id);
+          if (canvas) {
+            foundCount++;
+            console.log(`✓ Found canvas: ${id}`);
+          } else {
+            console.warn(`✗ Canvas ${id} not found`);
+          }
+        });
+
+        console.log(`Found ${foundCount} of ${canvasIds.length} canvas elements after ${maxAttempts} attempts`);
+        return foundCount > 0;
+      };
+
+      // Check if we have any data to render
+      const hasAppointmentData = appointmentMetrics.trend.length > 0 || appointmentMetrics.total > 0;
+      const hasTreatmentData = treatmentMetrics.countByTimeframe.length > 0 || treatmentMetrics.mostCommon.length > 0;
+      const hasBranchData = branchMetrics.branchTrend.length > 0 || Object.keys(branchMetrics.visitsPerBranch).length > 0;
+
+      if (!hasAppointmentData && !hasTreatmentData && !hasBranchData) {
+        console.log('No analytics data available yet, skipping chart rendering');
+        return;
+      }
+
+      console.log('Starting chart rendering process...');
+
+      // Wait for canvas elements to appear in DOM
+      const canvasIds = [
+        'chart-appointmentTrend',
+        'chart-appointmentComparison',
+        'chart-treatmentCount',
+        'chart-treatmentPie',
+        'chart-branchUsage',
+        'chart-branchTrend'
+      ];
+
+      const elementsReady = await waitForCanvasElements(15); // Try for up to 3 seconds
+
+      if (!elementsReady) {
+        console.error('Canvas elements not found after waiting. Charts cannot be rendered.');
+        return;
+      }
+
+      // Ensure canvas parent containers have dimensions
+      canvasIds.forEach(id => {
+        const canvas = document.getElementById(id);
+        if (canvas) {
+          const canvasParent = canvas.parentElement;
+          if (canvasParent) {
+            const rect = canvasParent.getBoundingClientRect();
+            if (rect.width === 0 || rect.height === 0) {
+              // Set minimum dimensions
+              canvasParent.style.minWidth = '400px';
+              canvasParent.style.minHeight = '300px';
+              console.log(`Set min dimensions for ${id} parent`);
+            }
+          }
+        }
+      });
+
+      // Wait a bit more for layout to settle
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Render all charts
+      console.log('Rendering all charts...');
+      if (hasAppointmentData) {
         renderAppointmentCharts();
+        await new Promise(resolve => setTimeout(resolve, 400));
       }
-      if (treatmentMetrics.countByTimeframe.length > 0) {
+      
+      if (hasTreatmentData) {
         renderTreatmentCharts();
+        await new Promise(resolve => setTimeout(resolve, 400));
       }
-      if (branchMetrics.branchTrend.length > 0) {
+      
+      if (hasBranchData) {
         renderBranchCharts();
+        await new Promise(resolve => setTimeout(resolve, 400));
       }
-    }, 300);
+
+      // Wait for charts to fully render
+      await new Promise(resolve => setTimeout(resolve, 500));
+      console.log('All charts rendered successfully!');
+    };
+
+    // Wait a bit longer to ensure DOM is fully ready
+    const timeoutId = setTimeout(() => {
+      renderAllCharts();
+    }, 500);
 
     return () => {
       clearTimeout(timeoutId);
-      // Only cleanup charts when component unmounts, not on tab change
-      // This allows all charts to remain rendered for printing
     };
-  }, [appointmentMetrics, treatmentMetrics, branchMetrics]);
+  }, [appointmentMetrics, treatmentMetrics, branchMetrics, loading]);
 
   const getDateRange = () => {
     const now = new Date();
@@ -164,6 +326,40 @@ const PatientAnalytics = () => {
       }
     } catch (error) {
       console.error('Error fetching analytics:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch all analytics data (like printing function does)
+  const fetchAllAnalytics = async () => {
+    setLoading(true);
+    try {
+      console.log('Fetching all analytics data with filter:', timeFilter);
+      // Fetch all analytics data in parallel
+      const [apptMetrics, treatMetrics, branchMetricsData] = await Promise.all([
+        fetchAppointmentAnalytics().catch(e => { 
+          console.error('Appointment fetch error:', e); 
+          return { total: 0, completed: 0, cancelled: 0, trend: [], avgTimeBetween: 0 }; 
+        }),
+        fetchTreatmentAnalytics().catch(e => { 
+          console.error('Treatment fetch error:', e); 
+          return { mostCommon: [], countByTimeframe: [], dentistFrequency: [] }; 
+        }),
+        fetchBranchAnalytics().catch(e => { 
+          console.error('Branch fetch error:', e); 
+          return { visitsPerBranch: {}, branchTrend: [] }; 
+        })
+      ]);
+      
+      // Update state with fetched data
+      setAppointmentMetrics(apptMetrics);
+      setTreatmentMetrics(treatMetrics);
+      setBranchMetrics(branchMetricsData);
+      
+      console.log('All analytics data fetched successfully');
+    } catch (error) {
+      console.error('Error fetching all analytics:', error);
     } finally {
       setLoading(false);
     }
@@ -483,7 +679,29 @@ const PatientAnalytics = () => {
       trendCanvas = document.getElementById('chart-appointmentTrend');
     }
     
+    // If still not found, search more broadly
+    if (!trendCanvas) {
+      const contentContainer = document.getElementById('patient-analytics-content');
+      if (contentContainer) {
+        trendCanvas = contentContainer.querySelector('#chart-appointmentTrend');
+      }
+    }
+    
     if (trendCanvas && metrics.trend && metrics.trend.length > 0) {
+      // Ensure canvas has dimensions before rendering
+      if (trendCanvas.width === 0 || trendCanvas.height === 0) {
+        const parent = trendCanvas.parentElement;
+        if (parent) {
+          const computedStyle = window.getComputedStyle(parent);
+          const width = parseInt(computedStyle.width) || 400;
+          const height = parseInt(computedStyle.height) || 200;
+          const dpr = window.devicePixelRatio || 1;
+          trendCanvas.width = width * dpr;
+          trendCanvas.height = height * dpr;
+          trendCanvas.style.width = width + 'px';
+          trendCanvas.style.height = height + 'px';
+        }
+      }
       const ctx = trendCanvas.getContext('2d');
       if (window.appointmentTrend) {
         window.appointmentTrend.destroy();
@@ -531,7 +749,29 @@ const PatientAnalytics = () => {
       comparisonCanvas = document.getElementById('chart-appointmentComparison');
     }
     
+    // If still not found, search more broadly
+    if (!comparisonCanvas) {
+      const contentContainer = document.getElementById('patient-analytics-content');
+      if (contentContainer) {
+        comparisonCanvas = contentContainer.querySelector('#chart-appointmentComparison');
+      }
+    }
+    
     if (comparisonCanvas && metrics.total >= 0) {
+      // Ensure canvas has dimensions before rendering
+      if (comparisonCanvas.width === 0 || comparisonCanvas.height === 0) {
+        const parent = comparisonCanvas.parentElement;
+        if (parent) {
+          const computedStyle = window.getComputedStyle(parent);
+          const width = parseInt(computedStyle.width) || 400;
+          const height = parseInt(computedStyle.height) || 200;
+          const dpr = window.devicePixelRatio || 1;
+          comparisonCanvas.width = width * dpr;
+          comparisonCanvas.height = height * dpr;
+          comparisonCanvas.style.width = width + 'px';
+          comparisonCanvas.style.height = height + 'px';
+        }
+      }
       const ctx = comparisonCanvas.getContext('2d');
       if (window.appointmentComparison) {
         window.appointmentComparison.destroy();
@@ -578,7 +818,29 @@ const PatientAnalytics = () => {
       treatmentCountCanvas = document.getElementById('chart-treatmentCount');
     }
     
+    // If still not found, search more broadly
+    if (!treatmentCountCanvas) {
+      const contentContainer = document.getElementById('patient-analytics-content');
+      if (contentContainer) {
+        treatmentCountCanvas = contentContainer.querySelector('#chart-treatmentCount');
+      }
+    }
+    
     if (treatmentCountCanvas && metrics.countByTimeframe && metrics.countByTimeframe.length > 0) {
+      // Ensure canvas has dimensions before rendering
+      if (treatmentCountCanvas.width === 0 || treatmentCountCanvas.height === 0) {
+        const parent = treatmentCountCanvas.parentElement;
+        if (parent) {
+          const computedStyle = window.getComputedStyle(parent);
+          const width = parseInt(computedStyle.width) || 400;
+          const height = parseInt(computedStyle.height) || 200;
+          const dpr = window.devicePixelRatio || 1;
+          treatmentCountCanvas.width = width * dpr;
+          treatmentCountCanvas.height = height * dpr;
+          treatmentCountCanvas.style.width = width + 'px';
+          treatmentCountCanvas.style.height = height + 'px';
+        }
+      }
       const ctx = treatmentCountCanvas.getContext('2d');
       if (window.treatmentCount) {
         window.treatmentCount.destroy();
@@ -625,7 +887,29 @@ const PatientAnalytics = () => {
       treatmentPieCanvas = document.getElementById('chart-treatmentPie');
     }
     
+    // If still not found, search more broadly
+    if (!treatmentPieCanvas) {
+      const contentContainer = document.getElementById('patient-analytics-content');
+      if (contentContainer) {
+        treatmentPieCanvas = contentContainer.querySelector('#chart-treatmentPie');
+      }
+    }
+    
     if (treatmentPieCanvas && metrics.mostCommon && metrics.mostCommon.length > 0) {
+      // Ensure canvas has dimensions before rendering
+      if (treatmentPieCanvas.width === 0 || treatmentPieCanvas.height === 0) {
+        const parent = treatmentPieCanvas.parentElement;
+        if (parent) {
+          const computedStyle = window.getComputedStyle(parent);
+          const width = parseInt(computedStyle.width) || 400;
+          const height = parseInt(computedStyle.height) || 200;
+          const dpr = window.devicePixelRatio || 1;
+          treatmentPieCanvas.width = width * dpr;
+          treatmentPieCanvas.height = height * dpr;
+          treatmentPieCanvas.style.width = width + 'px';
+          treatmentPieCanvas.style.height = height + 'px';
+        }
+      }
       const ctx = treatmentPieCanvas.getContext('2d');
       if (window.treatmentPie) {
         window.treatmentPie.destroy();
@@ -667,7 +951,29 @@ const PatientAnalytics = () => {
       branchUsageCanvas = document.getElementById('chart-branchUsage');
     }
     
+    // If still not found, search more broadly
+    if (!branchUsageCanvas) {
+      const contentContainer = document.getElementById('patient-analytics-content');
+      if (contentContainer) {
+        branchUsageCanvas = contentContainer.querySelector('#chart-branchUsage');
+      }
+    }
+    
     if (branchUsageCanvas && metrics.visitsPerBranch && Object.keys(metrics.visitsPerBranch).length > 0) {
+      // Ensure canvas has dimensions before rendering
+      if (branchUsageCanvas.width === 0 || branchUsageCanvas.height === 0) {
+        const parent = branchUsageCanvas.parentElement;
+        if (parent) {
+          const computedStyle = window.getComputedStyle(parent);
+          const width = parseInt(computedStyle.width) || 400;
+          const height = parseInt(computedStyle.height) || 200;
+          const dpr = window.devicePixelRatio || 1;
+          branchUsageCanvas.width = width * dpr;
+          branchUsageCanvas.height = height * dpr;
+          branchUsageCanvas.style.width = width + 'px';
+          branchUsageCanvas.style.height = height + 'px';
+        }
+      }
       const ctx = branchUsageCanvas.getContext('2d');
       if (window.branchUsage) {
         window.branchUsage.destroy();
@@ -709,7 +1015,29 @@ const PatientAnalytics = () => {
       branchTrendCanvas = document.getElementById('chart-branchTrend');
     }
     
+    // If still not found, search more broadly
+    if (!branchTrendCanvas) {
+      const contentContainer = document.getElementById('patient-analytics-content');
+      if (contentContainer) {
+        branchTrendCanvas = contentContainer.querySelector('#chart-branchTrend');
+      }
+    }
+    
     if (branchTrendCanvas && metrics.branchTrend && metrics.branchTrend.length > 0) {
+      // Ensure canvas has dimensions before rendering
+      if (branchTrendCanvas.width === 0 || branchTrendCanvas.height === 0) {
+        const parent = branchTrendCanvas.parentElement;
+        if (parent) {
+          const computedStyle = window.getComputedStyle(parent);
+          const width = parseInt(computedStyle.width) || 400;
+          const height = parseInt(computedStyle.height) || 200;
+          const dpr = window.devicePixelRatio || 1;
+          branchTrendCanvas.width = width * dpr;
+          branchTrendCanvas.height = height * dpr;
+          branchTrendCanvas.style.width = width + 'px';
+          branchTrendCanvas.style.height = height + 'px';
+        }
+      }
       const ctx = branchTrendCanvas.getContext('2d');
       if (window.branchTrend) {
         window.branchTrend.destroy();
@@ -811,7 +1139,7 @@ const PatientAnalytics = () => {
   };
 
   // Shared helper function to build report HTML (used by both print and PDF)
-  const buildReportHTML = (chartImages, apptMetrics, treatMetrics, branchMetricsData, printDate) => {
+  const buildReportHTML = (chartImages, apptMetrics, treatMetrics, branchMetricsData, printDate, logoDataURL = '') => {
     // Helper function to format date
     const formatDate = (dateStr) => {
       if (!dateStr) return 'N/A';
@@ -971,6 +1299,17 @@ const PatientAnalytics = () => {
               border-bottom: 2px solid #000;
               padding-bottom: 4px;
               margin-bottom: 6px;
+              display: flex;
+              align-items: center;
+              gap: 10px;
+            }
+            .print-header .logo {
+              height: 40px;
+              width: auto;
+              flex-shrink: 0;
+            }
+            .print-header .header-content {
+              flex: 1;
             }
             .print-header h1 {
               margin: 0;
@@ -1108,6 +1447,17 @@ const PatientAnalytics = () => {
             border-bottom: 2px solid #000;
             padding-bottom: 8px;
             margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+          }
+          .print-header .logo {
+            height: 50px;
+            width: auto;
+            flex-shrink: 0;
+          }
+          .print-header .header-content {
+            flex: 1;
           }
           .print-header h1 {
             margin: 0;
@@ -1115,16 +1465,19 @@ const PatientAnalytics = () => {
           }
         </style>
       </head>
-      <body>
-        <div class="print-header">
-          <h1>&#128202; Patient Analytics Report</h1>
-          <div class="filter-info">
-            <strong>Filter:</strong> ${getFilterDisplayText()}
+        <body>
+          <div class="print-header">
+            ${logoDataURL && logoDataURL !== 'data:,' ? `<img src="${logoDataURL}" alt="Silario Clinic Logo" class="logo" />` : ''}
+            <div class="header-content">
+              <h1>Patient Analytics Report</h1>
+              <div class="filter-info">
+                <strong>Filter:</strong> ${getFilterDisplayText()}
+              </div>
+              <div class="print-date">
+                <strong>Generated:</strong> ${printDate}
+              </div>
+            </div>
           </div>
-          <div class="print-date">
-            <strong>Generated:</strong> ${printDate}
-          </div>
-        </div>
         ${buildAppointmentSection()}
         ${buildTreatmentSection()}
         ${buildBranchSection()}
@@ -1558,6 +1911,10 @@ const PatientAnalytics = () => {
         `;
       };
 
+      // Get logo as base64 for print
+      console.log('Getting logo...');
+      const logoDataURL = await getLogoBase64DataURL();
+
       // Create print HTML with all sections
       console.log('Building print HTML...');
       const printHTML = `
@@ -1589,6 +1946,17 @@ const PatientAnalytics = () => {
                 border-bottom: 2px solid #000;
                 padding-bottom: 4px;
                 margin-bottom: 6px;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+              }
+              .print-header .logo {
+                height: 40px;
+                width: auto;
+                flex-shrink: 0;
+              }
+              .print-header .header-content {
+                flex: 1;
               }
               .print-header h1 {
                 margin: 0;
@@ -1726,6 +2094,17 @@ const PatientAnalytics = () => {
               border-bottom: 2px solid #000;
               padding-bottom: 8px;
               margin-bottom: 12px;
+              display: flex;
+              align-items: center;
+              gap: 10px;
+            }
+            .print-header .logo {
+              height: 50px;
+              width: auto;
+              flex-shrink: 0;
+            }
+            .print-header .header-content {
+              flex: 1;
             }
             .print-header h1 {
               margin: 0;
@@ -1735,12 +2114,15 @@ const PatientAnalytics = () => {
         </head>
         <body>
           <div class="print-header">
-            <h1>&#128202; Patient Analytics Report</h1>
-            <div class="filter-info">
-              <strong>Filter:</strong> ${getFilterDisplayText()}
-            </div>
-            <div class="print-date">
-              <strong>Generated:</strong> ${printDate}
+            ${logoDataURL && logoDataURL !== 'data:,' ? `<img src="${logoDataURL}" alt="Silario Clinic Logo" class="logo" />` : ''}
+            <div class="header-content">
+              <h1>Patient Analytics Report</h1>
+              <div class="filter-info">
+                <strong>Filter:</strong> ${getFilterDisplayText()}
+              </div>
+              <div class="print-date">
+                <strong>Generated:</strong> ${printDate}
+              </div>
             </div>
           </div>
           ${buildAppointmentSection()}
@@ -1930,11 +2312,17 @@ const PatientAnalytics = () => {
         })
       ]);
       
-      // Step 2: Update state and wait for React to render
+      // Step 2: Update state and wait for React to render ALL sections
+      const originalActiveTab = activeTab;
+      
+      // Update metrics
       setAppointmentMetrics(apptMetrics);
       setTreatmentMetrics(treatMetrics);
       setBranchMetrics(branchMetricsData);
-      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // CRITICAL: Force React to render all sections by temporarily showing all tabs
+      // We need to manipulate the DOM directly to show all sections
+      await new Promise(resolve => setTimeout(resolve, 800));
       
       // Step 3: Make all tab sections visible temporarily
       const contentContainer = document.getElementById('patient-analytics-content');
@@ -1947,90 +2335,444 @@ const PatientAnalytics = () => {
         throw new Error('Content wrapper not found');
       }
       
-      const allSections = Array.from(wrapperDiv.children).filter(child => 
-        child.hasAttribute('style') && child.getAttribute('style').includes('display')
+      // Find ALL sections - they are direct children divs with inline styles
+      // React renders them all but hides inactive ones with display: none
+      let allSections = Array.from(wrapperDiv.children).filter(child => 
+        child.tagName === 'DIV'
       );
       
-      const originalStyles = new Map();
-      allSections.forEach(section => {
-        originalStyles.set(section, section.style.cssText);
-        section.style.cssText = 'display: block !important; position: absolute; left: -9999px; width: 800px; min-height: 600px;';
+      // If no direct children, try querySelectorAll
+      if (allSections.length === 0) {
+        allSections = Array.from(wrapperDiv.querySelectorAll('div[style]'));
+      }
+      
+      // Also search more broadly
+      if (allSections.length === 0) {
+        allSections = Array.from(contentContainer.querySelectorAll('div[style*="display"]'));
+      }
+      
+      console.log(`Found ${allSections.length} sections to make visible`);
+      
+      // Log section details
+      allSections.forEach((section, idx) => {
+        const canvases = section.querySelectorAll('canvas');
+        console.log(`Section ${idx}: ${canvases.length} canvases, display: ${section.style.display || 'not set'}`);
       });
       
-      await new Promise(resolve => setTimeout(resolve, 300));
+      const originalStyles = new Map();
+      allSections.forEach((section, idx) => {
+        // Save original style
+        const originalStyle = section.getAttribute('style') || '';
+        originalStyles.set(section, originalStyle);
+        
+        // Remove any display:none and make visible with proper dimensions
+        // Use fixed positioning off-screen but with proper dimensions
+        section.style.cssText = 'display: block !important; visibility: visible !important; position: fixed !important; left: -10000px !important; top: 0 !important; width: 800px !important; min-height: 600px !important; opacity: 1 !important; z-index: -1 !important; height: auto !important;';
+        
+        // Find and ensure all canvas containers have dimensions
+        const canvasContainers = section.querySelectorAll('div');
+        canvasContainers.forEach(div => {
+          const hasCanvas = div.querySelector('canvas');
+          if (hasCanvas) {
+            // Ensure container has dimensions
+            const computedStyle = window.getComputedStyle(div);
+            const currentHeight = parseInt(computedStyle.height);
+            const currentWidth = parseInt(computedStyle.width);
+            
+            if (currentHeight === 0 || isNaN(currentHeight)) {
+              div.style.height = '200px';
+              div.style.minHeight = '200px';
+            }
+            if (currentWidth === 0 || isNaN(currentWidth)) {
+              div.style.width = '100%';
+              div.style.minWidth = '400px';
+            }
+            
+            // Also ensure canvas elements themselves are visible
+            const canvases = div.querySelectorAll('canvas');
+            canvases.forEach(canvas => {
+              canvas.style.display = 'block';
+              canvas.style.visibility = 'visible';
+              // Set initial dimensions
+              if (canvas.width === 0 || canvas.height === 0) {
+                canvas.width = 400;
+                canvas.height = 200;
+                canvas.style.width = '400px';
+                canvas.style.height = '200px';
+              }
+            });
+          }
+        });
+      });
       
-      // Step 4: Render all charts
-      console.log('Rendering all charts...');
-      renderAppointmentCharts(apptMetrics);
-      await new Promise(resolve => setTimeout(resolve, 400));
-      renderTreatmentCharts(treatMetrics);
-      await new Promise(resolve => setTimeout(resolve, 400));
-      renderBranchCharts(branchMetricsData);
-      await new Promise(resolve => setTimeout(resolve, 600));
+      // Force multiple reflows to ensure styles are applied
+      void contentContainer.offsetHeight;
+      void wrapperDiv.offsetHeight;
+      allSections.forEach(section => {
+        void section.offsetHeight;
+        // Force reflow on all child elements
+        section.querySelectorAll('*').forEach(el => void el.offsetHeight);
+      });
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Step 5: Convert charts to images
-      const chartImages = {};
-      const chartConfigs = [
-        { name: 'appointmentTrend', ref: appointmentTrendRef, id: 'chart-appointmentTrend' },
-        { name: 'appointmentComparison', ref: appointmentComparisonRef, id: 'chart-appointmentComparison' },
-        { name: 'treatmentCount', ref: treatmentCountRef, id: 'chart-treatmentCount' },
-        { name: 'treatmentPie', ref: treatmentPieRef, id: 'chart-treatmentPie' },
-        { name: 'branchUsage', ref: branchUsageRef, id: 'chart-branchUsage' },
-        { name: 'branchTrend', ref: branchTrendRef, id: 'chart-branchTrend' }
+      // Now find and set dimensions on all canvas elements
+      // Search in multiple ways to ensure we find them
+      let initialCanvases = document.querySelectorAll('canvas');
+      
+      // Also search specifically in our sections
+      allSections.forEach(section => {
+        const sectionCanvases = section.querySelectorAll('canvas');
+        console.log(`Section has ${sectionCanvases.length} canvases`);
+      });
+      
+      // If no canvases found, they might not be rendered yet - wait and try again
+      if (initialCanvases.length === 0) {
+        console.warn('No canvases found initially, waiting for React to render...');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        initialCanvases = document.querySelectorAll('canvas');
+        console.log(`After wait: Found ${initialCanvases.length} canvas elements`);
+      }
+      
+      console.log(`Found ${initialCanvases.length} canvas elements in document`);
+      
+      // Create a map of canvas IDs to canvases for easy lookup
+      const canvasMap = new Map();
+      initialCanvases.forEach((canvas) => {
+        if (canvas.id) {
+          canvasMap.set(canvas.id, canvas);
+        }
+      });
+      
+      // Ensure all required canvases exist and have dimensions
+      // Use the requiredCanvasIds array defined earlier
+      const canvasIdsList = [
+        'chart-appointmentTrend',
+        'chart-appointmentComparison',
+        'chart-treatmentCount',
+        'chart-treatmentPie',
+        'chart-branchUsage',
+        'chart-branchTrend'
       ];
       
-      for (const config of chartConfigs) {
-        try {
-          const canvas = config.ref?.current || document.getElementById(config.id);
-          if (!canvas) {
-            console.warn(`Canvas not found: ${config.name}`);
-            continue;
+      canvasIdsList.forEach(id => {
+        let canvas = canvasMap.get(id) || document.getElementById(id);
+        
+        if (!canvas) {
+          // Try to find in sections
+          for (const section of allSections) {
+            canvas = section.querySelector(`#${id}`);
+            if (canvas) break;
+          }
+        }
+        
+        if (canvas) {
+          // Get dimensions from parent
+          let width = 400;
+          let height = 200;
+          
+          let parent = canvas.parentElement;
+          let attempts = 0;
+          while (parent && attempts < 5) {
+            const computedStyle = window.getComputedStyle(parent);
+            const parentWidth = parseInt(computedStyle.width);
+            const parentHeight = parseInt(computedStyle.height);
+            
+            if (parentWidth > 0 && parentHeight > 0) {
+              width = parentWidth;
+              height = parentHeight;
+              break;
+            }
+            parent = parent.parentElement;
+            attempts++;
           }
           
-          // Update chart instance if exists
-          const chartInstance = window[config.name];
-          if (chartInstance) {
-            if (typeof chartInstance.resize === 'function') chartInstance.resize();
-            if (typeof chartInstance.update === 'function') chartInstance.update('none');
-            await new Promise(resolve => setTimeout(resolve, 100));
+          // Set canvas dimensions explicitly with device pixel ratio
+          const dpr = window.devicePixelRatio || 1;
+          canvas.width = width * dpr;
+          canvas.height = height * dpr;
+          canvas.style.width = width + 'px';
+          canvas.style.height = height + 'px';
+          canvas.style.display = 'block';
+          canvas.style.visibility = 'visible';
+          
+          console.log(`  Set ${id} dimensions to: ${canvas.width}x${canvas.height} (dpr: ${dpr})`);
+        } else {
+          console.warn(`  Canvas ${id} not found in DOM`);
+        }
+      });
+      
+      // Force another reflow after setting dimensions
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      // Step 4: Verify all canvas elements exist before rendering
+      console.log('Checking for required canvas elements...');
+      const missingCanvases = [];
+      canvasIdsList.forEach(id => {
+        const canvas = document.getElementById(id);
+        if (!canvas) {
+          missingCanvases.push(id);
+          console.warn(`Missing canvas: ${id}`);
+        } else {
+          console.log(`✓ Found canvas: ${id} (${canvas.width}x${canvas.height})`);
+        }
+      });
+      
+      if (missingCanvases.length > 0) {
+        console.warn(`Missing ${missingCanvases.length} canvas elements. Attempting to find them...`);
+        // Try to find them in all sections
+        allSections.forEach((section, idx) => {
+          const sectionCanvases = section.querySelectorAll('canvas');
+          console.log(`Section ${idx} canvases:`, Array.from(sectionCanvases).map(c => c.id || '(no id)'));
+        });
+      }
+      
+      // Step 5: Ensure all canvas elements have proper dimensions BEFORE rendering charts
+      console.log('Setting dimensions on all canvas elements before rendering...');
+      
+      canvasIdsList.forEach(id => {
+        const canvas = document.getElementById(id);
+        if (canvas) {
+          // Get dimensions from parent or set defaults
+          let width = 400;
+          let height = 200;
+          
+          let parent = canvas.parentElement;
+          let attempts = 0;
+          while (parent && attempts < 5) {
+            const computedStyle = window.getComputedStyle(parent);
+            const parentWidth = parseInt(computedStyle.width);
+            const parentHeight = parseInt(computedStyle.height);
+            
+            if (parentWidth > 0 && parentHeight > 0) {
+              width = parentWidth;
+              height = parentHeight;
+              break;
+            }
+            parent = parent.parentElement;
+            attempts++;
+          }
+          
+          // Set canvas dimensions
+          const dpr = window.devicePixelRatio || 1;
+          canvas.width = width * dpr;
+          canvas.height = height * dpr;
+          canvas.style.width = width + 'px';
+          canvas.style.height = height + 'px';
+          
+          console.log(`Set ${id} dimensions to: ${canvas.width}x${canvas.height}`);
+        } else {
+          console.warn(`Canvas ${id} not found when setting dimensions`);
+        }
+      });
+      
+      // Wait for dimensions to be applied
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Step 6: Render all charts
+      console.log('Rendering all charts...');
+      console.log('Chart instances before rendering:', {
+        appointmentTrend: !!window.appointmentTrend,
+        appointmentComparison: !!window.appointmentComparison,
+        treatmentCount: !!window.treatmentCount,
+        treatmentPie: !!window.treatmentPie,
+        branchUsage: !!window.branchUsage,
+        branchTrend: !!window.branchTrend
+      });
+      
+      // Render charts with error handling
+      try {
+        renderAppointmentCharts(apptMetrics);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      } catch (e) {
+        console.error('Error rendering appointment charts:', e);
+      }
+      
+      try {
+        renderTreatmentCharts(treatMetrics);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      } catch (e) {
+        console.error('Error rendering treatment charts:', e);
+      }
+      
+      try {
+        renderBranchCharts(branchMetricsData);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      } catch (e) {
+        console.error('Error rendering branch charts:', e);
+      }
+      
+      // Verify canvas dimensions after rendering
+      console.log('Canvas dimensions after chart rendering:');
+      canvasIdsList.forEach(id => {
+        const canvas = document.getElementById(id);
+        if (canvas) {
+          console.log(`  ${id}: ${canvas.width}x${canvas.height}`);
+          // Fix dimensions if still 0x0
+          if (canvas.width === 0 || canvas.height === 0) {
+            console.warn(`  Fixing ${id} dimensions (was 0x0)`);
+            canvas.width = 400;
+            canvas.height = 200;
+            const chartName = id.replace('chart-', '');
+            const chartInstance = window[chartName];
+            if (chartInstance && typeof chartInstance.resize === 'function') {
+              chartInstance.resize();
+            }
+          }
+        }
+      });
+      
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Verify charts were created
+      console.log('Chart instances after rendering:', {
+        appointmentTrend: !!window.appointmentTrend,
+        appointmentComparison: !!window.appointmentComparison,
+        treatmentCount: !!window.treatmentCount,
+        treatmentPie: !!window.treatmentPie,
+        branchUsage: !!window.branchUsage,
+        branchTrend: !!window.branchTrend
+      });
+      
+      // Verify canvas elements again after rendering
+      console.log('Canvas elements after chart rendering:');
+      canvasIdsList.forEach(id => {
+        const canvas = document.getElementById(id);
+        if (canvas) {
+          console.log(`  ${id}: ${canvas.width}x${canvas.height}, Chart instance: ${!!window[id.replace('chart-', '')]}`);
+        } else {
+          console.warn(`  ${id}: NOT FOUND`);
+        }
+      });
+      
+      // Additional wait to ensure all charts are fully rendered
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Force another reflow after chart rendering
+      void contentContainer.offsetHeight;
+      
+      // Step 6: Convert charts to images (SIMPLE - directly from Chart.js instances)
+      console.log('Converting charts to images...');
+      const chartImages = {};
+      
+      // Simple function to convert chart to image
+      const convertChartToImage = async (chartName, chartInstance) => {
+        try {
+          if (!chartInstance) {
+            console.warn(`Chart instance ${chartName} not found`);
+            return null;
+          }
+          
+          // Get canvas from chart instance
+          const canvas = chartInstance.canvas;
+          if (!canvas) {
+            console.warn(`Canvas not found for ${chartName}`);
+            return null;
           }
           
           // Ensure canvas has valid dimensions
           if (canvas.width === 0 || canvas.height === 0) {
-            const parent = canvas.parentElement;
-            if (parent) {
-              const rect = parent.getBoundingClientRect();
-              if (rect.width > 0 && rect.height > 0) {
-                const dpr = window.devicePixelRatio || 1;
-                canvas.width = rect.width * dpr;
-                canvas.height = rect.height * dpr;
-                if (chartInstance && typeof chartInstance.resize === 'function') {
-                  chartInstance.resize();
-                  await new Promise(resolve => setTimeout(resolve, 100));
-                }
-              }
+            // Set default dimensions based on chart type
+            let width = 500;
+            let height = 250;
+            
+            if (chartName.includes('Pie') || chartName.includes('Usage')) {
+              width = 400;
+              height = 400;
+            }
+            
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = width * dpr;
+            canvas.height = height * dpr;
+            canvas.style.width = width + 'px';
+            canvas.style.height = height + 'px';
+            
+            // Update chart to render with new dimensions
+            if (typeof chartInstance.resize === 'function') {
+              chartInstance.resize();
+            }
+            if (typeof chartInstance.update === 'function') {
+              chartInstance.update('none');
+            }
+            await new Promise(resolve => setTimeout(resolve, 400));
+          }
+          
+          // Convert canvas to image
+          if (canvas.width > 0 && canvas.height > 0) {
+            const dataUrl = canvas.toDataURL('image/png', 1.0);
+            if (dataUrl && dataUrl !== 'data:,' && dataUrl.length > 100) {
+              console.log(`✓ Converted ${chartName} to image (${canvas.width}x${canvas.height})`);
+              return dataUrl;
+            } else {
+              console.warn(`Chart ${chartName} produced invalid data URL`);
             }
           }
           
-          // Convert to image
-          if (canvas.width > 0 && canvas.height > 0) {
-            const dataUrl = canvas.toDataURL('image/png', 1.0);
-            if (dataUrl && dataUrl !== 'data:,') {
-              chartImages[config.name] = dataUrl;
-              console.log(`✓ Converted ${config.name}`);
-            }
-          }
+          return null;
         } catch (error) {
-          console.error(`Error converting ${config.name}:`, error);
+          console.error(`Error converting ${chartName}:`, error);
+          return null;
+        }
+      };
+      
+      // Convert all charts directly from Chart.js instances
+      chartImages.appointmentTrend = await convertChartToImage('appointmentTrend', window.appointmentTrend);
+      chartImages.appointmentComparison = await convertChartToImage('appointmentComparison', window.appointmentComparison);
+      chartImages.treatmentCount = await convertChartToImage('treatmentCount', window.treatmentCount);
+      chartImages.treatmentPie = await convertChartToImage('treatmentPie', window.treatmentPie);
+      chartImages.branchUsage = await convertChartToImage('branchUsage', window.branchUsage);
+      chartImages.branchTrend = await convertChartToImage('branchTrend', window.branchTrend);
+      
+      const convertedCount = Object.values(chartImages).filter(img => img !== null).length;
+      console.log(`Chart conversion complete. Successfully converted: ${convertedCount} of 6 charts`);
+      
+      // Step 7: Restore original styles
+      originalStyles.forEach((style, section) => {
+        section.style.cssText = style || '';
+      });
+      
+      // Restore original active tab if we changed it
+      if (originalActiveTab !== activeTab) {
+        setActiveTab(originalActiveTab);
+      }
+      
+      // Step 7: Get logo and build print HTML for PDF
+      console.log('Getting logo for PDF...');
+      const logoDataURL = await getLogoBase64DataURL();
+      
+      // Helper function to get image dimensions from base64
+      const getImageDimensions = (dataUrl) => {
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            resolve({ width: img.width, height: img.height });
+          };
+          img.onerror = () => {
+            resolve({ width: 350, height: 200 }); // Default dimensions
+          };
+          img.src = dataUrl;
+        });
+      };
+      
+      // Get dimensions for all chart images
+      const chartDimensions = {};
+      for (const [key, dataUrl] of Object.entries(chartImages)) {
+        if (dataUrl && dataUrl.startsWith('data:')) {
+          const dims = await getImageDimensions(dataUrl);
+          chartDimensions[key] = dims;
+          console.log(`Chart ${key} dimensions: ${dims.width}x${dims.height}`);
         }
       }
       
-      // Step 6: Restore original styles
-      originalStyles.forEach((style, section) => {
-        section.style.cssText = style;
+      // Log chart images status
+      console.log('Chart images status:', {
+        appointmentTrend: !!chartImages.appointmentTrend,
+        appointmentComparison: !!chartImages.appointmentComparison,
+        treatmentCount: !!chartImages.treatmentCount,
+        treatmentPie: !!chartImages.treatmentPie,
+        branchUsage: !!chartImages.branchUsage,
+        branchTrend: !!chartImages.branchTrend
       });
       
-      // Step 7: Generate PDF using jsPDF directly
       const now = new Date();
       const printDate = now.toLocaleDateString('en-US', {
         year: 'numeric',
@@ -2040,309 +2782,487 @@ const PatientAnalytics = () => {
         minute: '2-digit'
       });
       
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      const margin = 10;
-      const contentWidth = pdfWidth - (margin * 2);
-      let yPosition = margin;
-      
-      // Helper to add new page if needed
-      const checkNewPage = (requiredHeight) => {
-        if (yPosition + requiredHeight > pdfHeight - margin) {
-          pdf.addPage();
-          yPosition = margin;
-          return true;
+      // Build the same print HTML that's used for printing
+      const buildAppointmentSection = () => {
+        const metrics = apptMetrics || appointmentMetrics;
+        if (metrics.total === 0 && (!metrics.trend || metrics.trend.length === 0)) {
+          return '<div class="print-section"><h2>Appointment Analytics</h2><p>No appointment data available.</p></div>';
         }
-        return false;
+
+        const trendDims = chartDimensions.appointmentTrend || { width: 350, height: 200 };
+        const comparisonDims = chartDimensions.appointmentComparison || { width: 350, height: 200 };
+        const trendChartImg = chartImages.appointmentTrend ? `<img src="${chartImages.appointmentTrend}" width="${trendDims.width}" height="${trendDims.height}" style="max-width: 100%; height: auto; display: block; max-height: 140px;" alt="Appointment Trend Chart" />` : '<div style="padding: 10px; text-align: center; color: #999; font-size: 8pt;">Chart not available</div>';
+        const comparisonChartImg = chartImages.appointmentComparison ? `<img src="${chartImages.appointmentComparison}" width="${comparisonDims.width}" height="${comparisonDims.height}" style="max-width: 100%; height: auto; display: block; max-height: 140px;" alt="Completed vs Cancelled Chart" />` : '<div style="padding: 10px; text-align: center; color: #999; font-size: 8pt;">Chart not available</div>';
+
+        return `
+          <div class="print-section">
+            <h2>Appointment Analytics</h2>
+            <div class="metrics-row">
+              <div class="metric-box">
+                <div class="metric-label">Total Appointments</div>
+                <div class="metric-value">${metrics.total}</div>
+              </div>
+              <div class="metric-box">
+                <div class="metric-label">Completed</div>
+                <div class="metric-value">${metrics.completed}</div>
+              </div>
+              <div class="metric-box">
+                <div class="metric-label">Cancelled</div>
+                <div class="metric-value">${metrics.cancelled}</div>
+              </div>
+              <div class="metric-box">
+                <div class="metric-label">Avg. Days Between Visits</div>
+                <div class="metric-value">${metrics.avgTimeBetween}</div>
+              </div>
+            </div>
+            <div class="charts-row">
+              <div class="chart-box">
+                <h3>Appointment Trend</h3>
+                ${trendChartImg}
+              </div>
+              <div class="chart-box">
+                <h3>Completed vs Cancelled</h3>
+                ${comparisonChartImg}
+              </div>
+            </div>
+          </div>
+        `;
       };
-      
-      // Header
-      pdf.setFontSize(18);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('📊 Patient Analytics Report', margin, yPosition);
-      yPosition += 8;
-      
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text(`Filter: ${getFilterDisplayText()}`, margin, yPosition);
-      yPosition += 5;
-      pdf.text(`Generated: ${printDate}`, margin, yPosition);
-      yPosition += 8;
-      
-      // Draw line
-      pdf.setDrawColor(0, 0, 0);
-      pdf.setLineWidth(0.5);
-      pdf.line(margin, yPosition, pdfWidth - margin, yPosition);
-      yPosition += 8;
-      
-      // Appointment Analytics Section
-      if (apptMetrics.total > 0 || (apptMetrics.trend && apptMetrics.trend.length > 0)) {
-        checkNewPage(40);
-        pdf.setFontSize(14);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text('📅 Appointment Analytics', margin, yPosition);
-        yPosition += 8;
+
+      const buildTreatmentSection = () => {
+        const metrics = treatMetrics || treatmentMetrics;
+        const treatmentCountDims = chartDimensions.treatmentCount || { width: 350, height: 200 };
+        const treatmentPieDims = chartDimensions.treatmentPie || { width: 350, height: 200 };
+        const treatmentCountImg = chartImages.treatmentCount ? `<img src="${chartImages.treatmentCount}" width="${treatmentCountDims.width}" height="${treatmentCountDims.height}" style="max-width: 100%; height: auto; display: block; max-height: 140px;" alt="Treatment Count Chart" />` : '<div style="padding: 10px; text-align: center; color: #999; font-size: 8pt;">Chart not available</div>';
+        const treatmentPieImg = chartImages.treatmentPie ? `<img src="${chartImages.treatmentPie}" width="${treatmentPieDims.width}" height="${treatmentPieDims.height}" style="max-width: 100%; height: auto; display: block; max-height: 140px;" alt="Treatment Distribution Chart" />` : '<div style="padding: 10px; text-align: center; color: #999; font-size: 8pt;">Chart not available</div>';
         
-        // Metrics
-        pdf.setFontSize(9);
-        pdf.setFont('helvetica', 'normal');
-        const metrics = [
-          { label: 'Total Appointments', value: apptMetrics.total },
-          { label: 'Completed', value: apptMetrics.completed },
-          { label: 'Cancelled', value: apptMetrics.cancelled },
-          { label: 'Avg. Days Between Visits', value: apptMetrics.avgTimeBetween }
-        ];
+        const mostCommonList = metrics.mostCommon && metrics.mostCommon.length > 0
+          ? metrics.mostCommon.map(t => `<li>${t.name}: ${t.count} time(s)</li>`).join('')
+          : '<li>No data available</li>';
         
-        const boxWidth = contentWidth / 4;
-        metrics.forEach((metric, index) => {
-          const xPos = margin + (index * boxWidth);
-          pdf.setFillColor(245, 245, 245);
-          pdf.rect(xPos, yPosition, boxWidth - 2, 15, 'F');
-          pdf.setFontSize(7);
-          pdf.text(metric.label, xPos + 2, yPosition + 5);
-          pdf.setFontSize(12);
-          pdf.setFont('helvetica', 'bold');
-          pdf.text(String(metric.value), xPos + 2, yPosition + 12);
-          pdf.setFont('helvetica', 'normal');
-        });
-        yPosition += 20;
+        const dentistList = metrics.dentistFrequency && metrics.dentistFrequency.length > 0
+          ? metrics.dentistFrequency.map(d => `<li>${d.name}: ${d.count} visit(s)</li>`).join('')
+          : '<li>No data available</li>';
+
+        return `
+          <div class="print-section">
+            <h2>Treatment Analytics</h2>
+            <div class="info-grid">
+              <div class="info-box">
+                <h3>Most Common Treatments</h3>
+                <ul>${mostCommonList}</ul>
+              </div>
+              <div class="info-box">
+                <h3>Dentists Most Frequently Visited</h3>
+                <ul>${dentistList}</ul>
+              </div>
+            </div>
+            <div class="charts-row">
+              <div class="chart-box">
+                <h3>Treatment Count Over Time</h3>
+                ${treatmentCountImg}
+              </div>
+              <div class="chart-box">
+                <h3>Treatment Distribution</h3>
+                ${treatmentPieImg}
+              </div>
+            </div>
+          </div>
+        `;
+      };
+
+      const buildBranchSection = () => {
+        const metrics = branchMetricsData || branchMetrics;
+        const branchUsageDims = chartDimensions.branchUsage || { width: 350, height: 200 };
+        const branchTrendDims = chartDimensions.branchTrend || { width: 350, height: 200 };
+        const branchUsageImg = chartImages.branchUsage ? `<img src="${chartImages.branchUsage}" width="${branchUsageDims.width}" height="${branchUsageDims.height}" style="max-width: 100%; height: auto; display: block; max-height: 140px;" alt="Branch Preference Chart" />` : '<div style="padding: 10px; text-align: center; color: #999; font-size: 8pt;">Chart not available</div>';
+        const branchTrendImg = chartImages.branchTrend ? `<img src="${chartImages.branchTrend}" width="${branchTrendDims.width}" height="${branchTrendDims.height}" style="max-width: 100%; height: auto; display: block; max-height: 140px;" alt="Branch Visit Trend Chart" />` : '<div style="padding: 10px; text-align: center; color: #999; font-size: 8pt;">Chart not available</div>';
         
-        // Charts
-        const chartStartY = yPosition;
-        if (chartImages.appointmentTrend) {
-          checkNewPage(50);
-          pdf.setFontSize(10);
-          pdf.text('Appointment Trend', margin, yPosition);
-          yPosition += 5;
-          try {
-            const img = new Image();
-            img.src = chartImages.appointmentTrend;
-            await new Promise((resolve) => {
-              img.onload = () => {
-                const imgWidth = 90;
-                const imgHeight = (img.height / img.width) * imgWidth;
-                pdf.addImage(chartImages.appointmentTrend, 'PNG', margin, yPosition, imgWidth, imgHeight);
-                resolve();
-              };
-              img.onerror = () => {
-                console.error('Failed to load appointment trend image');
-                resolve();
-              };
-              setTimeout(resolve, 2000);
-            });
-          } catch (e) {
-            console.error('Error adding appointment trend chart:', e);
-          }
-        }
+        const visitsPerBranch = metrics.visitsPerBranch || {};
+        const totalVisits = Object.values(visitsPerBranch).reduce((sum, visits) => sum + visits, 0);
+        const calculateBranchPercentage = (branchName) => {
+          const visits = visitsPerBranch[branchName] || 0;
+          return totalVisits > 0 ? ((visits / totalVisits) * 100).toFixed(1) : 0;
+        };
         
-        if (chartImages.appointmentComparison) {
-          const comparisonY = chartStartY + 5;
-          pdf.setFontSize(10);
-          pdf.text('Completed vs Cancelled', margin + 95, comparisonY);
-          try {
-            const img = new Image();
-            img.src = chartImages.appointmentComparison;
-            await new Promise((resolve) => {
-              img.onload = () => {
-                const imgWidth = 90;
-                const imgHeight = (img.height / img.width) * imgWidth;
-                pdf.addImage(chartImages.appointmentComparison, 'PNG', margin + 95, comparisonY + 5, imgWidth, imgHeight);
-                resolve();
-              };
-              img.onerror = () => {
-                console.error('Failed to load appointment comparison image');
-                resolve();
-              };
-              setTimeout(resolve, 2000);
-            });
-          } catch (e) {
-            console.error('Error adding appointment comparison chart:', e);
-          }
-        }
-        yPosition += 55;
+        const branchStats = Object.keys(visitsPerBranch).length > 0
+          ? Object.entries(visitsPerBranch).map(([branch, visits]) => 
+              `<div class="branch-stat"><strong>${branch}:</strong> ${visits} visits (${calculateBranchPercentage(branch)}%)</div>`
+            ).join('')
+          : '<div>No branch data available</div>';
+
+        return `
+          <div class="print-section">
+            <h2>Branch Usage Analytics</h2>
+            <div class="branch-stats">${branchStats}</div>
+            <div class="charts-row">
+              <div class="chart-box">
+                <h3>Branch Preference</h3>
+                ${branchUsageImg}
+              </div>
+              <div class="chart-box">
+                <h3>Branch Visit Trend</h3>
+                ${branchTrendImg}
+              </div>
+            </div>
+          </div>
+        `;
+      };
+
+      // Create print HTML (same as print version)
+      const printHTML = `
+      <!DOCTYPE html>
+      <html lang="en">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Patient Analytics Report</title>
+          <style>
+            * {
+              box-sizing: border-box;
+            }
+            body {
+              font-family: Arial, sans-serif;
+              font-size: 9pt;
+              color: #000;
+              background: #fff;
+              margin: 0;
+              padding: 10px;
+              line-height: 1.2;
+            }
+            .print-header {
+              border-bottom: 2px solid #000;
+              padding-bottom: 8px;
+              margin-bottom: 12px;
+              display: flex;
+              align-items: center;
+              gap: 10px;
+            }
+            .print-header .logo {
+              height: 50px;
+              width: auto;
+              flex-shrink: 0;
+            }
+            .print-header .header-content {
+              flex: 1;
+            }
+            .print-header h1 {
+              margin: 0;
+              font-size: 18pt;
+            }
+            .print-header .filter-info {
+              margin-top: 2px;
+              font-size: 8pt;
+              color: #333;
+              line-height: 1.2;
+            }
+            .print-header .print-date {
+              margin-top: 2px;
+              font-size: 7pt;
+              color: #666;
+              line-height: 1.2;
+            }
+            .print-section {
+              margin-bottom: 8px;
+              page-break-inside: avoid;
+              break-inside: avoid;
+            }
+            .print-section h2 {
+              font-size: 11pt;
+              border-bottom: 1px solid #ccc;
+              padding-bottom: 2px;
+              margin-bottom: 5px;
+              margin-top: 5px;
+              color: #000;
+              line-height: 1.2;
+            }
+            .print-section h3 {
+              font-size: 9pt;
+              margin-top: 4px;
+              margin-bottom: 3px;
+              color: #000;
+              line-height: 1.2;
+            }
+            .metrics-row {
+              display: grid;
+              grid-template-columns: repeat(4, 1fr);
+              gap: 5px;
+              margin-bottom: 6px;
+            }
+            .metric-box {
+              background: #f9f9f9;
+              border: 1px solid #ddd;
+              padding: 6px;
+              text-align: center;
+              border-radius: 2px;
+            }
+            .metric-label {
+              font-size: 8pt;
+              color: #666;
+              margin-bottom: 2px;
+              line-height: 1.2;
+            }
+            .metric-value {
+              font-size: 16pt;
+              font-weight: bold;
+              color: #000;
+              line-height: 1.2;
+            }
+            .charts-row {
+              display: grid;
+              grid-template-columns: repeat(2, 1fr);
+              gap: 6px;
+              margin-bottom: 6px;
+            }
+            .chart-box {
+              background: #f9f9f9;
+              border: 1px solid #ddd;
+              padding: 6px;
+              border-radius: 2px;
+            }
+            .chart-box h3 {
+              font-size: 9pt;
+              margin: 0 0 4px 0;
+              line-height: 1.2;
+            }
+            .chart-box img {
+              max-width: 100%;
+              height: auto;
+              max-height: 140px;
+              display: block;
+            }
+            .info-grid {
+              display: grid;
+              grid-template-columns: repeat(2, 1fr);
+              gap: 6px;
+              margin-bottom: 6px;
+            }
+            .info-box {
+              background: #f9f9f9;
+              border: 1px solid #ddd;
+              padding: 6px;
+              border-radius: 2px;
+            }
+            .info-box ul {
+              margin: 3px 0;
+              padding-left: 18px;
+              font-size: 8pt;
+              line-height: 1.3;
+            }
+            .info-box li {
+              margin: 2px 0;
+            }
+            .branch-stats {
+              background: #f9f9f9;
+              border: 1px solid #ddd;
+              padding: 6px;
+              margin-bottom: 6px;
+              border-radius: 2px;
+              font-size: 8pt;
+              line-height: 1.3;
+            }
+            .branch-stat {
+              margin: 2px 0;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="print-header">
+            ${logoDataURL && logoDataURL !== 'data:,' ? `<img src="${logoDataURL}" alt="Silario Clinic Logo" class="logo" />` : ''}
+            <div class="header-content">
+              <h1>Patient Analytics Report</h1>
+              <div class="filter-info">
+                <strong>Filter:</strong> ${getFilterDisplayText()}
+              </div>
+              <div class="print-date">
+                <strong>Generated:</strong> ${printDate}
+              </div>
+            </div>
+          </div>
+          ${buildAppointmentSection()}
+          ${buildTreatmentSection()}
+          ${buildBranchSection()}
+        </body>
+      </html>
+      `;
+
+      // Step 8: Convert HTML to canvas using html2canvas
+      console.log('Converting HTML to canvas...');
+      const parser = new DOMParser();
+      const parsed = parser.parseFromString(printHTML, 'text/html');
+
+      const container = document.createElement('div');
+      container.style.position = 'fixed';
+      container.style.left = '-10000px';
+      container.style.top = '0';
+      container.style.width = '794px'; // A4 width in pixels at 96 DPI
+      container.style.background = '#fff';
+
+      // Copy styles from the template
+      const styleEl = parsed.querySelector('style');
+      if (styleEl) {
+        const cloneStyle = document.createElement('style');
+        cloneStyle.textContent = styleEl.textContent || '';
+        container.appendChild(cloneStyle);
       }
       
-      // Treatment Analytics Section
-      if (treatMetrics.mostCommon?.length > 0 || treatMetrics.countByTimeframe?.length > 0) {
-        checkNewPage(40);
-        pdf.setFontSize(14);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text('🦷 Treatment Analytics', margin, yPosition);
-        yPosition += 8;
+      // Move all body children
+      Array.from(parsed.body.childNodes).forEach((n) => container.appendChild(n.cloneNode(true)));
+      document.body.appendChild(container);
+
+      // Wait for images to load with timeout and validation
+      const images = Array.from(container.querySelectorAll('img'));
+      console.log(`Waiting for ${images.length} images to load...`);
+      
+      // Set explicit dimensions for chart images to help html2canvas
+      images.forEach((img, index) => {
+        if (img.src && img.src.startsWith('data:')) {
+          // For base64 images, we need to load them first to get dimensions
+          const tempImg = new Image();
+          tempImg.onload = () => {
+            if (!img.width || !img.height) {
+              img.width = tempImg.width;
+              img.height = tempImg.height;
+              // Maintain aspect ratio but limit max height
+              if (img.height > 140) {
+                const ratio = 140 / img.height;
+                img.width = img.width * ratio;
+                img.height = 140;
+              }
+            }
+          };
+          tempImg.src = img.src;
+        }
+      });
+      
+      await Promise.all(images.map((img, index) => new Promise((res) => { 
+        const timeout = setTimeout(() => {
+          console.warn(`Image ${index} load timeout, src: ${img.src ? img.src.substring(0, 50) : 'no src'}...`);
+          res();
+        }, 10000);
         
-        // Most Common Treatments
-        if (treatMetrics.mostCommon?.length > 0) {
-          pdf.setFontSize(10);
-          pdf.setFont('helvetica', 'bold');
-          pdf.text('Most Common Treatments:', margin, yPosition);
-          yPosition += 6;
-          pdf.setFontSize(9);
-          pdf.setFont('helvetica', 'normal');
-          treatMetrics.mostCommon.forEach(treatment => {
-            checkNewPage(6);
-            pdf.text(`• ${treatment.name}: ${treatment.count} time(s)`, margin + 5, yPosition);
-            yPosition += 5;
+        if (img.complete && img.naturalWidth > 0) {
+          clearTimeout(timeout);
+          console.log(`Image ${index} already loaded (${img.naturalWidth}x${img.naturalHeight})`);
+          res();
+        } else if (img.src && img.src.startsWith('data:')) {
+          // For base64 images, create a new image to ensure it loads
+          const tempImg = new Image();
+          tempImg.onload = () => {
+            clearTimeout(timeout);
+            console.log(`Image ${index} (base64) loaded successfully (${tempImg.width}x${tempImg.height})`);
+            // Ensure the original img has the same dimensions
+            if (!img.width || !img.height) {
+              img.width = tempImg.width;
+              img.height = tempImg.height;
+            }
+            res();
+          };
+          tempImg.onerror = (err) => {
+            clearTimeout(timeout);
+            console.error(`Image ${index} (base64) failed to load:`, err);
+            res();
+          };
+          tempImg.src = img.src;
+        } else {
+          img.onload = () => {
+            clearTimeout(timeout);
+            console.log(`Image ${index} loaded successfully (${img.naturalWidth}x${img.naturalHeight})`);
+            res();
+          };
+          img.onerror = (err) => {
+            clearTimeout(timeout);
+            console.error(`Image ${index} failed to load:`, err, img.src);
+            res();
+          };
+        }
+      })));
+      
+      // Additional wait to ensure all images are rendered
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      console.log('All images loaded, rendering to canvas...');
+      console.log('Chart images available:', Object.keys(chartImages).length);
+      
+      // Verify images are still in the container
+      const finalImages = Array.from(container.querySelectorAll('img'));
+      console.log(`Final image count: ${finalImages.length}`);
+      finalImages.forEach((img, index) => {
+        console.log(`Image ${index}: src length=${img.src ? img.src.length : 0}, width=${img.width || img.naturalWidth}, height=${img.height || img.naturalHeight}`);
+      });
+
+      // Render container to canvas with better configuration
+      const canvas = await html2canvas(container, { 
+        scale: 2, 
+        useCORS: true, 
+        backgroundColor: '#ffffff',
+        allowTaint: true,
+        logging: false,
+        imageTimeout: 15000,
+        removeContainer: false,
+        onclone: (clonedDoc) => {
+          // Ensure all images in cloned document are loaded
+          const clonedImages = clonedDoc.querySelectorAll('img');
+          clonedImages.forEach((img, index) => {
+            if (img.src && img.src.startsWith('data:')) {
+              console.log(`Cloned image ${index} has data URL: ${img.src.substring(0, 50)}...`);
+            }
           });
-          yPosition += 3;
         }
-        
-        // Dentist Frequency
-        if (treatMetrics.dentistFrequency?.length > 0) {
-          checkNewPage(30);
-          pdf.setFontSize(10);
-          pdf.setFont('helvetica', 'bold');
-          pdf.text('Dentists Most Frequently Visited:', margin + 95, yPosition - (treatMetrics.mostCommon?.length * 5 || 0) - 6);
-          pdf.setFontSize(9);
-          pdf.setFont('helvetica', 'normal');
-          let dentistY = yPosition - (treatMetrics.mostCommon?.length * 5 || 0);
-          treatMetrics.dentistFrequency.forEach(dentist => {
-            checkNewPage(6);
-            pdf.text(`• ${dentist.name}: ${dentist.count} visit(s)`, margin + 100, dentistY);
-            dentistY += 5;
-          });
-          yPosition = Math.max(yPosition, dentistY) + 3;
-        }
-        
-        // Treatment Charts
-        const treatmentChartStartY = yPosition;
-        if (chartImages.treatmentCount) {
-          checkNewPage(50);
-          pdf.setFontSize(10);
-          pdf.text('Treatment Count Over Time', margin, yPosition);
-          yPosition += 5;
-          try {
-            const img = new Image();
-            img.src = chartImages.treatmentCount;
-            await new Promise((resolve) => {
-              img.onload = () => {
-                const imgWidth = 90;
-                const imgHeight = (img.height / img.width) * imgWidth;
-                pdf.addImage(chartImages.treatmentCount, 'PNG', margin, yPosition, imgWidth, imgHeight);
-                resolve();
-              };
-              img.onerror = () => {
-                console.error('Failed to load treatment count image');
-                resolve();
-              };
-              setTimeout(resolve, 2000);
-            });
-          } catch (e) {
-            console.error('Error adding treatment count chart:', e);
-          }
-        }
-        
-        if (chartImages.treatmentPie) {
-          const pieY = treatmentChartStartY + 5;
-          pdf.setFontSize(10);
-          pdf.text('Treatment Distribution', margin + 95, pieY);
-          try {
-            const img = new Image();
-            img.src = chartImages.treatmentPie;
-            await new Promise((resolve) => {
-              img.onload = () => {
-                const imgWidth = 90;
-                const imgHeight = (img.height / img.width) * imgWidth;
-                pdf.addImage(chartImages.treatmentPie, 'PNG', margin + 95, pieY + 5, imgWidth, imgHeight);
-                resolve();
-              };
-              img.onerror = () => {
-                console.error('Failed to load treatment pie image');
-                resolve();
-              };
-              setTimeout(resolve, 2000);
-            });
-          } catch (e) {
-            console.error('Error adding treatment pie chart:', e);
-          }
-        }
-        yPosition += 55;
+      });
+      
+      if (!canvas) {
+        throw new Error('Failed to render canvas');
       }
       
-      // Branch Analytics Section
-      const branchKeys = Object.keys(branchMetricsData.visitsPerBranch || {});
-      if (branchKeys.length > 0 || branchMetricsData.branchTrend?.length > 0) {
-        checkNewPage(40);
-        pdf.setFontSize(14);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text('📍 Branch Usage Analytics', margin, yPosition);
-        yPosition += 8;
-        
-        // Branch Stats
-        if (branchKeys.length > 0) {
-          pdf.setFontSize(9);
-          pdf.setFont('helvetica', 'normal');
-          const totalVisits = Object.values(branchMetricsData.visitsPerBranch).reduce((a, b) => a + b, 0);
-          branchKeys.forEach(branch => {
-            checkNewPage(6);
-            const visits = branchMetricsData.visitsPerBranch[branch];
-            const percentage = totalVisits > 0 ? ((visits / totalVisits) * 100).toFixed(1) : 0;
-            pdf.text(`${branch}: ${visits} visits (${percentage}%)`, margin + 5, yPosition);
-            yPosition += 5;
-          });
-          yPosition += 3;
-        }
-        
-        // Branch Charts
-        const branchChartStartY = yPosition;
-        if (chartImages.branchUsage) {
-          checkNewPage(50);
-          pdf.setFontSize(10);
-          pdf.text('Branch Preference', margin, yPosition);
-          yPosition += 5;
-          try {
-            const img = new Image();
-            img.src = chartImages.branchUsage;
-            await new Promise((resolve) => {
-              img.onload = () => {
-                const imgWidth = 90;
-                const imgHeight = (img.height / img.width) * imgWidth;
-                pdf.addImage(chartImages.branchUsage, 'PNG', margin, yPosition, imgWidth, imgHeight);
-                resolve();
-              };
-              img.onerror = () => {
-                console.error('Failed to load branch usage image');
-                resolve();
-              };
-              setTimeout(resolve, 2000);
-            });
-          } catch (e) {
-            console.error('Error adding branch usage chart:', e);
-          }
-        }
-        
-        if (chartImages.branchTrend) {
-          const trendY = branchChartStartY + 5;
-          pdf.setFontSize(10);
-          pdf.text('Branch Visit Trend', margin + 95, trendY);
-          try {
-            const img = new Image();
-            img.src = chartImages.branchTrend;
-            await new Promise((resolve) => {
-              img.onload = () => {
-                const imgWidth = 90;
-                const imgHeight = (img.height / img.width) * imgWidth;
-                pdf.addImage(chartImages.branchTrend, 'PNG', margin + 95, trendY + 5, imgWidth, imgHeight);
-                resolve();
-              };
-              img.onerror = () => {
-                console.error('Failed to load branch trend image');
-                resolve();
-              };
-              setTimeout(resolve, 2000);
-            });
-          } catch (e) {
-            console.error('Error adding branch trend chart:', e);
-          }
-        }
-        yPosition += 55;
+      console.log('Canvas rendered successfully, dimensions:', canvas.width, 'x', canvas.height);
+      
+      // Clean up container
+      document.body.removeChild(container);
+
+      // Step 9: Generate PDF from canvas
+      const pdf = new jsPDF('p', 'pt', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const marginPt = 43; // ~1.5 cm
+      const sideMargin = marginPt;
+      const topMarginFirst = marginPt;
+      const topMarginNext = marginPt;
+      const bottomMargin = marginPt;
+      const contentWidthPt = pageWidth - sideMargin * 2;
+      const contentHeightPt = pageHeight - topMarginFirst - bottomMargin;
+      const pxPerPt = canvas.width / contentWidthPt;
+
+      // Helper to add a vertical slice of the canvas at a target Y in PDF
+      const addSlice = (startPx, heightPx, destYpt) => {
+        const sliceCanvas = document.createElement('canvas');
+        sliceCanvas.width = canvas.width;
+        sliceCanvas.height = heightPx;
+        const ctx = sliceCanvas.getContext('2d');
+        ctx.drawImage(canvas, 0, startPx, canvas.width, heightPx, 0, 0, canvas.width, heightPx);
+        const imgData = sliceCanvas.toDataURL('image/png');
+        pdf.addImage(imgData, 'PNG', sideMargin, destYpt, contentWidthPt, heightPx / pxPerPt);
+      };
+
+      // First page
+      const firstHeightPx = Math.min(canvas.height, Math.floor(contentHeightPt * pxPerPt));
+      addSlice(0, firstHeightPx, topMarginFirst);
+      let cursorPx = firstHeightPx;
+
+      // Subsequent pages
+      while (cursorPx < canvas.height) {
+        pdf.addPage();
+        const remainingPx = canvas.height - cursorPx;
+        const sliceHeightPx = Math.min(remainingPx, Math.floor(contentHeightPt * pxPerPt));
+        addSlice(cursorPx, sliceHeightPx, topMarginNext);
+        cursorPx += sliceHeightPx;
       }
       
       // Save PDF
       const fileName = `Patient_Analytics_Report_${now.toISOString().split('T')[0]}.pdf`;
       pdf.save(fileName);
       
-      console.log('PDF generated successfully');
+      console.log('PDF generated and saved successfully');
       setLoading(false);
     } catch (error) {
       console.error('Error generating PDF:', error);
@@ -2376,7 +3296,7 @@ const PatientAnalytics = () => {
             Print
           </button>
           <button
-            onClick={fetchAnalytics}
+            onClick={fetchAllAnalytics}
             disabled={loading}
             className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
           >
@@ -2447,7 +3367,7 @@ const PatientAnalytics = () => {
               <button
                 onClick={() => {
                   if (customStartDate && customEndDate) {
-                    fetchAnalytics();
+                    fetchAllAnalytics();
                   }
                 }}
                 disabled={!customStartDate || !customEndDate || loading}
@@ -2500,13 +3420,27 @@ const PatientAnalytics = () => {
       </div>
 
       {/* Content */}
-      <div id="patient-analytics-content">
-        {loading ? (
-          <LoadingSpinner />
-        ) : (
-          <div>
+      <div id="patient-analytics-content" className="relative">
+        {loading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 z-50">
+            <LoadingSpinner />
+          </div>
+        )}
+        <div style={{ opacity: loading ? 0.3 : 1 }}>
           {/* Always render all sections for printing, but hide inactive ones */}
-          <div style={{ display: activeTab === 'appointments' ? 'block' : 'none' }}>
+          {/* Use visibility and position instead of display:none to keep canvas elements in DOM */}
+          <div 
+            style={{ 
+              display: 'block',
+              visibility: activeTab === 'appointments' ? 'visible' : 'hidden',
+              position: activeTab === 'appointments' ? 'static' : 'absolute',
+              left: activeTab === 'appointments' ? 'auto' : '-9999px',
+              width: activeTab === 'appointments' ? 'auto' : '800px',
+              minHeight: activeTab === 'appointments' ? 'auto' : '600px',
+              opacity: activeTab === 'appointments' ? 1 : 0,
+              pointerEvents: activeTab === 'appointments' ? 'auto' : 'none'
+            }}
+          >
             <div className="space-y-6">
               {/* Metrics Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -2532,13 +3466,13 @@ const PatientAnalytics = () => {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="bg-gray-50 rounded-lg p-4">
                   <h3 className="text-lg font-semibold mb-3 text-gray-700">Appointment Trend</h3>
-                  <div className="h-48">
+                  <div className="h-48" style={{ minWidth: '300px', minHeight: '192px' }}>
                     <canvas ref={appointmentTrendRef} id="chart-appointmentTrend"></canvas>
                   </div>
                 </div>
                 <div className="bg-gray-50 rounded-lg p-4">
                   <h3 className="text-lg font-semibold mb-3 text-gray-700">Completed vs Cancelled</h3>
-                  <div className="h-48">
+                  <div className="h-48" style={{ minWidth: '300px', minHeight: '192px' }}>
                     <canvas ref={appointmentComparisonRef} id="chart-appointmentComparison"></canvas>
                   </div>
                 </div>
@@ -2546,7 +3480,18 @@ const PatientAnalytics = () => {
             </div>
           </div>
 
-          <div style={{ display: activeTab === 'treatments' ? 'block' : 'none' }}>
+          <div 
+            style={{ 
+              display: 'block',
+              visibility: activeTab === 'treatments' ? 'visible' : 'hidden',
+              position: activeTab === 'treatments' ? 'static' : 'absolute',
+              left: activeTab === 'treatments' ? 'auto' : '-9999px',
+              width: activeTab === 'treatments' ? 'auto' : '800px',
+              minHeight: activeTab === 'treatments' ? 'auto' : '600px',
+              opacity: activeTab === 'treatments' ? 1 : 0,
+              pointerEvents: activeTab === 'treatments' ? 'auto' : 'none'
+            }}
+          >
             <div className="space-y-6">
               {/* Most Common Treatments */}
               <div className="bg-gray-50 rounded-lg p-4">
@@ -2589,13 +3534,13 @@ const PatientAnalytics = () => {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="bg-gray-50 rounded-lg p-4">
                   <h3 className="text-lg font-semibold mb-3 text-gray-700">Treatment Count Over Time</h3>
-                  <div className="h-64">
+                  <div className="h-64" style={{ minWidth: '300px', minHeight: '256px' }}>
                     <canvas ref={treatmentCountRef} id="chart-treatmentCount"></canvas>
                   </div>
                 </div>
                 <div className="bg-gray-50 rounded-lg p-4">
                   <h3 className="text-lg font-semibold mb-3 text-gray-700">Treatment Distribution</h3>
-                  <div className="h-64">
+                  <div className="h-64" style={{ minWidth: '300px', minHeight: '256px' }}>
                     <canvas ref={treatmentPieRef} id="chart-treatmentPie"></canvas>
                   </div>
                 </div>
@@ -2603,7 +3548,18 @@ const PatientAnalytics = () => {
             </div>
           </div>
 
-          <div style={{ display: activeTab === 'branch' ? 'block' : 'none' }}>
+          <div 
+            style={{ 
+              display: 'block',
+              visibility: activeTab === 'branch' ? 'visible' : 'hidden',
+              position: activeTab === 'branch' ? 'static' : 'absolute',
+              left: activeTab === 'branch' ? 'auto' : '-9999px',
+              width: activeTab === 'branch' ? 'auto' : '800px',
+              minHeight: activeTab === 'branch' ? 'auto' : '600px',
+              opacity: activeTab === 'branch' ? 1 : 0,
+              pointerEvents: activeTab === 'branch' ? 'auto' : 'none'
+            }}
+          >
             <div className="space-y-6">
               {/* Branch Statistics */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -2633,13 +3589,13 @@ const PatientAnalytics = () => {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="bg-gray-50 rounded-lg p-4">
                   <h3 className="text-lg font-semibold mb-3 text-gray-700">Branch Preference</h3>
-                  <div className="h-64">
+                  <div className="h-64" style={{ minWidth: '300px', minHeight: '256px' }}>
                     <canvas ref={branchUsageRef} id="chart-branchUsage"></canvas>
                   </div>
                 </div>
                 <div className="bg-gray-50 rounded-lg p-4">
                   <h3 className="text-lg font-semibold mb-3 text-gray-700">Branch Visit Trend</h3>
-                  <div className="h-64">
+                  <div className="h-64" style={{ minWidth: '300px', minHeight: '256px' }}>
                     <canvas ref={branchTrendRef} id="chart-branchTrend"></canvas>
                   </div>
                 </div>
@@ -2647,7 +3603,6 @@ const PatientAnalytics = () => {
             </div>
           </div>
         </div>
-      )}
       </div>
     </div>
   );

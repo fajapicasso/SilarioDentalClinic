@@ -32,6 +32,38 @@ const UserManagement = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
+  // Helper function to capitalize first letter of each word
+  const capitalizeWords = (str) => {
+    if (!str) return str;
+    return str
+      .toLowerCase()
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
+
+  // Helper function to handle form field changes with auto-capitalization
+  const handleFormFieldChange = (field, value) => {
+    const fieldsToCapitalize = [
+      'first_name',
+      'middle_name',
+      'last_name',
+      'street',
+      'barangay',
+      'city',
+      'province'
+    ];
+    
+    const processedValue = fieldsToCapitalize.includes(field) 
+      ? capitalizeWords(value)
+      : value;
+    
+    setFormData(prev => ({
+      ...prev,
+      [field]: processedValue
+    }));
+  };
+  
   // Form States
   const [formData, setFormData] = useState({
     email: '',
@@ -998,7 +1030,7 @@ const UserManagement = () => {
                           id="add_first_name"
                           type="text"
                           value={formData.first_name || ''}
-                          onChange={(e) => setFormData({...formData, first_name: e.target.value})}
+                          onChange={(e) => handleFormFieldChange('first_name', e.target.value)}
                           required
                           className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                         />
@@ -1011,7 +1043,7 @@ const UserManagement = () => {
                           id="add_middle_name"
                           type="text"
                           value={formData.middle_name || ''}
-                          onChange={(e) => setFormData({...formData, middle_name: e.target.value})}
+                          onChange={(e) => handleFormFieldChange('middle_name', e.target.value)}
                           className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                         />
                       </div>
@@ -1023,7 +1055,7 @@ const UserManagement = () => {
                           id="add_last_name"
                           type="text"
                           value={formData.last_name || ''}
-                          onChange={(e) => setFormData({...formData, last_name: e.target.value})}
+                          onChange={(e) => handleFormFieldChange('last_name', e.target.value)}
                           required
                           className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                         />
@@ -1043,7 +1075,7 @@ const UserManagement = () => {
                           id="add_street"
                           type="text"
                           value={formData.street || ''}
-                          onChange={(e) => setFormData({...formData, street: e.target.value})}
+                          onChange={(e) => handleFormFieldChange('street', e.target.value)}
                           required
                           className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                         />
@@ -1056,7 +1088,7 @@ const UserManagement = () => {
                           id="add_barangay"
                           type="text"
                           value={formData.barangay || ''}
-                          onChange={(e) => setFormData({...formData, barangay: e.target.value})}
+                          onChange={(e) => handleFormFieldChange('barangay', e.target.value)}
                           required
                           className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                         />
@@ -1069,7 +1101,7 @@ const UserManagement = () => {
                           id="add_city"
                           type="text"
                           value={formData.city || ''}
-                          onChange={(e) => setFormData({...formData, city: e.target.value})}
+                          onChange={(e) => handleFormFieldChange('city', e.target.value)}
                           required
                           className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                         />
@@ -1082,7 +1114,7 @@ const UserManagement = () => {
                           id="add_province"
                           type="text"
                           value={formData.province || ''}
-                          onChange={(e) => setFormData({...formData, province: e.target.value})}
+                          onChange={(e) => handleFormFieldChange('province', e.target.value)}
                           required
                           className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                         />
@@ -1208,7 +1240,7 @@ const UserManagement = () => {
                           id="edit_first_name"
                           type="text"
                           value={formData.first_name || ''}
-                          onChange={(e) => setFormData({...formData, first_name: e.target.value})}
+                          onChange={(e) => handleFormFieldChange('first_name', e.target.value)}
                           required
                           className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                         />
@@ -1221,7 +1253,7 @@ const UserManagement = () => {
                           id="edit_middle_name"
                           type="text"
                           value={formData.middle_name || ''}
-                          onChange={(e) => setFormData({...formData, middle_name: e.target.value})}
+                          onChange={(e) => handleFormFieldChange('middle_name', e.target.value)}
                           className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                         />
                       </div>
@@ -1233,7 +1265,7 @@ const UserManagement = () => {
                           id="edit_last_name"
                           type="text"
                           value={formData.last_name || ''}
-                          onChange={(e) => setFormData({...formData, last_name: e.target.value})}
+                          onChange={(e) => handleFormFieldChange('last_name', e.target.value)}
                           required
                           className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                         />
@@ -1253,7 +1285,7 @@ const UserManagement = () => {
                           id="edit_street"
                           type="text"
                           value={formData.street || ''}
-                          onChange={(e) => setFormData({...formData, street: e.target.value})}
+                          onChange={(e) => handleFormFieldChange('street', e.target.value)}
                           required
                           className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                         />
@@ -1266,7 +1298,7 @@ const UserManagement = () => {
                           id="edit_barangay"
                           type="text"
                           value={formData.barangay || ''}
-                          onChange={(e) => setFormData({...formData, barangay: e.target.value})}
+                          onChange={(e) => handleFormFieldChange('barangay', e.target.value)}
                           required
                           className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                         />
@@ -1279,7 +1311,7 @@ const UserManagement = () => {
                           id="edit_city"
                           type="text"
                           value={formData.city || ''}
-                          onChange={(e) => setFormData({...formData, city: e.target.value})}
+                          onChange={(e) => handleFormFieldChange('city', e.target.value)}
                           required
                           className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                         />
@@ -1292,7 +1324,7 @@ const UserManagement = () => {
                           id="edit_province"
                           type="text"
                           value={formData.province || ''}
-                          onChange={(e) => setFormData({...formData, province: e.target.value})}
+                          onChange={(e) => handleFormFieldChange('province', e.target.value)}
                           required
                           className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                         />

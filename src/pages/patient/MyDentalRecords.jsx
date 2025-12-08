@@ -914,10 +914,6 @@ const MyDentalRecords = () => {
               <span class="info-value">${patient.mobile || patient.phone || ''}</span>
             </div>
             <div class="info-row">
-              <span class="info-label">Patient ID:</span>
-              <span class="info-value">${patient.id ? patient.id.substring(0, 8) : ''}</span>
-            </div>
-            <div class="info-row">
               <span class="info-label">Email Add:</span>
               <span class="info-value">${patient.email || ''}</span>
             </div>
@@ -1401,7 +1397,6 @@ const MyDentalRecords = () => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h2 className="text-lg font-semibold text-gray-900 truncate">{patient.full_name}</h2>
-                  <p className="text-sm text-gray-600">Patient ID: {patient.id && patient.id.substring(0, 8)}</p>
                   {viewingChildId && viewingChildId !== user?.id && (
                     <p className="text-xs text-blue-600 mt-1">Child's Record</p>
                   )}
@@ -1626,11 +1621,6 @@ const MyDentalRecords = () => {
                                 </span>
                               </div>
                             )}
-                          </div>
-                          <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
-                            <span>
-                              Patient ID: {patientRecord.id.substring(0, 8)}
-                            </span>
                           </div>
                         </div>
                       </div>

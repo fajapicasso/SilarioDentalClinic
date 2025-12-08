@@ -707,10 +707,6 @@ const PatientRecords = () => {
               <span class="info-value">${patient.mobile || patient.phone || ''}</span>
             </div>
             <div class="info-row">
-              <span class="info-label">Patient ID:</span>
-              <span class="info-value">${patient.id ? patient.id.substring(0, 8) : ''}</span>
-            </div>
-            <div class="info-row">
               <span class="info-label">Email Add:</span>
               <span class="info-value">${patient.email || ''}</span>
             </div>
@@ -1180,9 +1176,6 @@ const PatientRecords = () => {
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold text-gray-900">{patient.full_name}</h1>
-                  <p className="text-sm text-gray-600">
-                    Patient ID: {patient.id && patient.id.substring(0, 8)}
-                  </p>
                   <div className="flex items-center space-x-4 mt-2">
                     {patient.birthday && (
                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">

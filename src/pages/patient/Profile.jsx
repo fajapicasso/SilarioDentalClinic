@@ -479,11 +479,39 @@ const Profile = () => {
     }
   };
 
+  // Helper function to capitalize first letter of each word
+  const capitalizeWords = (str) => {
+    if (!str) return str;
+    return str
+      .toLowerCase()
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
+
   const handleInputChange = (e) => {
     const { id, value } = e.target;
+    
+    // Apply auto-capitalization to name, address, nationality, and emergency contact fields
+    const fieldsToCapitalize = [
+      'first_name',
+      'middle_name',
+      'last_name',
+      'street',
+      'barangay',
+      'city',
+      'province',
+      'nationality',
+      'emergency_contact_name'
+    ];
+    
+    const processedValue = fieldsToCapitalize.includes(id) 
+      ? capitalizeWords(value)
+      : value;
+    
     setProfile(prev => ({
       ...prev,
-      [id]: value
+      [id]: processedValue
     }));
   };
 
@@ -624,6 +652,22 @@ const Profile = () => {
       // Auto-calculate age when birthday changes
       if (field === 'birthday' && value) {
         updated.age = calculateChildAge(value);
+      }
+      
+      // Apply auto-capitalization to name, address, and nationality fields
+      const fieldsToCapitalize = [
+        'first_name',
+        'middle_name',
+        'last_name',
+        'street',
+        'barangay',
+        'city',
+        'province',
+        'nationality'
+      ];
+      
+      if (fieldsToCapitalize.includes(field)) {
+        updated[field] = capitalizeWords(value);
       }
       
       return updated;

@@ -302,11 +302,6 @@ const PatientsList = () => {
                         </div>
                       )}
                     </div>
-                    <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
-                      <span>
-                        Patient ID: {group.id.substring(0, 8)}
-                      </span>
-                    </div>
                   </div>
                   
                   {/* Children Section - Collapsible */}
@@ -401,9 +396,6 @@ const PatientsList = () => {
                                     View Records
                                   </button>
                                 </div>
-                              </div>
-                              <div className="mt-2 text-xs text-gray-500">
-                                Patient ID: {child.id.substring(0, 8)}
                               </div>
                             </div>
                           ))}

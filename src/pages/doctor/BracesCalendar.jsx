@@ -188,6 +188,8 @@ const BracesCalendar = () => {
         throw new Error('User not authenticated');
       }
 
+      const currentDoctorId = user.id;
+      
       // Get all active (non-archived) patients
       const { data: patientsData, error: patientsError } = await supabase
         .from('profiles')
@@ -198,19 +200,63 @@ const BracesCalendar = () => {
       
       if (patientsError) throw patientsError;
       
-      // Get patients already in braces for this month (only for current doctor)
+      // CRITICAL: Get patients already in braces for this month/year
+      // BUT ONLY for the CURRENT doctor (NOT other doctors)
+      // This is the KEY: We only check for the current doctor's patients
+      // This means if Doctor B has added a patient, Doctor A will still see them in the list
       const { data: existingBracesPatients, error: bracesError } = await supabase
         .from('braces_checkups')
-        .select('patient_id')
+        .select('patient_id, doctor_id')
         .eq('month', calendar.month)
         .eq('year', calendar.year)
-        .eq('doctor_id', user.id);
+        .eq('doctor_id', currentDoctorId); // CRITICAL: Only current doctor's patients
       
-      if (bracesError) throw bracesError;
+      if (bracesError) {
+        console.error('Error fetching existing braces patients:', bracesError);
+        throw bracesError;
+      }
       
-      // Filter out patients already in the braces calendar
-      const existingPatientIds = new Set(existingBracesPatients.map(p => p.patient_id));
-      const availablePatients = patientsData.filter(patient => !existingPatientIds.has(patient.id));
+      // Extract patient IDs that THIS doctor has already added
+      // CRITICAL: We ONLY filter out patients that THIS doctor has added
+      // Patients added by OTHER doctors should still be available
+      const existingPatientIds = new Set(
+        (existingBracesPatients || [])
+          .filter(p => {
+            // Double-check: only include if it's the current doctor's patient
+            const isCurrentDoctor = p.doctor_id === currentDoctorId;
+            if (!isCurrentDoctor) {
+              console.warn('[BracesCalendar] Found patient from different doctor - ignoring:', p);
+            }
+            return isCurrentDoctor;
+          })
+          .map(p => p.patient_id)
+      );
+      
+      // Filter out ONLY patients that THIS doctor has already added
+      // Patients added by OTHER doctors will remain in the list
+      // This allows multiple doctors to add the same patient
+      const availablePatients = patientsData.filter(
+        patient => {
+          const isExcluded = existingPatientIds.has(patient.id);
+          if (isExcluded) {
+            console.log('[BracesCalendar] Excluding patient (already added by this doctor):', patient.full_name);
+          }
+          return !isExcluded;
+        }
+      );
+      
+      // Debug logging to verify the logic
+      console.log('[BracesCalendar] ===== PATIENT FILTERING =====');
+      console.log('[BracesCalendar] Current Doctor ID:', currentDoctorId);
+      console.log('[BracesCalendar] Total patients in system:', patientsData.length);
+      console.log('[BracesCalendar] Patients THIS doctor has already added:', existingPatientIds.size);
+      console.log('[BracesCalendar] Available patients (including those added by other doctors):', availablePatients.length);
+      
+      // Log some example patient names to verify they're showing
+      if (availablePatients.length > 0) {
+        console.log('[BracesCalendar] Sample available patients:', availablePatients.slice(0, 5).map(p => p.full_name));
+      }
+      console.log('[BracesCalendar] ============================');
       
       setAllPatients(availablePatients);
       setFilteredPatients(availablePatients);
@@ -824,7 +870,13 @@ const BracesCalendar = () => {
         throw new Error('User not authenticated');
       }
       
+      const currentDoctorId = user.id;
       const selectedPatientData = allPatients.find(p => p.id === patientId);
+      
+      if (!selectedPatientData) {
+        toast.error('Patient not found in available list');
+        return;
+      }
       
       // Format date as YYYY-MM-DD in local time to avoid timezone issues
       let appointmentDate = null;
@@ -839,20 +891,79 @@ const BracesCalendar = () => {
         return;
       }
       
-      // Add patient to current month - match your schema
-      const { error: currentError } = await supabase
-        .from('braces_checkups')
-        .insert({
-          patient_id: patientId,
-          month: calendar.month,
-          year: calendar.year,
-          appointment_date: appointmentDate,
-          attended: false,
-          notes: notes || null,
-          doctor_id: user.id
-        });
+      console.log('[BracesCalendar] ===== ATTEMPTING TO ADD PATIENT =====');
+      console.log('[BracesCalendar] Patient:', selectedPatientData.full_name, '(ID:', patientId + ')');
+      console.log('[BracesCalendar] Current Doctor ID:', currentDoctorId);
+      console.log('[BracesCalendar] Month:', calendar.month, 'Year:', calendar.year);
+      console.log('[BracesCalendar] Appointment Date:', appointmentDate);
       
-      if (currentError) throw currentError;
+      // Quick check: Only prevent if THIS doctor already has this patient
+      // We don't check for other doctors - they can have the same patient independently
+      const { data: existingForThisDoctor } = await supabase
+        .from('braces_checkups')
+        .select('id')
+        .eq('patient_id', patientId)
+        .eq('month', calendar.month)
+        .eq('year', calendar.year)
+        .eq('doctor_id', currentDoctorId) // ONLY current doctor
+        .maybeSingle();
+      
+      if (existingForThisDoctor) {
+        toast.error(`${selectedPatientData.full_name} is already in your braces calendar for this month`);
+        console.log('[BracesCalendar] Duplicate prevented - patient already exists for THIS doctor');
+        return;
+      }
+      
+      console.log('[BracesCalendar] No duplicate found for this doctor - proceeding with insert');
+      console.log('[BracesCalendar] Note: Other doctors may have this patient, but that\'s OK');
+      
+      // Insert the patient - CRITICAL: doctor_id makes each doctor's entry unique
+      // Multiple doctors can have the same patient_id, month, year as long as doctor_id is different
+      const insertPayload = {
+        patient_id: patientId,
+        month: calendar.month,
+        year: calendar.year,
+        appointment_date: appointmentDate,
+        attended: false,
+        notes: notes || null,
+        doctor_id: currentDoctorId // THIS is what allows multiple doctors to have the same patient
+      };
+      
+      console.log('[BracesCalendar] Insert payload:', JSON.stringify(insertPayload, null, 2));
+      
+      const { data: insertedData, error: currentError } = await supabase
+        .from('braces_checkups')
+        .insert(insertPayload)
+        .select();
+      
+      if (currentError) {
+        console.error('[BracesCalendar] ===== INSERT FAILED =====');
+        console.error('[BracesCalendar] Error Code:', currentError.code);
+        console.error('[BracesCalendar] Error Message:', currentError.message);
+        console.error('[BracesCalendar] Error Details:', JSON.stringify(currentError, null, 2));
+        console.error('[BracesCalendar] Patient ID:', patientId);
+        console.error('[BracesCalendar] Doctor ID:', currentDoctorId);
+        console.error('[BracesCalendar] Month/Year:', calendar.month + '/' + calendar.year);
+        console.error('[BracesCalendar] Insert Payload Was:', JSON.stringify(insertPayload, null, 2));
+        console.error('[BracesCalendar] ===========================');
+        
+        // Handle different error types
+        if (currentError.code === '23505') {
+          // PostgreSQL unique constraint violation
+          // This likely means there's a unique constraint on (patient_id, month, year) without doctor_id
+          toast.error('Database constraint error: The patient may already exist. If you haven\'t added this patient, there may be a database constraint preventing multiple doctors from adding the same patient. Please contact support.');
+          console.error('[BracesCalendar] CRITICAL: Database has unique constraint that may not include doctor_id');
+          console.error('[BracesCalendar] This prevents multiple doctors from adding the same patient');
+          console.error('[BracesCalendar] Database constraint needs to include doctor_id in the unique index');
+        } else if (currentError.code === 'PGRST116' || currentError.message?.includes('duplicate') || currentError.message?.includes('unique')) {
+          toast.error('This patient appears to already exist in your calendar. Please refresh and check.');
+        } else {
+          toast.error(`Failed to add patient: ${currentError.message || 'Unknown error'}`);
+        }
+        throw currentError;
+      }
+      
+      console.log('[BracesCalendar] Successfully inserted patient:', insertedData);
       
       // Prepare data for future months (up to 6 months)
       const futureEntries = [];
@@ -880,19 +991,59 @@ const BracesCalendar = () => {
           appointment_date: futureDateStr,
           attended: false,
           notes: notes || null,
-          doctor_id: user.id
+          doctor_id: currentDoctorId // Each doctor has their own future entries
         });
       }
       
-      // Insert future entries
-      const { error: futureError } = await supabase
-        .from('braces_checkups')
-        .insert(futureEntries);
-      
-      if (futureError) throw futureError;
+      // Insert future entries (only if we have entries to insert)
+      if (futureEntries.length > 0) {
+        // Check for existing future entries to avoid duplicates
+        const futureMonths = futureEntries.map(e => ({ month: e.month, year: e.year }));
+        const uniqueMonths = [...new Set(futureMonths.map(m => `${m.year}-${m.month}`))];
+        
+        // Check existing entries for future months
+        const { data: existingFutureEntries, error: futureCheckError } = await supabase
+          .from('braces_checkups')
+          .select('month, year')
+          .eq('patient_id', patientId)
+          .eq('doctor_id', currentDoctorId)
+          .in('month', futureEntries.map(e => e.month))
+          .in('year', futureEntries.map(e => e.year));
+        
+        if (futureCheckError) {
+          console.warn('Error checking future entries:', futureCheckError);
+          // Continue anyway - we'll let the insert handle duplicates
+        }
+        
+        // Filter out months that already have entries
+        const existingFutureMonths = new Set(
+          (existingFutureEntries || []).map(e => `${e.year}-${e.month}`)
+        );
+        
+        const entriesToInsert = futureEntries.filter(e => 
+          !existingFutureMonths.has(`${e.year}-${e.month}`)
+        );
+        
+        if (entriesToInsert.length > 0) {
+          const { error: futureError } = await supabase
+            .from('braces_checkups')
+            .insert(entriesToInsert);
+          
+          if (futureError) {
+            console.error('Error inserting future entries:', futureError);
+            // Don't throw - the current month entry was successful
+            toast.warning('Patient added, but some future months may already have entries');
+          }
+        }
+      }
       
       // Refresh the calendar data
       fetchBracesData(calendar.month, calendar.year);
+      
+      // Refresh the patient list to remove the added patient from available list
+      // (only for this doctor - other doctors can still add the same patient)
+      await fetchAllPatientsForBraces();
+      
       setShowAddPatientModal(false);
       setNotes('');
       setAppointmentDay(null);
@@ -917,7 +1068,10 @@ const BracesCalendar = () => {
       toast.success(`${selectedPatientData.full_name} added to braces calendar`);
     } catch (error) {
       console.error('Error adding patient:', error);
-      toast.error('Failed to add patient to braces calendar');
+      // Error message already shown in the specific error handlers above
+      if (!error.message || !error.message.includes('already')) {
+        toast.error(`Failed to add patient to braces calendar: ${error.message || 'Unknown error'}`);
+      }
     }
   };
 

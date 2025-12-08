@@ -2099,74 +2099,74 @@ const dentalHistory = [
             </h3>
             {editMode ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
+                  <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
                   <input type="text" className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 focus:ring-primary-500 focus:border-primary-500" value={patient.full_name || ''} onChange={e => setPatient({ ...patient, full_name: e.target.value })} />
-                </div>
-                <div>
+                  </div>
+                  <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Nickname</label>
                   <input type="text" className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 focus:ring-primary-500 focus:border-primary-500" value={patient.nickname || ''} onChange={e => setPatient({ ...patient, nickname: e.target.value })} />
-                </div>
+                  </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
                   <input type="text" className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 focus:ring-primary-500 focus:border-primary-500" value={patient.address || ''} onChange={e => setPatient({ ...patient, address: e.target.value })} />
                 </div>
-                <div>
+                  <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Nationality</label>
                   <input type="text" className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 focus:ring-primary-500 focus:border-primary-500" value={patient.nationality || ''} onChange={e => setPatient({ ...patient, nationality: e.target.value })} />
-                </div>
-                <div>
+                  </div>
+                  <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Age</label>
                   <input type="number" className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 py-2" value={patient.birthday ? calculateAge(patient.birthday) : ''} readOnly />
-                </div>
-                <div>
+                  </div>
+                  <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Sex</label>
                   <select className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 focus:ring-primary-500 focus:border-primary-500" value={patient.gender || ''} onChange={e => setPatient({ ...patient, gender: e.target.value })}>
-                    <option value="">Select</option>
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-                <div>
+                      <option value="">Select</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                  <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Home No.</label>
                   <input type="text" className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 focus:ring-primary-500 focus:border-primary-500" value={patient.phone || ''} onChange={e => setPatient({ ...patient, phone: e.target.value })} />
-                </div>
-                <div>
+                  </div>
+                  <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
                   <input type="text" className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 py-2" value={new Date().toLocaleDateString()} readOnly />
-                </div>
-                <div>
+                  </div>
+                  <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Occupation</label>
                   <input type="text" className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 focus:ring-primary-500 focus:border-primary-500" value={patient.occupation || ''} onChange={e => setPatient({ ...patient, occupation: e.target.value })} />
-                </div>
-                <div>
+                  </div>
+                  <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Office No.</label>
                   <input type="text" className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 focus:ring-primary-500 focus:border-primary-500" value={patient.office_no || ''} onChange={e => setPatient({ ...patient, office_no: e.target.value })} />
-                </div>
-                <div>
+                  </div>
+                  <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Birthdate</label>
                   <input type="date" className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 focus:ring-primary-500 focus:border-primary-500" value={patient.birthday || ''} onChange={e => setPatient({ ...patient, birthday: e.target.value })} />
-                </div>
+                  </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Cell/Mobile</label>
                   <input type="text" className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 focus:ring-primary-500 focus:border-primary-500" value={patient.mobile || patient.phone || ''} onChange={e => setPatient({ ...patient, mobile: e.target.value })} />
                 </div>
                 
                 {/* Additional Fields */}
-                <div>
+                  <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Dental Insurance:</label>
                   <input type="text" className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 focus:ring-primary-500 focus:border-primary-500" value={dentalChart.patientInfo?.dental_insurance || ''} onChange={e => updateChartData('patientInfo', 'dental_insurance', e.target.value)} />
-                </div>
-                <div>
+                  </div>
+                  <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Effective Date:</label>
-                  <DatePicker
-                    value={dentalChart.patientInfo?.effective_date || ''}
-                    onChange={value => updateChartData('patientInfo', 'effective_date', value)}
-                    placeholder="Select date"
+                    <DatePicker
+                      value={dentalChart.patientInfo?.effective_date || ''}
+                      onChange={value => updateChartData('patientInfo', 'effective_date', value)}
+                      placeholder="Select date"
                     className="w-full"
-                  />
-                </div>
+                    />
+                  </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Home No.:</label>
                   <input type="text" className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 focus:ring-primary-500 focus:border-primary-500" value={dentalChart.patientInfo?.home_no || ''} onChange={e => updateChartData('patientInfo', 'home_no', e.target.value)} />
@@ -2281,12 +2281,12 @@ const dentalHistory = [
                       <div className="flex flex-col">
                         <span className="font-bold text-xs text-gray-600">Parent/Guardian's Name:</span>
                         <span className="text-sm">{dentalChart.patientInfo?.parent_guardian_name || ''}</span>
-                      </div>
+              </div>
                       <div className="flex flex-col">
                         <span className="font-bold text-xs text-gray-600">Occupation:</span>
                         <span className="text-sm">{dentalChart.patientInfo?.parent_occupation || ''}</span>
-                      </div>
-                    </div>
+          </div>
+        </div>
                   </div>
                 )}
                 
@@ -2297,18 +2297,18 @@ const dentalHistory = [
                       <div className="flex flex-col">
                         <span className="font-bold text-xs text-gray-600">Whom may we thank for referring you?:</span>
                         <span className="text-sm">{dentalChart.patientInfo?.referral_source}</span>
-                      </div>
+            </div>
                     )}
                     {dentalChart.patientInfo?.consultation_reason && (
                       <div className="flex flex-col">
                         <span className="font-bold text-xs text-gray-600">What is your reason for dental consultation?:</span>
                         <span className="text-sm">{dentalChart.patientInfo?.consultation_reason}</span>
-                      </div>
-                    )}
                   </div>
+                    )}
+                </div>
                 )}
-              </div>
-            )}
+                </div>
+              )}
           </div>
 
         {/* Dental History Section */}
@@ -2346,10 +2346,10 @@ const dentalHistory = [
                 {dentalHistory.map((question, index) => (
                   <div key={index} className="flex items-start">
                     <span className="font-bold mr-3 text-sm">{index + 1}.</span>
-                    <span className="font-bold text-sm">{question}</span>
-                    {!editMode && dentalChart.dentalHistory?.[`question_${index}`] && (
+                      <span className="font-bold text-sm">{question}</span>
+                      {!editMode && dentalChart.dentalHistory?.[`question_${index}`] && (
                       <span className="ml-2 text-gray-700 text-sm flex-shrink-0">{dentalChart.dentalHistory[`question_${index}`]}</span>
-                    )}
+                      )}
                   </div>
                 ))}
               </div>
@@ -2357,14 +2357,14 @@ const dentalHistory = [
           </div>
         </div>
 
-        {/* Medical History Section - Mobile Optimized */}
+          {/* Medical History Section - Mobile Optimized */}
         <div className="border-b border-gray-300">
             <div className="bg-gray-100 p-3 border-b border-gray-400 rounded-t-md">
               <h3 className="font-bold text-center text-lg">MEDICAL HISTORY</h3>
             </div>
             <div className="p-6">
-              {editMode ? (
-                <div className="space-y-6">
+            {editMode ? (
+              <div className="space-y-6">
                   {/* Physician Information Section */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Name of the physician - First Field */}
@@ -2404,26 +2404,26 @@ const dentalHistory = [
                         />
                       </div>
                     ))}
-                  </div>
+                </div>
 
                   {/* Medical History Questions - Two Column Layout */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Left Column - Questions 1-8 + Question 13 */}
                     <div className="space-y-4">
                       {/* Questions 1-8 on the left side */}
-                      {medicalHistory.slice(0, 8).map((question, index) => (
-                        <div key={index}>
+                    {medicalHistory.slice(0, 8).map((question, index) => (
+                      <div key={index}>
                           <label className="block text-sm font-medium text-gray-700 mb-1">{index + 1}. {question}</label>
-                          <textarea
+                        <textarea
                             className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 focus:ring-primary-500 focus:border-primary-500"
-                            placeholder="Response"
-                            value={dentalChart.medicalHistory?.[`question_${index}`] || ''}
-                            onChange={e => updateChartData('medicalHistory', `question_${index}`, e.target.value)}
-                            rows={2}
-                          />
-                        </div>
-                      ))}
-                      
+                          placeholder="Response"
+                          value={dentalChart.medicalHistory?.[`question_${index}`] || ''}
+                          onChange={e => updateChartData('medicalHistory', `question_${index}`, e.target.value)}
+                          rows={2}
+                        />
+                      </div>
+                    ))}
+                    
                       {/* Spacing between question 8 and 13 */}
                       <div className="mt-8"></div>
                       
@@ -2443,110 +2443,110 @@ const dentalHistory = [
                     {/* Right Column - Questions 9-12 */}
                     <div className="space-y-4">
                       {/* Question 9 on the right side */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">9. {medicalHistory[8]}</label>
-                        <textarea
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">9. {medicalHistory[8]}</label>
+                      <textarea
                           className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 focus:ring-primary-500 focus:border-primary-500"
+                        placeholder="Response"
+                        value={dentalChart.medicalHistory?.[`question_8`] || ''}
+                        onChange={e => updateChartData('medicalHistory', `question_8`, e.target.value)}
+                        rows={2}
+                      />
+                    </div>
+                    
+                    {/* For Women Only Section */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">10. For women only:</label>
+                      <div className="bg-blue-50 p-3 rounded border border-blue-200">
+                        <h4 className="text-lg font-bold text-blue-600 mb-3">For Women Only:</h4>
+                          <div className="space-y-2">
+                          {womenOnlyQuestions.map((womenQuestion, womenIndex) => (
+                              <div key={womenIndex} className="flex items-center space-x-2">
+                                <label className="text-sm text-gray-700">{womenQuestion}</label>
+                              <textarea
+                                  className="flex-1 rounded-md border border-gray-300 bg-gray-50 px-3 py-2 focus:ring-primary-500 focus:border-primary-500"
+                                placeholder="Response"
+                                value={dentalChart.medicalHistory?.[`women_${womenIndex}`] || ''}
+                                onChange={e => updateChartData('medicalHistory', `women_${womenIndex}`, e.target.value)}
+                                rows={1}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Questions 11-12 */}
+                    {medicalHistory.slice(10, 12).map((question, index) => (
+                      <div key={index + 10}>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">{index + 11}. {question}</label>
+                        <textarea
+                            className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 focus:ring-primary-500 focus:border-primary-500"
                           placeholder="Response"
-                          value={dentalChart.medicalHistory?.[`question_8`] || ''}
-                          onChange={e => updateChartData('medicalHistory', `question_8`, e.target.value)}
+                          value={dentalChart.medicalHistory?.[`question_${index + 10}`] || ''}
+                          onChange={e => updateChartData('medicalHistory', `question_${index + 10}`, e.target.value)}
                           rows={2}
                         />
                       </div>
-                      
-                      {/* For Women Only Section */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">10. For women only:</label>
-                        <div className="bg-blue-50 p-3 rounded border border-blue-200">
-                          <h4 className="text-lg font-bold text-blue-600 mb-3">For Women Only:</h4>
-                          <div className="space-y-2">
-                            {womenOnlyQuestions.map((womenQuestion, womenIndex) => (
-                              <div key={womenIndex} className="flex items-center space-x-2">
-                                <label className="text-sm text-gray-700">{womenQuestion}</label>
-                                <textarea
-                                  className="flex-1 rounded-md border border-gray-300 bg-gray-50 px-3 py-2 focus:ring-primary-500 focus:border-primary-500"
-                                  placeholder="Response"
-                                  value={dentalChart.medicalHistory?.[`women_${womenIndex}`] || ''}
-                                  onChange={e => updateChartData('medicalHistory', `women_${womenIndex}`, e.target.value)}
-                                  rows={1}
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Questions 11-12 */}
-                      {medicalHistory.slice(10, 12).map((question, index) => (
-                        <div key={index + 10}>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">{index + 11}. {question}</label>
-                          <textarea
-                            className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 focus:ring-primary-500 focus:border-primary-500"
-                            placeholder="Response"
-                            value={dentalChart.medicalHistory?.[`question_${index + 10}`] || ''}
-                            onChange={e => updateChartData('medicalHistory', `question_${index + 10}`, e.target.value)}
-                            rows={2}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Medical Conditions Section */}
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Medical Conditions</label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                      {medicalConditions.map(condition => (
-                        <label key={condition} className="flex items-center space-x-2 p-2 bg-white rounded border hover:bg-gray-50">
-                          <input
-                            type="checkbox"
-                            checked={dentalChart.medicalConditions?.[condition] || false}
-                            onChange={(e) => updateChartData('medicalConditions', condition, e.target.checked)}
-                            className="h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-                          />
-                          <span className="text-sm text-gray-700">{condition}</span>
-                        </label>
-                      ))}
-                    </div>
+                    ))}
                   </div>
                 </div>
-              ) : (
+                
+                {/* Medical Conditions Section */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Medical Conditions</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                    {medicalConditions.map(condition => (
+                      <label key={condition} className="flex items-center space-x-2 p-2 bg-white rounded border hover:bg-gray-50">
+                        <input
+                          type="checkbox"
+                          checked={dentalChart.medicalConditions?.[condition] || false}
+                          onChange={(e) => updateChartData('medicalConditions', condition, e.target.checked)}
+                          className="h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                        />
+                        <span className="text-sm text-gray-700">{condition}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
                 <div className="space-y-2 mb-6">
                   {/* Medical History Questions - Two Column Layout */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                     {/* Left Column - Physician Information + Questions 1-8 + Question 13 */}
-                    <div className="space-y-2">
-                      {/* Name of the physician - First Field */}
+                <div className="space-y-2">
+                  {/* Name of the physician - First Field */}
                       <div className="flex items-center">
                         <span className="font-bold mr-2">Name of the physician and specialty if applicable:</span>
                         <span className="flex-1">{dentalChart.medicalHistory?.physician_name || ''}</span>
-                      </div>
+                  </div>
 
-                      {/* Office Address - Special Field */}
+                  {/* Office Address - Special Field */}
                       <div className="flex items-center">
                         <span className="font-bold mr-2">Office Address:</span>
                         <span className="flex-1">{dentalChart.medicalHistory?.office_address || ''}</span>
-                      </div>
+                  </div>
 
-                      {/* Physician Information - No Numbers */}
-                      {physicianInfo.map((question, index) => (
+                  {/* Physician Information - No Numbers */}
+                  {physicianInfo.map((question, index) => (
                         <div key={`physician-${index}`} className="flex items-center">
                           <span className="font-bold mr-2">{question}:</span>
                           <span className="flex-1">{dentalChart.medicalHistory?.[`physician_${index}`] || ''}</span>
-                        </div>
-                      ))}
-                      
+                    </div>
+                  ))}
+                  
                       {/* Questions 1-8 on the left side */}
-                      {medicalHistory.slice(0, 8).map((question, index) => (
-                        <div key={index} className="flex items-start">
-                          <span className="font-bold mr-2 text-sm">{index + 1}.</span>
-                          <div className="flex-1">
-                            <span className="font-bold text-sm">{question}</span>
-                            <span className="text-gray-700 text-sm ml-2">{dentalChart.medicalHistory?.[`question_${index}`] || ''}</span>
-                          </div>
-                        </div>
-                      ))}
-                      
+                  {medicalHistory.slice(0, 8).map((question, index) => (
+                    <div key={index} className="flex items-start">
+                      <span className="font-bold mr-2 text-sm">{index + 1}.</span>
+                      <div className="flex-1">
+                        <span className="font-bold text-sm">{question}</span>
+                        <span className="text-gray-700 text-sm ml-2">{dentalChart.medicalHistory?.[`question_${index}`] || ''}</span>
+                      </div>
+                    </div>
+                  ))}
+                  
                       {/* Spacing between question 8 and 13 */}
                       <div className="mt-8"></div>
                       
@@ -2563,72 +2563,72 @@ const dentalHistory = [
                     {/* Right Column - Medical History Questions 9-12 */}
                     <div className="space-y-2 ml-16">
                       {/* Question 9 on the right side */}
-                      <div className="flex items-start">
-                        <span className="font-bold mr-2 text-sm">9.</span>
-                        <div className="flex-1">
-                          <span className="font-bold text-sm">{medicalHistory[8]}</span>
-                          <span className="text-gray-700 text-sm ml-2">{dentalChart.medicalHistory?.[`question_8`] || ''}</span>
-                        </div>
-                      </div>
-                      
+                  <div className="flex items-start">
+                    <span className="font-bold mr-2 text-sm">9.</span>
+                    <div className="flex-1">
+                      <span className="font-bold text-sm">{medicalHistory[8]}</span>
+                      <span className="text-gray-700 text-sm ml-2">{dentalChart.medicalHistory?.[`question_8`] || ''}</span>
+                    </div>
+                  </div>
+                  
                       {/* For Women Only Section */}
-                      <div className="flex items-start">
-                        <span className="font-bold mr-2 text-sm">10.</span>
-                        <div className="flex-1">
-                          <span className="font-bold text-sm">For women only:</span>
+                  <div className="flex items-start">
+                    <span className="font-bold mr-2 text-sm">10.</span>
+                    <div className="flex-1">
+                      <span className="font-bold text-sm">For women only:</span>
                           <div className="mt-1 space-y-1">
-                            {womenOnlyQuestions.map((womenQuestion, womenIndex) => (
+                          {womenOnlyQuestions.map((womenQuestion, womenIndex) => (
                               <div key={womenIndex} className="flex items-center">
                                 <span className="text-sm text-gray-700">{womenQuestion}</span>
                                 {dentalChart.medicalHistory?.[`women_${womenIndex}`] && (
                                   <span className="text-gray-700 text-sm ml-2">{dentalChart.medicalHistory[`women_${womenIndex}`]}</span>
                                 )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
+                            </div>
+                          ))}
                       </div>
-                      
-                      {/* Questions 11-12 */}
-                      {medicalHistory.slice(10, 12).map((question, index) => (
-                        <div key={index + 10} className="flex items-start">
-                          <span className="font-bold mr-2 text-sm">{index + 11}.</span>
-                          <div className="flex-1">
-                            <span className="font-bold text-sm">{question}</span>
-                            <span className="text-gray-700 text-sm ml-2">{dentalChart.medicalHistory?.[`question_${index + 10}`] || ''}</span>
-                          </div>
-                        </div>
-                      ))}
                     </div>
                   </div>
                   
-                  {/* Medical Conditions in View Mode */}
-                  <div className="mt-2">
-                    <h4 className="font-bold text-sm text-gray-700 mb-3">Medical Conditions:</h4>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 bg-gray-50 p-6 rounded-md">
-                      {medicalConditions.map(condition => {
-                        const isChecked = dentalChart.medicalConditions?.[condition];
-                        return (
-                          <div key={condition} className="flex items-center space-x-3">
-                            <div className={`w-5 h-5 border-2 rounded flex items-center justify-center ${
-                              isChecked 
-                                ? 'bg-green-500 border-green-500' 
-                                : 'bg-white border-gray-300'
-                            }`}>
-                              {isChecked && (
-                                <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                </svg>
-                              )}
-                            </div>
-                            <span className="text-sm text-gray-700 font-medium">{condition}</span>
-                          </div>
-                        );
-                      })}
+                  {/* Questions 11-12 */}
+                  {medicalHistory.slice(10, 12).map((question, index) => (
+                    <div key={index + 10} className="flex items-start">
+                      <span className="font-bold mr-2 text-sm">{index + 11}.</span>
+                      <div className="flex-1">
+                        <span className="font-bold text-sm">{question}</span>
+                        <span className="text-gray-700 text-sm ml-2">{dentalChart.medicalHistory?.[`question_${index + 10}`] || ''}</span>
+                      </div>
                     </div>
+                  ))}
                   </div>
                 </div>
-              )}
+                
+                {/* Medical Conditions in View Mode */}
+                <div className="mt-2">
+                  <h4 className="font-bold text-sm text-gray-700 mb-3">Medical Conditions:</h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 bg-gray-50 p-6 rounded-md">
+                    {medicalConditions.map(condition => {
+                      const isChecked = dentalChart.medicalConditions?.[condition];
+                      return (
+                        <div key={condition} className="flex items-center space-x-3">
+                          <div className={`w-5 h-5 border-2 rounded flex items-center justify-center ${
+                            isChecked 
+                              ? 'bg-green-500 border-green-500' 
+                              : 'bg-white border-gray-300'
+                          }`}>
+                            {isChecked && (
+                              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                            )}
+                          </div>
+                          <span className="text-sm text-gray-700 font-medium">{condition}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
             </div>
           </div>
         </div>
