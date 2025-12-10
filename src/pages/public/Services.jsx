@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import PublicNavbar from '../../components/layouts/PublicNavbar';
 import PublicFooter from '../../components/layouts/PublicFooter';
 import supabase from '../../config/supabaseClient';
-import { FiCalendar } from 'react-icons/fi';
+import { FiCalendar, FiX } from 'react-icons/fi';
 import cabugaoImg from '../../assets/Cabugao Branch.jpg';
 import sanJuanImg from '../../assets/San Juan Branch.jpg';
 import cabugaoImg2 from '../../assets/Cabugaoo.png';
@@ -21,6 +21,7 @@ const Services = () => {
   const [activeCategory, setActiveCategory] = useState('all');
   const [isLoading, setIsLoading] = useState(true);
   const [categorizedServices, setCategorizedServices] = useState({});
+  const [selectedImage, setSelectedImage] = useState(null);
 
   useEffect(() => {
     const fetchServices = async () => {
@@ -159,8 +160,9 @@ const Services = () => {
                             <img
                               src={service.image_url}
                               alt={service.name}
-                              className="h-40 w-full object-cover rounded-t-lg shadow-md transition-transform duration-300 hover:scale-105 bg-gray-50"
+                              className="h-40 w-full object-cover rounded-t-lg shadow-md transition-transform duration-300 hover:scale-105 bg-gray-50 cursor-pointer"
                               style={{ maxHeight: '160px', minHeight: '120px', objectFit: 'cover' }}
+                              onClick={() => setSelectedImage({ url: service.image_url, name: service.name })}
                             />
                           ) : (
                             <div className="h-40 w-full flex items-center justify-center bg-gray-100 rounded-t-lg text-gray-400 text-4xl shadow-md">
@@ -222,6 +224,38 @@ const Services = () => {
       </section>
 
       <PublicFooter />
+
+      {/* Full Size Image Modal */}
+      {selectedImage && (
+        <div 
+          className="fixed top-0 left-0 right-0 bottom-0 bg-black bg-opacity-90 z-50 flex items-center justify-center m-0 p-0"
+          style={{ margin: 0, padding: 0 }}
+          onClick={() => setSelectedImage(null)}
+        >
+          <div className="relative w-full h-full flex flex-col items-center justify-center">
+            <button
+              onClick={() => setSelectedImage(null)}
+              className="absolute top-4 right-4 text-white hover:text-gray-300 transition-colors z-10 bg-black bg-opacity-50 rounded-full p-2"
+              aria-label="Close"
+            >
+              <FiX className="h-6 w-6" />
+            </button>
+            <div className="flex-1 flex items-center justify-center w-full px-4">
+              <img
+                src={selectedImage.url}
+                alt={selectedImage.name}
+                className="max-w-full max-h-[85vh] object-contain"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+            {selectedImage.name && (
+              <div className="pb-4 text-center">
+                <p className="text-white text-lg font-semibold">{selectedImage.name}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

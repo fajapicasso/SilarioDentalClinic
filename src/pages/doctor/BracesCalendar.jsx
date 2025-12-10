@@ -8,6 +8,7 @@ import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { useAuditLog } from '../../hooks/useAuditLog';
 import { useAuth } from '../../contexts/AuthContext';
+import { getLogoBase64DataURL } from '../../utils/logoBase64';
 
 const BracesCalendar = () => {
   const { user } = useAuth();
@@ -618,25 +619,29 @@ const BracesCalendar = () => {
     }
   };
 
-  const printReport = () => {
+  const printReport = async () => {
     if (!reportData) return;
 
-    const printWindow = window.open('', '_blank');
-    const isFilteredReport = reportData.period && !reportData.patient;
-    const title = isFilteredReport 
-      ? `Braces Treatment Report - ${reportData.period.charAt(0).toUpperCase() + reportData.period.slice(1)} Report`
-      : `Braces Treatment Report - ${reportData.patient.full_name}`;
-    
-    const printContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>${title}</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 20px; }
-          .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #e5e7eb; }
-          .header-left { display: flex; align-items: flex-start; }
-          .logo { max-width: 80px; height: auto; margin-right: 20px; }
+    try {
+      // Get logo as base64 for production compatibility
+      const logoBase64 = await getLogoBase64DataURL();
+
+      const printWindow = window.open('', '_blank');
+      const isFilteredReport = reportData.period && !reportData.patient;
+      const title = isFilteredReport 
+        ? `Braces Treatment Report - ${reportData.period.charAt(0).toUpperCase() + reportData.period.slice(1)} Report`
+        : `Braces Treatment Report - ${reportData.patient.full_name}`;
+      
+      const printContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>${title}</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #e5e7eb; }
+            .header-left { display: flex; align-items: flex-start; }
+            .logo { width: 150px; height: auto; margin-right: 20px; object-fit: contain; }
           .clinic-info h1 { font-size: 24px; font-weight: bold; color: #2563eb; margin: 0 0 5px 0; }
           .clinic-info h2 { font-size: 14px; color: #6b7280; margin: 0 0 3px 0; font-weight: normal; }
           .clinic-info h3 { font-size: 12px; color: #6b7280; margin: 0 0 8px 0; font-weight: normal; }
@@ -680,7 +685,7 @@ const BracesCalendar = () => {
       <body>
         <div class="header">
           <div class="header-left">
-            <img src="${window.location.origin}/src/assets/Logo.png" alt="Silario Logo" class="logo">
+            <img src="${logoBase64}" alt="Silario Logo" class="logo">
             <div class="clinic-info">
               <h1>BRACES TREATMENT REPORT</h1>
               <h2>SILARIO DENTAL CLINIC</h2>
@@ -801,16 +806,20 @@ const BracesCalendar = () => {
       </html>
     `;
 
-    printWindow.document.write(printContent);
-    printWindow.document.close();
-    printWindow.focus();
-    
-    // Auto-print after content loads
-    printWindow.onload = () => {
-      setTimeout(() => {
-        printWindow.print();
-      }, 500);
-    };
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      printWindow.focus();
+      
+      // Auto-print after content loads
+      printWindow.onload = () => {
+        setTimeout(() => {
+          printWindow.print();
+        }, 500);
+      };
+    } catch (error) {
+      console.error('Error generating report:', error);
+      toast.error('Failed to generate report. Please try again.');
+    }
   };
 
   // ----- Event Handlers -----

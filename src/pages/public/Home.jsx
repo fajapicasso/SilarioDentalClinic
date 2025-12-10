@@ -150,7 +150,7 @@ const Home = () => {
         {/* Swiper Carousel as Background */}
         <Swiper
           modules={[Autoplay, Pagination]}
-          autoplay={{ delay: 4000, disableOnInteraction: false }}
+          autoplay={{ delay: 20000, disableOnInteraction: false }}
           pagination={{ clickable: true }}
           loop
           className="absolute inset-0 w-full h-full z-0"

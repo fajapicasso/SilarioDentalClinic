@@ -1,7 +1,7 @@
 // src/pages/patient/Services.jsx
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FiCalendar, FiSearch, FiFilter } from 'react-icons/fi';
+import { FiCalendar, FiSearch, FiFilter, FiX } from 'react-icons/fi';
 import supabase from '../../config/supabaseClient';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
@@ -13,6 +13,7 @@ const Services = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [categorizedServices, setCategorizedServices] = useState({});
+  const [selectedImage, setSelectedImage] = useState(null);
   
   useEffect(() => {
     fetchServices();
@@ -202,17 +203,21 @@ const Services = () => {
                     className="border border-gray-200 rounded-lg p-3 sm:p-4 hover:shadow-xl transition-shadow bg-white flex flex-col items-stretch"
                     style={{ minHeight: '280px' }}
                   >
-                    {/* Service Image - Mobile Optimized */}
+                    {/* Service Image - Square (1x1) */}
                     <div className="w-full flex justify-center mb-2 sm:mb-3">
                       {service.image_url ? (
-                        <img
-                          src={service.image_url}
-                          alt={service.name}
-                          className="h-28 sm:h-32 lg:h-40 w-full object-cover rounded-t-lg shadow-md transition-transform duration-300 hover:scale-105 bg-gray-50"
-                          style={{ maxHeight: '160px', minHeight: '112px', objectFit: 'cover' }}
-                        />
+                        <div 
+                          className="w-full aspect-square overflow-hidden rounded-t-lg shadow-md bg-gray-50 cursor-pointer"
+                          onClick={() => setSelectedImage({ url: service.image_url, name: service.name })}
+                        >
+                          <img
+                            src={service.image_url}
+                            alt={service.name}
+                            className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                          />
+                        </div>
                       ) : (
-                        <div className="h-28 sm:h-32 lg:h-40 w-full flex items-center justify-center bg-gray-100 rounded-t-lg text-gray-400 text-2xl sm:text-3xl lg:text-4xl shadow-md">
+                        <div className="w-full aspect-square flex items-center justify-center bg-gray-100 rounded-t-lg text-gray-400 text-2xl sm:text-3xl lg:text-4xl shadow-md">
                           <span role="img" aria-label="Service">🦷</span>
                         </div>
                       )}
@@ -237,6 +242,38 @@ const Services = () => {
           </div>
         )}
       </div>
+
+      {/* Full Size Image Modal */}
+      {selectedImage && (
+        <div 
+          className="fixed top-0 left-0 right-0 bottom-0 bg-black bg-opacity-90 z-50 flex items-center justify-center m-0 p-0"
+          style={{ margin: 0, padding: 0 }}
+          onClick={() => setSelectedImage(null)}
+        >
+          <div className="relative w-full h-full flex flex-col items-center justify-center">
+            <button
+              onClick={() => setSelectedImage(null)}
+              className="absolute top-4 right-4 text-white hover:text-gray-300 transition-colors z-10 bg-black bg-opacity-50 rounded-full p-2"
+              aria-label="Close"
+            >
+              <FiX className="h-6 w-6" />
+            </button>
+            <div className="flex-1 flex items-center justify-center w-full px-4">
+              <img
+                src={selectedImage.url}
+                alt={selectedImage.name}
+                className="max-w-full max-h-[85vh] object-contain"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+            {selectedImage.name && (
+              <div className="pb-4 text-center">
+                <p className="text-white text-lg font-semibold">{selectedImage.name}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

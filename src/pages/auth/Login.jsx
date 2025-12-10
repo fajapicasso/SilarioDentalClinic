@@ -77,7 +77,7 @@ const Login = () => {
       <div className="fixed inset-0 w-full h-full z-0">
         <Swiper
           modules={[Autoplay, Pagination]}
-          autoplay={{ delay: 4000, disableOnInteraction: false }}
+          autoplay={{ delay: 20000, disableOnInteraction: false }}
           pagination={{ clickable: true }}
           loop
           className="w-full h-full"

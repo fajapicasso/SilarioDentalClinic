@@ -637,13 +637,6 @@ const AppointmentCalendar = () => {
                           >
                             <FiEye className="h-4 w-4" />
                           </button>
-                          <button
-                            onClick={() => handleEditAppointment(appointment)}
-                            className="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition-colors duration-150"
-                            title="Edit Appointment"
-                          >
-                            <FiEdit className="h-4 w-4" />
-                          </button>
                         </div>
                       </div>
                     </div>
@@ -668,9 +661,9 @@ const AppointmentCalendar = () => {
       {/* Detailed Appointment View Modal */}
       {showViewModal && selectedAppointment && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50 flex-shrink-0">
               <div className="flex items-center">
                 <FiUser className="h-6 w-6 text-blue-600 mr-3" />
                 <div>
@@ -696,7 +689,7 @@ const AppointmentCalendar = () => {
             </div>
 
             {/* Modal Content */}
-            <div className="p-6 overflow-y-auto max-h-[60vh]">
+            <div className="p-6 overflow-y-auto flex-1 min-h-0">
               <div className="space-y-6">
                 {/* Patient Information */}
                 <div className="bg-gray-50 rounded-lg p-4">
@@ -842,13 +835,7 @@ const AppointmentCalendar = () => {
             </div>
 
             {/* Modal Footer */}
-            <div className="flex justify-between p-6 border-t border-gray-200 bg-gray-50">
-              <button
-                onClick={() => handleEditAppointment(selectedAppointment)}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-150"
-              >
-                Edit Appointment
-              </button>
+            <div className="flex justify-end p-6 border-t border-gray-200 bg-gray-50 flex-shrink-0">
               <button
                 onClick={closeViewModal}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-150"

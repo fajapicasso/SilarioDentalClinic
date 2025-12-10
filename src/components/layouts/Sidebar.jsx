@@ -51,7 +51,7 @@ const Sidebar = ({ role, isMobileMenuOpen, setIsMobileMenuOpen }) => {
           { to: '/doctor/calendar', icon: <FiCalendarIcon />, text: 'Appointment Calendar' },
           { to: '/doctor/patients', icon: <FiUsers />, text: 'Patient Records' },
           { to: '/doctor/queue', icon: <FiGrid />, text: 'Queue Management' },
-          { to: '/doctor/billing', icon: <FiFileText />, text: 'Billing' },
+          //{ to: '/doctor/billing', icon: <FiFileText />, text: 'Billing' },
           { to: '/doctor/analytics', icon: <FiBarChart2 />, text: 'Analytics' },
           { to: '/doctor/settings', icon: <FiSettings />, text: 'Settings' },
         ];

@@ -65,6 +65,11 @@ const PublicFooter = () => {
                 <FiMapPin className="mt-1 mr-3 text-primary-400" />
                 <div>
                   <p className="text-gray-400">Cabugao Branch: Salomague road, Turod, Cabugao, Ilocos Sur</p>
+                </div>
+              </li>
+              <li className="flex items-start">
+                <FiMapPin className="mt-1 mr-3 text-primary-400" />
+                <div>
                   <p className="text-gray-400">San Juan Branch: Luna Street, Ressurection, San Juan, Ilocos Sur</p>
                 </div>
               </li>

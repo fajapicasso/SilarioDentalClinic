@@ -367,6 +367,12 @@ const Register = () => {
     const fieldsToTouch = {};
     
     if (currentStep === 1) {
+      // Check if user is a minor (under 18)
+      if (values.age && values.age < 18) {
+        toast.error('You must be at least 18 years old to create an account.');
+        return; // Prevent proceeding to next step
+      }
+      
       // Validate personal information
       if (!values.first_name || !values.last_name || !values.gender || !values.birthday) {
         isValid = false;
@@ -788,7 +794,7 @@ const Register = () => {
       <div className="fixed inset-0 w-full h-full z-0">
         <Swiper
           modules={[Autoplay, Pagination]}
-          autoplay={{ delay: 4000, disableOnInteraction: false }}
+          autoplay={{ delay: 20000, disableOnInteraction: false }}
           pagination={{ clickable: true }}
           loop
           className="w-full h-full"
@@ -939,7 +945,32 @@ const Register = () => {
             onSubmit={handleSubmit}
           >
             {({ isSubmitting, errors, touched, setFieldValue, values, validateForm, setTouched }) => (
-              <Form className="mt-2 space-y-2 sm:space-y-3">
+              <Form className="mt-2 space-y-2 sm:space-y-3 relative">
+                {/* Floating Minor Notification */}
+                {values.age && values.age < 18 && (
+                  <div 
+                    className="fixed top-4 left-1/2 transform -translate-x-1/2 z-[9999] w-full max-w-md px-4"
+                    style={{
+                      animation: 'slideDown 0.3s ease-out'
+                    }}
+                  >
+                    <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg shadow-xl p-4 flex items-start gap-3">
+                      <div className="flex-shrink-0">
+                        <svg className="w-6 h-6 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-yellow-800 mb-1">
+                          Minor Account Restriction
+                        </p>
+                        <p className="text-xs text-yellow-700">
+                          You are under 18 years old. You cannot create an account. Please have a parent or guardian create an account for you.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div className="space-y-2 sm:space-y-3 pb-1">
                   {/* Step 1: Personal Information Section */}
                   {currentStep === 1 && (
@@ -1495,7 +1526,12 @@ const Register = () => {
                       <button
                         type="button"
                         onClick={() => handleNext(errors, touched, values, validateForm, setTouched)}
-                        className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2 md:gap-2.5 py-2 sm:py-2.5 md:py-2.5 lg:py-3 px-4 sm:px-6 md:px-8 lg:px-10 border border-transparent text-sm sm:text-base md:text-lg font-semibold rounded-lg text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 active:from-blue-800 active:to-purple-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 shadow-lg hover:shadow-xl touch-manipulation min-h-[36px] md:min-h-[40px]"
+                        disabled={values.age && values.age < 18}
+                        className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 md:gap-2.5 py-2 sm:py-2.5 md:py-2.5 lg:py-3 px-4 sm:px-6 md:px-8 lg:px-10 border border-transparent text-sm sm:text-base md:text-lg font-semibold rounded-lg text-white transition-all duration-200 shadow-lg touch-manipulation min-h-[36px] md:min-h-[40px] ${
+                          values.age && values.age < 18
+                            ? 'bg-gradient-to-r from-gray-400 to-gray-500 cursor-not-allowed opacity-60'
+                            : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 active:from-blue-800 active:to-purple-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 hover:shadow-xl'
+                        }`}
                       >
                         <span>Next</span>
                         <FiChevronRight className="h-4 w-4 sm:h-5 sm:w-5" />

@@ -211,7 +211,8 @@ const ServiceManagement = () => {
   const handleOpenEditModal = (service) => {
     setEditingService({ ...service });
     setServiceImage(null);
-    setServiceImageUrl('');
+    // Keep existing image URL for preview if service has an image
+    setServiceImageUrl(service.image_url || '');
     setShowEditModal(true);
   };
 
@@ -239,18 +240,32 @@ const ServiceManagement = () => {
       
       // Upload image if provided
       if (newServiceImage) {
-        const fileExt = newServiceImage.name.split('.').pop();
-        const fileName = `service_${Date.now()}.${fileExt}`;
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('service-images')
-          .upload(fileName, newServiceImage, { upsert: true });
-        
-        if (uploadError) throw uploadError;
-        
-        const { data: publicUrlData } = supabase.storage
-          .from('service-images')
-          .getPublicUrl(fileName);
-        imageUrl = publicUrlData.publicUrl;
+        try {
+          const fileExt = newServiceImage.name.split('.').pop();
+          const fileName = `service_${Date.now()}.${fileExt}`;
+          
+          // Upload the image
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('service-images')
+            .upload(fileName, newServiceImage, { upsert: true });
+          
+          if (uploadError) {
+            console.error('Upload error:', uploadError);
+            throw uploadError;
+          }
+          
+          // Get public URL
+          const { data: publicUrlData } = supabase.storage
+            .from('service-images')
+            .getPublicUrl(fileName);
+          
+          imageUrl = publicUrlData.publicUrl;
+          console.log('Image uploaded successfully:', imageUrl);
+        } catch (uploadErr) {
+          console.error('Error uploading image:', uploadErr);
+          toast.error('Failed to upload image. Please try again.');
+          return;
+        }
       }
       
       // Insert new service
@@ -270,13 +285,13 @@ const ServiceManagement = () => {
       
       if (error) throw error;
       
+      // Refresh services to get updated data including new image
+      await fetchServices();
+      
       // Reset form
       clearNewServiceForm();
       
       setShowAddModal(false);
-      
-      // Refresh services
-      fetchServices();
       
       toast.success('Service added successfully');
     } catch (error) {
@@ -296,14 +311,38 @@ const ServiceManagement = () => {
       // Set default price range if not provided
       const priceMin = editingService.price_min || Math.round(editingService.price * 0.8);
       const priceMax = editingService.price_max || Math.round(editingService.price * 1.2);
+      
+      // Keep existing image URL if no new image is uploaded
       let imageUrl = editingService.image_url || '';
+      
+      // Upload new image if provided
       if (serviceImage) {
-        const fileExt = serviceImage.name.split('.').pop();
-        const fileName = `service_${editingService.id}.${fileExt}`;
-        const { data: uploadData, error: uploadError } = await supabase.storage.from('service-images').upload(fileName, serviceImage, { upsert: true });
-        if (uploadError) throw uploadError;
-        const { data: publicUrlData } = supabase.storage.from('service-images').getPublicUrl(fileName);
-        imageUrl = publicUrlData.publicUrl;
+        try {
+          const fileExt = serviceImage.name.split('.').pop();
+          const fileName = `service_${editingService.id}_${Date.now()}.${fileExt}`;
+          
+          // Upload the image
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('service-images')
+            .upload(fileName, serviceImage, { upsert: true });
+          
+          if (uploadError) {
+            console.error('Upload error:', uploadError);
+            throw uploadError;
+          }
+          
+          // Get public URL
+          const { data: publicUrlData } = supabase.storage
+            .from('service-images')
+            .getPublicUrl(fileName);
+          
+          imageUrl = publicUrlData.publicUrl;
+          console.log('Image uploaded successfully:', imageUrl);
+        } catch (uploadErr) {
+          console.error('Error uploading image:', uploadErr);
+          toast.error('Failed to upload image. Please try again.');
+          return;
+        }
       }
       // Update service
       const { error } = await supabase
@@ -320,13 +359,16 @@ const ServiceManagement = () => {
         })
         .eq('id', editingService.id);
       if (error) throw error;
+      
+      // Refresh services to get updated data including new image
+      await fetchServices();
+      
       // Reset editing state
       setEditingService(null);
       setServiceImage(null);
       setServiceImageUrl('');
       setShowEditModal(false);
-      // Refresh services
-      fetchServices();
+      
       toast.success('Service updated successfully');
     } catch (error) {
       console.error('Error updating service:', error);
@@ -621,9 +663,15 @@ const ServiceManagement = () => {
                     style={{ display: 'none' }}
                     onChange={e => {
                       if (e.target.files && e.target.files[0]) {
-                        setNewServiceImage(e.target.files[0]);
-                        setNewServiceImageUrl(URL.createObjectURL(e.target.files[0]));
+                        const file = e.target.files[0];
+                        setNewServiceImage(file);
+                        // Create object URL for preview
+                        const objectUrl = URL.createObjectURL(file);
+                        setNewServiceImageUrl(objectUrl);
+                        console.log('New image selected for preview:', objectUrl);
                       }
+                      // Reset input value to allow selecting the same file again
+                      e.target.value = '';
                     }}
                   />
                   <div className="flex flex-col items-center">
@@ -648,7 +696,11 @@ const ServiceManagement = () => {
                       <img
                         src={newServiceImageUrl}
                         alt="Service Preview"
-                        className="h-32 object-contain border rounded-lg shadow bg-white"
+                        className="max-h-48 w-auto object-contain border rounded-lg shadow bg-white"
+                        onError={(e) => {
+                          console.error('Error loading image:', e);
+                          e.target.style.display = 'none';
+                        }}
                       />
                     </div>
                   )}
@@ -838,9 +890,15 @@ const ServiceManagement = () => {
                     style={{ display: 'none' }}
                     onChange={e => {
                       if (e.target.files && e.target.files[0]) {
-                        setServiceImage(e.target.files[0]);
-                        setServiceImageUrl(URL.createObjectURL(e.target.files[0]));
+                        const file = e.target.files[0];
+                        setServiceImage(file);
+                        // Create object URL for preview
+                        const objectUrl = URL.createObjectURL(file);
+                        setServiceImageUrl(objectUrl);
+                        console.log('New image selected for preview:', objectUrl);
                       }
+                      // Reset input value to allow selecting the same file again
+                      e.target.value = '';
                     }}
                   />
                   <div className="flex flex-col items-center">
@@ -856,12 +914,16 @@ const ServiceManagement = () => {
                       }}
                     >Choose File</button>
                   </div>
-                  {(serviceImageUrl || editingService.image_url) && (
+                  {(serviceImageUrl || editingService?.image_url) && (
                     <div className="mt-4 w-full flex justify-center">
                       <img
-                        src={serviceImageUrl || editingService.image_url}
+                        src={serviceImageUrl || editingService?.image_url}
                         alt="Service Preview"
-                        className="h-32 object-contain border rounded shadow bg-white"
+                        className="max-h-48 w-auto object-contain border rounded shadow bg-white"
+                        onError={(e) => {
+                          console.error('Error loading image:', e);
+                          e.target.style.display = 'none';
+                        }}
                       />
                     </div>
                   )}

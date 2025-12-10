@@ -289,7 +289,7 @@ const Settings = () => {
   // Certificate upload function
   const handleCertificateUpload = async () => {
     if (!certificateFile) {
-      alert('Please select a certificate file first');
+      toast.error('Please select a certificate file first');
       return;
     }
 
@@ -297,13 +297,13 @@ const Settings = () => {
     try {
       // Validate file type
       if (!certificateFile.type.startsWith('image/')) {
-        alert('Please select an image file for the certificate');
+        toast.error('Please select an image file for the certificate');
         return;
       }
 
       // Validate file size (max 10MB)
       if (certificateFile.size > 10 * 1024 * 1024) {
-        alert('Certificate file size must be less than 10MB');
+        toast.error('Certificate file size must be less than 10MB');
         return;
       }
 
@@ -361,11 +361,11 @@ const Settings = () => {
       }));
 
       setCertificateFile(null);
-      alert('Certificate uploaded successfully!');
+      toast.success('Certificate uploaded successfully!');
       
     } catch (error) {
       console.error('Error uploading certificate:', error);
-      alert(`Failed to upload certificate: ${error.message}`);
+      toast.error(`Failed to upload certificate: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -424,18 +424,21 @@ const Settings = () => {
       }));
 
       setCertificateFile(null);
-      alert('Certificate removed successfully!');
+      toast.success('Certificate removed successfully!');
       
     } catch (error) {
       console.error('Error removing certificate:', error);
-      alert(`Failed to remove certificate: ${error.message}`);
+      toast.error(`Failed to remove certificate: ${error.message}`);
     }
   };
 
   // Profile picture handlers
-  const handleProfilePictureChange = (e) => {
+  const handleProfilePictureChange = async (e) => {
     if (e.target.files && e.target.files[0]) {
-      setProfilePictureFile(e.target.files[0]);
+      const file = e.target.files[0];
+      setProfilePictureFile(file);
+      // Automatically upload the file
+      await handleProfilePictureUpload(file);
     }
   };
 
@@ -459,34 +462,35 @@ const Settings = () => {
     }
   };
 
-  const handleProfilePictureUpload = async () => {
-    if (!profilePictureFile) {
-      alert('Please select a profile picture first');
+  const handleProfilePictureUpload = async (fileToUpload = null) => {
+    const file = fileToUpload || profilePictureFile;
+    if (!file) {
+      toast.error('Please select a profile picture first');
       return;
     }
 
     setIsUploadingProfilePicture(true);
     try {
       // Validate file type
-      if (!profilePictureFile.type.startsWith('image/')) {
-        alert('Please select an image file for the profile picture');
+      if (!file.type.startsWith('image/')) {
+        toast.error('Please select an image file for the profile picture');
         return;
       }
 
       // Validate file size (max 5MB)
-      if (profilePictureFile.size > 5 * 1024 * 1024) {
-        alert('Profile picture file size must be less than 5MB');
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Profile picture file size must be less than 5MB');
         return;
       }
 
       // Create a unique filename
-      const fileExt = profilePictureFile.name.split('.').pop();
+      const fileExt = file.name.split('.').pop();
       const fileName = `admin_profile_${Date.now()}.${fileExt}`;
 
       // Upload to profile-pictures bucket
       const { error: uploadError } = await supabase.storage
         .from('profile-pictures')
-        .upload(fileName, profilePictureFile, {
+        .upload(fileName, file, {
           cacheControl: '3600',
           upsert: true
         });
@@ -540,11 +544,11 @@ const Settings = () => {
       }
 
       setProfilePictureFile(null);
-      alert('Profile picture uploaded successfully!');
+      toast.success('Profile picture uploaded successfully!');
       
     } catch (error) {
       console.error('Error uploading profile picture:', error);
-      alert(`Failed to upload profile picture: ${error.message}`);
+      toast.error(`Failed to upload profile picture: ${error.message}`);
     } finally {
       setIsUploadingProfilePicture(false);
     }
@@ -609,11 +613,11 @@ const Settings = () => {
       }
 
       setProfilePictureFile(null);
-      alert('Profile picture removed successfully!');
+      toast.success('Profile picture removed successfully!');
       
     } catch (error) {
       console.error('Error removing profile picture:', error);
-      alert(`Failed to remove profile picture: ${error.message}`);
+      toast.error(`Failed to remove profile picture: ${error.message}`);
     }
   };
 
@@ -1046,10 +1050,10 @@ const Settings = () => {
                 <hr className="mb-6 border-blue-100" />
                 
                 {/* Profile Picture Section */}
-                <div className="mb-8 flex justify-center">
-                  <div className="flex flex-col items-center space-y-4">
-                    {/* Profile Picture Display */}
-                    <div className="relative">
+                <div className="mb-8">
+                  <div className="flex items-start gap-6">
+                    {/* Profile Picture Display - Left Side */}
+                    <div className="relative flex-shrink-0">
                       <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-gray-200 shadow-lg">
                         {profileData.profile_picture_url ? (
                           <img
@@ -1063,12 +1067,10 @@ const Settings = () => {
                             }}
                           />
                         ) : null}
-                        <div className={`w-full h-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center ${profileData.profile_picture_url ? 'hidden' : ''}`}>
-                          <FiUser className="w-16 h-16 text-white" />
+                        <div className={`w-full h-full bg-gray-200 flex items-center justify-center ${profileData.profile_picture_url ? 'hidden' : ''}`}>
+                          <FiUser className="w-16 h-16 text-gray-400" />
                         </div>
                       </div>
-                      
-                      {/* Edit Button Overlay - Only show when editing */}
                       {isEditing && (
                         <button
                           onClick={() => document.getElementById('admin-profile-picture-input').click()}
@@ -1080,185 +1082,189 @@ const Settings = () => {
                       )}
                     </div>
                     
-                    {/* Change/Remove Profile Picture Buttons - Only show when editing */}
-                    {isEditing && (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => document.getElementById('admin-profile-picture-input').click()}
-                          className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors duration-200 text-sm flex items-center gap-2"
-                        >
-                          <FiCamera className="w-4 h-4" />
-                          Change Profile Picture
-                        </button>
-                        
-                        {profileData.profile_picture_url && (
-                          <button
-                            onClick={handleRemoveProfilePicture}
-                            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors duration-200 text-sm flex items-center gap-2"
-                          >
-                            <FiTrash2 className="w-4 h-4" />
-                            Remove Profile Picture
-                          </button>
-                        )}
+                    {/* User Info and Buttons - Right Side */}
+                    <div className="flex-1">
+                      <div className="mb-4">
+                        <h3 className="text-2xl font-bold text-gray-900">
+                          {profileData.first_name} {profileData.middle_name} {profileData.last_name}
+                        </h3>
+                        <p className="text-gray-600 mt-1">{profileData.email}</p>
                       </div>
-                    )}
-                    
-                    {/* Profile Picture Upload Interface */}
-                    {isEditing && (
-                      <div className="w-full max-w-md">
-                        {/* Drag and Drop Area */}
-                        <div
-                          className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors duration-200 ${
-                            isDraggingProfilePicture
-                              ? 'border-primary-500 bg-primary-50'
-                              : 'border-gray-300 hover:border-primary-400'
-                          }`}
-                          onDragOver={handleProfilePictureDragOver}
-                          onDragLeave={handleProfilePictureDragLeave}
-                          onDrop={handleProfilePictureDrop}
-                        >
-                          <input
-                            id="admin-profile-picture-input"
-                            type="file"
-                            accept="image/*"
-                            onChange={handleProfilePictureChange}
-                            className="hidden"
-                          />
+                      
+                      {/* Change/Remove Profile Picture Buttons - Only show when editing */}
+                      {isEditing && (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => document.getElementById('admin-profile-picture-input').click()}
+                            className="px-4 py-2 rounded-md text-sm flex items-center gap-2 transition-colors duration-200 bg-primary-600 text-white hover:bg-primary-700"
+                          >
+                            <FiCamera className="w-4 h-4" />
+                            Change Picture
+                          </button>
                           
-                          {profilePictureFile ? (
-                            <div className="space-y-3">
-                              <div className="w-20 h-20 mx-auto rounded-full overflow-hidden border-2 border-gray-200">
-                                <img
-                                  src={URL.createObjectURL(profilePictureFile)}
-                                  alt="Preview"
-                                  className="w-full h-full object-cover"
-                                />
-                              </div>
-                              <p className="text-sm text-gray-600">{profilePictureFile.name}</p>
-                              <div className="flex space-x-2 justify-center">
-                                <button
-                                  onClick={handleProfilePictureUpload}
-                                  disabled={isUploadingProfilePicture}
-                                  className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:bg-primary-300 disabled:cursor-not-allowed"
-                                >
-                                  {isUploadingProfilePicture ? (
-                                    <>
-                                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2 inline-block"></div>
-                                      Uploading...
-                                    </>
-                                  ) : (
-                                    <>
-                                      <FiUpload className="inline mr-2" />
-                                      Upload Picture
-                                    </>
-                                  )}
-                                </button>
-                                <button
-                                  onClick={() => setProfilePictureFile(null)}
-                                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="space-y-3">
-                              <FiCamera className="w-12 h-12 text-gray-400 mx-auto" />
-                              <div>
-                                <p className="text-sm font-medium text-gray-700">
-                                  Upload Profile Picture
-                                </p>
-                                <p className="text-xs text-gray-500 mt-1">
-                                  Drag and drop an image here, or click to browse
-                                </p>
-                              </div>
-                              <button
-                                onClick={() => document.getElementById('admin-profile-picture-input').click()}
-                                className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
-                              >
-                                Choose File
-                              </button>
-                            </div>
+                          {profileData.profile_picture_url && (
+                            <button
+                              onClick={handleRemoveProfilePicture}
+                              className="px-4 py-2 rounded-md text-sm flex items-center gap-2 transition-colors duration-200 bg-red-600 text-white hover:bg-red-700"
+                            >
+                              <FiTrash2 className="w-4 h-4" />
+                              Remove
+                            </button>
                           )}
                         </div>
-                        
-                        {/* Upload Guidelines */}
-                        <div className="mt-3 text-xs text-gray-500 text-center">
-                          <p>Supported formats: JPG, PNG, GIF (Max 5MB)</p>
-                          <p>Recommended size: 400x400 pixels or larger</p>
-                        </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
+                  
+                  {isEditing && (
+                    <input
+                      id="admin-profile-picture-input"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleProfilePictureChange}
+                      className="hidden"
+                    />
+                  )}
                 </div>
                 
                 {!isEditing ? (
                   <div className="space-y-8">
                     <div className="max-w-6xl mx-auto px-8">
-                      <h3 className="text-xl font-bold text-primary-700 mb-1">Personal Information</h3>
+                      <h3 className="text-xl font-bold text-primary-700 mb-1">Personal Info</h3>
                       <p className="text-sm text-gray-500 mb-6">View your personal information below.</p>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700">First Name</label>
-                          <div className="mt-1 text-gray-900 font-semibold">{profileData.first_name}</div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                          <input
+                            type="text"
+                            value={profileData.first_name || ''}
+                            readOnly
+                            className="mt-1 block w-full rounded-md border-gray-300 bg-gray-50 px-3 py-2 text-gray-900"
+                          />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700">Middle Name</label>
-                          <div className="mt-1 text-gray-900 font-semibold">{profileData.middle_name}</div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Middle Name</label>
+                          <input
+                            type="text"
+                            value={profileData.middle_name || ''}
+                            readOnly
+                            className="mt-1 block w-full rounded-md border-gray-300 bg-gray-50 px-3 py-2 text-gray-900"
+                          />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700">Last Name</label>
-                          <div className="mt-1 text-gray-900 font-semibold">{profileData.last_name}</div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                          <input
+                            type="text"
+                            value={profileData.last_name || ''}
+                            readOnly
+                            className="mt-1 block w-full rounded-md border-gray-300 bg-gray-50 px-3 py-2 text-gray-900"
+                          />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700">Email</label>
-                          <div className="mt-1 text-gray-900 font-semibold">{profileData.email}</div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                          <input
+                            type="email"
+                            value={profileData.email || ''}
+                            readOnly
+                            className="mt-1 block w-full rounded-md border-gray-300 bg-gray-50 px-3 py-2 text-gray-900"
+                          />
+                          <p className="mt-1 text-xs text-gray-500">Email cannot be changed as it's used for login.</p>
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700">Phone</label>
-                          <div className="mt-1 text-gray-900 font-semibold">{profileData.phone || 'Not provided'}</div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                          <input
+                            type="tel"
+                            value={profileData.phone || ''}
+                            readOnly
+                            className="mt-1 block w-full rounded-md border-gray-300 bg-gray-50 px-3 py-2 text-gray-900"
+                          />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700">Birthday</label>
-                          <div className="mt-1 text-gray-900 font-semibold">
-                            {profileData.birthday ? new Date(profileData.birthday).toLocaleDateString('en-US', {
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric'
-                            }) : 'Not specified'}
-                          </div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Birthday</label>
+                          <input
+                            type="text"
+                            value={profileData.birthday ? new Date(profileData.birthday).toLocaleDateString('en-US', {
+                              month: '2-digit',
+                              day: '2-digit',
+                              year: 'numeric'
+                            }) : ''}
+                            readOnly
+                            className="mt-1 block w-full rounded-md border-gray-300 bg-gray-50 px-3 py-2 text-gray-900"
+                          />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700">Gender</label>
-                          <div className="mt-1 text-gray-900 font-semibold">{profileData.gender || 'Not specified'}</div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                          <input
+                            type="text"
+                            value={profileData.gender ? profileData.gender.charAt(0).toUpperCase() + profileData.gender.slice(1) : ''}
+                            readOnly
+                            className="mt-1 block w-full rounded-md border-gray-300 bg-gray-50 px-3 py-2 text-gray-900"
+                          />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700">Age</label>
-                          <div className="mt-1 text-gray-900 font-semibold">
-                            {profileData.birthday ? 
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Age</label>
+                          <input
+                            type="text"
+                            value={profileData.birthday ? 
                               Math.floor((new Date() - new Date(profileData.birthday)) / (365.25 * 24 * 60 * 60 * 1000)) + ' years old' 
-                              : 'Not specified'}
-                          </div>
+                              : ''}
+                            readOnly
+                            className="mt-1 block w-full rounded-md border-gray-300 bg-gray-50 px-3 py-2 text-gray-900"
+                          />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700">Occupation/Specialization</label>
-                          <div className="mt-1 text-gray-900 font-semibold">{profileData.occupation || 'Not specified'}</div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Occupation/Specialization</label>
+                          <input
+                            type="text"
+                            value={profileData.occupation || ''}
+                            readOnly
+                            className="mt-1 block w-full rounded-md border-gray-300 bg-gray-50 px-3 py-2 text-gray-900"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <hr className="my-6 border-blue-100" />
+                    
+                    <div className="max-w-6xl mx-auto px-8">
+                      <h3 className="text-xl font-bold text-primary-700 mb-1">Address</h3>
+                      <p className="text-sm text-gray-500 mb-6">Your address information.</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Street</label>
+                          <input
+                            type="text"
+                            value={profileData.street || ''}
+                            readOnly
+                            className="mt-1 block w-full rounded-md border-gray-300 bg-gray-50 px-3 py-2 text-gray-900"
+                          />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700">Street</label>
-                          <div className="mt-1 text-gray-900 font-semibold">{profileData.street}</div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Barangay</label>
+                          <input
+                            type="text"
+                            value={profileData.barangay || ''}
+                            readOnly
+                            className="mt-1 block w-full rounded-md border-gray-300 bg-gray-50 px-3 py-2 text-gray-900"
+                          />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700">Barangay</label>
-                          <div className="mt-1 text-gray-900 font-semibold">{profileData.barangay}</div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">City/Municipality</label>
+                          <input
+                            type="text"
+                            value={profileData.city || ''}
+                            readOnly
+                            className="mt-1 block w-full rounded-md border-gray-300 bg-gray-50 px-3 py-2 text-gray-900"
+                          />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700">City/Municipality</label>
-                          <div className="mt-1 text-gray-900 font-semibold">{profileData.city}</div>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Province</label>
-                          <div className="mt-1 text-gray-900 font-semibold">{profileData.province}</div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Province</label>
+                          <input
+                            type="text"
+                            value={profileData.province || ''}
+                            readOnly
+                            className="mt-1 block w-full rounded-md border-gray-300 bg-gray-50 px-3 py-2 text-gray-900"
+                          />
                         </div>
                       </div>
                     </div>
@@ -1268,202 +1274,226 @@ const Settings = () => {
                     <div className="max-w-6xl mx-auto px-8">
                       <h3 className="text-xl font-bold text-primary-700 mb-1">Emergency Contact</h3>
                       <p className="text-sm text-gray-500 mb-6">Who to contact in case of emergency.</p>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700">Contact Name</label>
-                          <div className="mt-1 text-gray-900 font-semibold">{profileData.emergency_contact_name || 'Not provided'}</div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Contact Name</label>
+                          <input
+                            type="text"
+                            value={profileData.emergency_contact_name || ''}
+                            readOnly
+                            className="mt-1 block w-full rounded-md border-gray-300 bg-gray-50 px-3 py-2 text-gray-900"
+                          />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700">Contact Phone</label>
-                          <div className="mt-1 text-gray-900 font-semibold">{profileData.emergency_contact_phone || 'Not provided'}</div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Contact Phone</label>
+                          <input
+                            type="tel"
+                            value={profileData.emergency_contact_phone || ''}
+                            readOnly
+                            className="mt-1 block w-full rounded-md border-gray-300 bg-gray-50 px-3 py-2 text-gray-900"
+                          />
                         </div>
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <form onSubmit={(e) => { e.preventDefault(); handleProfileSave(); }} className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4">
-                      {/* Name fields */}
-                      <div>
-                        <label htmlFor="first_name" className="block text-sm font-medium text-gray-700">First Name</label>
-                        <input
-                          type="text"
-                          id="first_name"
-                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                          value={profileData.first_name}
-                          onChange={handleProfileChange}
-                        />
-                        {profileErrors.first_name && (
-                          <p className="mt-1 text-sm text-red-600">{profileErrors.first_name}</p>
-                        )}
-                      </div>
-                      <div>
-                        <label htmlFor="middle_name" className="block text-sm font-medium text-gray-700">Middle Name</label>
-                        <input
-                          type="text"
-                          id="middle_name"
-                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                          value={profileData.middle_name}
-                          onChange={handleProfileChange}
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor="last_name" className="block text-sm font-medium text-gray-700">Last Name</label>
-                        <input
-                          type="text"
-                          id="last_name"
-                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                          value={profileData.last_name}
-                          onChange={handleProfileChange}
-                        />
-                        {profileErrors.last_name && (
-                          <p className="mt-1 text-sm text-red-600">{profileErrors.last_name}</p>
-                        )}
-                      </div>
-                      <div>
-                        <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email</label>
-                        <input
-                          type="email"
-                          id="email"
-                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                          value={profileData.email}
-                          disabled
-                        />
-                        <p className="mt-1 text-xs text-gray-500">Email cannot be changed as it's used for login.</p>
-                      </div>
-                      <div>
-                        <label htmlFor="phone" className="block text-sm font-medium text-gray-700">Phone</label>
-                        <input
-                          type="tel"
-                          id="phone"
-                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                          value={profileData.phone}
-                          onChange={handleProfileChange}
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor="birthday" className="block text-sm font-medium text-gray-700">Birthday</label>
-                        <DatePicker
-                          selected={profileData.birthday ? new Date(profileData.birthday) : null}
-                          onChange={(date) => {
-                            const formattedDate = date ? date.toISOString().split('T')[0] : '';
-                            setProfileData(prev => ({
-                              ...prev,
-                              birthday: formattedDate
-                            }));
-                          }}
-                          dateFormat="MMMM d, yyyy"
-                          showMonthDropdown
-                          showYearDropdown
-                          dropdownMode="select"
-                          scrollableYearDropdown
-                          yearDropdownItemNumber={100}
-                          placeholderText="Select your birthday"
-                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                          maxDate={new Date()}
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor="gender" className="block text-sm font-medium text-gray-700">Gender</label>
-                        <select
-                          id="gender"
-                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                          value={profileData.gender || ''}
-                          onChange={handleProfileChange}
-                        >
-                          <option value="">Select Gender</option>
-                          <option value="male">Male</option>
-                          <option value="female">Female</option>
-                          <option value="other">Other</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label htmlFor="age" className="block text-sm font-medium text-gray-700">Age</label>
-                        <input
-                          type="text"
-                          id="age"
-                          name="age"
-                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 bg-gray-50"
-                          value={profileData.birthday ? 
-                            Math.floor((new Date() - new Date(profileData.birthday)) / (365.25 * 24 * 60 * 60 * 1000)) + ' years old' 
-                            : 'Not specified'}
-                          readOnly
-                          disabled
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor="occupation" className="block text-sm font-medium text-gray-700">Occupation/Specialization</label>
-                        <input
-                          type="text"
-                          id="occupation"
-                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                          value={profileData.occupation}
-                          onChange={handleProfileChange}
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor="street" className="block text-sm font-medium text-gray-700">Street</label>
-                        <input
-                          type="text"
-                          id="street"
-                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                          value={profileData.street}
-                          onChange={handleProfileChange}
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor="barangay" className="block text-sm font-medium text-gray-700">Barangay</label>
-                        <input
-                          type="text"
-                          id="barangay"
-                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                          value={profileData.barangay}
-                          onChange={handleProfileChange}
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor="city" className="block text-sm font-medium text-gray-700">City/Municipality</label>
-                        <input
-                          type="text"
-                          id="city"
-                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                          value={profileData.city}
-                          onChange={handleProfileChange}
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor="province" className="block text-sm font-medium text-gray-700">Province</label>
-                        <input
-                          type="text"
-                          id="province"
-                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                          value={profileData.province}
-                          onChange={handleProfileChange}
-                        />
+                  <form onSubmit={(e) => { e.preventDefault(); handleProfileSave(); }} className="space-y-8">
+                    <div className="max-w-6xl mx-auto px-8">
+                      <h3 className="text-xl font-bold text-primary-700 mb-1">Personal Info</h3>
+                      <p className="text-sm text-gray-500 mb-6">Update your personal information.</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
+                        {/* Name fields */}
+                        <div>
+                          <label htmlFor="first_name" className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                          <input
+                            type="text"
+                            id="first_name"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-3 py-2"
+                            value={profileData.first_name}
+                            onChange={handleProfileChange}
+                          />
+                          {profileErrors.first_name && (
+                            <p className="mt-1 text-sm text-red-600">{profileErrors.first_name}</p>
+                          )}
+                        </div>
+                        <div>
+                          <label htmlFor="middle_name" className="block text-sm font-medium text-gray-700 mb-1">Middle Name</label>
+                          <input
+                            type="text"
+                            id="middle_name"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-3 py-2"
+                            value={profileData.middle_name}
+                            onChange={handleProfileChange}
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="last_name" className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                          <input
+                            type="text"
+                            id="last_name"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-3 py-2"
+                            value={profileData.last_name}
+                            onChange={handleProfileChange}
+                          />
+                          {profileErrors.last_name && (
+                            <p className="mt-1 text-sm text-red-600">{profileErrors.last_name}</p>
+                          )}
+                        </div>
+                        <div>
+                          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                          <input
+                            type="email"
+                            id="email"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 bg-gray-50 px-3 py-2"
+                            value={profileData.email}
+                            disabled
+                          />
+                          <p className="mt-1 text-xs text-gray-500">Email cannot be changed as it's used for login.</p>
+                        </div>
+                        <div>
+                          <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                          <input
+                            type="tel"
+                            id="phone"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-3 py-2"
+                            value={profileData.phone}
+                            onChange={handleProfileChange}
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="birthday" className="block text-sm font-medium text-gray-700 mb-1">Birthday</label>
+                          <DatePicker
+                            selected={profileData.birthday ? new Date(profileData.birthday) : null}
+                            onChange={(date) => {
+                              const formattedDate = date ? date.toISOString().split('T')[0] : '';
+                              setProfileData(prev => ({
+                                ...prev,
+                                birthday: formattedDate
+                              }));
+                            }}
+                            dateFormat="MM/dd/yyyy"
+                            showMonthDropdown
+                            showYearDropdown
+                            dropdownMode="select"
+                            scrollableYearDropdown
+                            yearDropdownItemNumber={100}
+                            placeholderText="Select your birthday"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-3 py-2"
+                            maxDate={new Date()}
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="gender" className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                          <select
+                            id="gender"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-3 py-2"
+                            value={profileData.gender || ''}
+                            onChange={handleProfileChange}
+                          >
+                            <option value="">Select Gender</option>
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                            <option value="other">Other</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label htmlFor="age" className="block text-sm font-medium text-gray-700 mb-1">Age</label>
+                          <input
+                            type="text"
+                            id="age"
+                            name="age"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 bg-gray-50 px-3 py-2"
+                            value={profileData.birthday ? 
+                              Math.floor((new Date() - new Date(profileData.birthday)) / (365.25 * 24 * 60 * 60 * 1000)) + ' years old' 
+                              : 'Not specified'}
+                            readOnly
+                            disabled
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="occupation" className="block text-sm font-medium text-gray-700 mb-1">Occupation/Specialization</label>
+                          <input
+                            type="text"
+                            id="occupation"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-3 py-2"
+                            value={profileData.occupation}
+                            onChange={handleProfileChange}
+                          />
+                        </div>
                       </div>
                     </div>
                     
                     <hr className="my-6 border-blue-100" />
                     
-                    <div>
-                      <h3 className="text-lg font-bold text-primary-700 mb-4">Emergency Contact</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                    <div className="max-w-6xl mx-auto px-8">
+                      <h3 className="text-xl font-bold text-primary-700 mb-1">Address</h3>
+                      <p className="text-sm text-gray-500 mb-6">Your address information.</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
                         <div>
-                          <label htmlFor="emergency_contact_name" className="block text-sm font-medium text-gray-700">Contact Name</label>
+                          <label htmlFor="street" className="block text-sm font-medium text-gray-700 mb-1">Street</label>
+                          <input
+                            type="text"
+                            id="street"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-3 py-2"
+                            value={profileData.street}
+                            onChange={handleProfileChange}
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="barangay" className="block text-sm font-medium text-gray-700 mb-1">Barangay</label>
+                          <input
+                            type="text"
+                            id="barangay"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-3 py-2"
+                            value={profileData.barangay}
+                            onChange={handleProfileChange}
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="city" className="block text-sm font-medium text-gray-700 mb-1">City/Municipality</label>
+                          <input
+                            type="text"
+                            id="city"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-3 py-2"
+                            value={profileData.city}
+                            onChange={handleProfileChange}
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="province" className="block text-sm font-medium text-gray-700 mb-1">Province</label>
+                          <input
+                            type="text"
+                            id="province"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-3 py-2"
+                            value={profileData.province}
+                            onChange={handleProfileChange}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <hr className="my-6 border-blue-100" />
+                    
+                    <div className="max-w-6xl mx-auto px-8">
+                      <h3 className="text-xl font-bold text-primary-700 mb-1">Emergency Contact</h3>
+                      <p className="text-sm text-gray-500 mb-6">Who to contact in case of emergency.</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                        <div>
+                          <label htmlFor="emergency_contact_name" className="block text-sm font-medium text-gray-700 mb-1">Contact Name</label>
                           <input
                             type="text"
                             id="emergency_contact_name"
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-3 py-2"
                             value={profileData.emergency_contact_name}
                             onChange={handleProfileChange}
                           />
                         </div>
                         <div>
-                          <label htmlFor="emergency_contact_phone" className="block text-sm font-medium text-gray-700">Contact Phone</label>
+                          <label htmlFor="emergency_contact_phone" className="block text-sm font-medium text-gray-700 mb-1">Contact Phone</label>
                           <input
                             type="tel"
                             id="emergency_contact_phone"
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 px-3 py-2"
                             value={profileData.emergency_contact_phone}
                             onChange={handleProfileChange}
                           />
