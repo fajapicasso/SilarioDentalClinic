@@ -11,15 +11,18 @@
     <!-- Privacy Protection - Block console immediately in production -->
     <script>
       (function() {
-        // Check if in production
-        var isProd = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+        // Check if in production (Vercel or any production domain)
+        var isProd = window.location.hostname !== 'localhost' && 
+                     window.location.hostname !== '127.0.0.1' &&
+                     !window.location.hostname.includes('localhost');
+        
         if (isProd) {
           var noop = function() {};
-          // Block all console methods immediately
+          
+          // Block console methods (but allow errors to be caught by app)
           console.log = noop;
-          console.error = noop;
-          console.warn = noop;
           console.info = noop;
+          console.warn = noop;
           console.debug = noop;
           console.table = noop;
           console.group = noop;
@@ -31,10 +34,9 @@
           console.dir = noop;
           console.dirxml = noop;
           console.assert = noop;
-          // Suppress errors
-          window.onerror = function() { return true; };
-          window.addEventListener('error', function(e) { e.preventDefault(); return true; }, true);
-          window.addEventListener('unhandledrejection', function(e) { e.preventDefault(); return true; }, true);
+          
+          // Block console.error but don't break error handling
+          console.error = noop;
         }
       })();
     </script>

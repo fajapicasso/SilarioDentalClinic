@@ -135,82 +135,8 @@ export function sanitizeConsole() {
   console.timeStamp = noop;
   console.memory = noop;
   
-  // Intercept and suppress network errors from being logged
-  if (typeof window !== 'undefined') {
-    // Override window.onerror to prevent error display
-    const originalOnError = window.onerror;
-    window.onerror = function(message, source, lineno, colno, error) {
-      // Suppress all errors
-      return true;
-    };
-    
-    // Override unhandled promise rejections
-    window.addEventListener('unhandledrejection', function(event) {
-      event.preventDefault(); // Prevent default error logging
-      event.stopPropagation(); // Stop event propagation
-      return false;
-    }, true);
-    
-    // Override error event listener
-    window.addEventListener('error', function(event) {
-      event.preventDefault(); // Prevent default error logging
-      event.stopPropagation(); // Stop event propagation
-      return false;
-    }, true);
-    
-    // Intercept fetch to prevent network errors from being logged
-    const originalFetch = window.fetch;
-    window.fetch = function(...args) {
-      return originalFetch.apply(this, args)
-        .catch(error => {
-          // Silently handle fetch errors without logging
-          return Promise.reject(error);
-        });
-    };
-    
-    // Intercept XMLHttpRequest to prevent network errors from being logged
-    const OriginalXHR = window.XMLHttpRequest;
-    window.XMLHttpRequest = function() {
-      const xhr = new OriginalXHR();
-      const originalOpen = xhr.open;
-      const originalSend = xhr.send;
-      
-      // Override open to intercept requests
-      xhr.open = function(...args) {
-        return originalOpen.apply(this, args);
-      };
-      
-      // Override send to intercept responses
-      xhr.send = function(...args) {
-        // Add error handler that doesn't log
-        xhr.addEventListener('error', function(event) {
-          event.stopPropagation();
-        }, true);
-        
-        xhr.addEventListener('load', function(event) {
-          // Suppress error status logging
-          if (xhr.status >= 400) {
-            event.stopPropagation();
-          }
-        }, true);
-        
-        return originalSend.apply(this, args);
-      };
-      
-      return xhr;
-    };
-    
-    // Suppress Supabase client errors
-    if (window.supabase) {
-      // Try to suppress Supabase error logging
-      try {
-        const originalFrom = window.supabase.from;
-        // This won't work directly, but we've already blocked console
-      } catch (e) {
-        // Ignore
-      }
-    }
-  }
+  // Only block console - don't interfere with error handling
+  // This allows the app to function normally while hiding console output
 }
 
 /**
