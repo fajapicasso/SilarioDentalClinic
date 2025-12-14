@@ -12,6 +12,7 @@ import LoadingSpinner from '../../components/common/LoadingSpinner';
 import BracesCalendar from "../../pages/doctor/BracesCalendar";
 import { toast } from 'react-toastify';
 import { useUniversalAudit } from '../../hooks/useUniversalAudit';
+import logger from '../../utils/logger';
 
 const DoctorDashboard = () => {
   const { user } = useAuth();
@@ -68,7 +69,7 @@ const DoctorDashboard = () => {
             changed_by: user.id
           });
         } catch (auditError) {
-          console.error('Error logging appointment completion audit event:', auditError);
+          logger.error('Error logging appointment completion audit event:', auditError);
           // Continue even if audit logging fails
         }
       }
@@ -77,7 +78,7 @@ const DoctorDashboard = () => {
       try {
         await logQueueStatusUpdate(currentPatient.id, { status: 'serving' }, { status: 'completed' });
       } catch (auditError) {
-        console.error('Error logging queue status update audit event:', auditError);
+        logger.error('Error logging queue status update audit event:', auditError);
         // Continue even if audit logging fails
       }
       
@@ -99,7 +100,7 @@ const DoctorDashboard = () => {
         setCurrentPatient(null);
       }
     } catch (error) {
-      console.error('Error completing patient:', error);
+      logger.error('Error completing patient:', error);
       toast.error('Failed to update patient status');
     }
   };
@@ -251,7 +252,7 @@ const DoctorDashboard = () => {
         
         setWaitingPatients(filteredWaitingPatients);
       } catch (error) {
-        console.error('Error fetching dashboard data:', error);
+        logger.error('Error fetching dashboard data:', error);
       } finally {
         setIsLoading(false);
       }

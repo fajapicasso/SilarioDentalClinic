@@ -9,6 +9,7 @@ import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { QueueService } from '../../services/queueService';
 import { useUniversalAudit } from '../../hooks/useUniversalAudit';
 import { getNextQueueNumberForToday } from '../../utils/philippineTime';
+import logger from '../../utils/logger';
 
 const QueueManagement = () => {
   const navigate = useNavigate();
@@ -152,13 +153,13 @@ const QueueManagement = () => {
         .order('full_name');
       
       if (error) {
-        console.error('Error fetching doctors:', error);
+        logger.error('Error fetching doctors:', error);
         return;
       }
       
       setAvailableDoctors(doctors || []);
     } catch (error) {
-      console.error('Error fetching doctors:', error);
+      logger.error('Error fetching doctors:', error);
     }
   };
 
@@ -195,7 +196,7 @@ const QueueManagement = () => {
         schema: 'public', 
         table: 'queue' 
       }, () => {
-        console.log('Queue changed, refreshing...');
+        logger.log('Queue changed, refreshing...');
         // Only refresh data, don't trigger auto-add logic
         fetchQueueDataOnly();
       })
@@ -209,7 +210,7 @@ const QueueManagement = () => {
         schema: 'public', 
         table: 'appointments' 
       }, () => {
-        console.log('Appointments changed, refreshing queue...');
+        logger.log('Appointments changed, refreshing queue...');
         // Only refresh data, don't trigger auto-add logic
         fetchQueueDataOnly();
       })
@@ -250,7 +251,7 @@ const QueueManagement = () => {
   const atomicAutoAdd = async (missingAppointments, todayDate) => {
     // Check if auto-add is already in progress
     if (autoAddLockRef.current) {
-      console.log('🚫 AUTO-ADD BLOCKED: Another auto-add process is already running');
+      logger.log('🚫 AUTO-ADD BLOCKED: Another auto-add process is already running');
       return { success: false, reason: 'already_running' };
     }
 
@@ -259,7 +260,7 @@ const QueueManagement = () => {
     const hasAutoAddBeenProcessed = sessionStorage.getItem(globalAutoAddKey);
     
     if (hasAutoAddBeenProcessed === 'true') {
-      console.log('🚫 AUTO-ADD BLOCKED: Auto-add already processed today');
+      logger.log('🚫 AUTO-ADD BLOCKED: Auto-add already processed today');
       return { success: false, reason: 'already_processed' };
     }
 
@@ -268,7 +269,7 @@ const QueueManagement = () => {
     sessionStorage.setItem(globalAutoAddKey, 'true');
     
     try {
-      console.log(`🔒 ATOMIC AUTO-ADD: Processing ${missingAppointments.length} appointments`);
+      logger.log(`🔒 ATOMIC AUTO-ADD: Processing ${missingAppointments.length} appointments`);
       
       let addedCount = 0;
       const processedPatients = new Set();
@@ -279,7 +280,7 @@ const QueueManagement = () => {
           // Atomic duplicate check with database lock
           const isDuplicate = await atomicDuplicateCheck(appointment.patient_id, todayDate);
           if (isDuplicate) {
-            console.log(`🚫 ATOMIC DUPLICATE BLOCKED: Patient ${appointment.patient_id} already processed`);
+            logger.log(`🚫 ATOMIC DUPLICATE BLOCKED: Patient ${appointment.patient_id} already processed`);
             continue;
           }
           
@@ -293,20 +294,20 @@ const QueueManagement = () => {
           
           if (result.success) {
             addedCount++;
-            console.log(`✅ ATOMIC ADD: Added appointment ${appointment.id} as #${result.queueNumber}`);
+            logger.log(`✅ ATOMIC ADD: Added appointment ${appointment.id} as #${result.queueNumber}`);
           } else {
-            console.error(`❌ ATOMIC ADD FAILED: ${appointment.id} - ${result.error}`);
+            logger.error(`❌ ATOMIC ADD FAILED: ${appointment.id} - ${result.error}`);
           }
         } catch (error) {
-          console.error(`❌ ATOMIC ADD ERROR for appointment ${appointment.id}:`, error);
+          logger.error(`❌ ATOMIC ADD ERROR for appointment ${appointment.id}:`, error);
         }
       }
       
-      console.log(`🔓 ATOMIC AUTO-ADD COMPLETE: Added ${addedCount} appointments`);
+      logger.log(`🔓 ATOMIC AUTO-ADD COMPLETE: Added ${addedCount} appointments`);
       return { success: true, addedCount, processedPatients: Array.from(processedPatients) };
       
     } catch (error) {
-      console.error('❌ ATOMIC AUTO-ADD ERROR:', error);
+      logger.error('❌ ATOMIC AUTO-ADD ERROR:', error);
       return { success: false, error: error.message };
     } finally {
       // Always release the lock
@@ -320,7 +321,7 @@ const QueueManagement = () => {
     
     // Check in-memory first (fastest)
     if (duplicateBlockerRef.current.has(duplicateKey)) {
-      console.log(`🚫 ATOMIC DUPLICATE (Memory): Patient ${patientId} already processed`);
+      logger.log(`🚫 ATOMIC DUPLICATE (Memory): Patient ${patientId} already processed`);
       return true;
     }
     
@@ -337,22 +338,22 @@ const QueueManagement = () => {
         .limit(1);
       
       if (error) {
-        console.error('Error in atomic duplicate check:', error);
+        logger.error('Error in atomic duplicate check:', error);
         return false; // Allow if we can't check
       }
       
       if (existingEntries && existingEntries.length > 0) {
-        console.log(`🚫 ATOMIC DUPLICATE (Database): Patient ${patientId} already in queue with status: ${existingEntries[0].status}`);
+        logger.log(`🚫 ATOMIC DUPLICATE (Database): Patient ${patientId} already in queue with status: ${existingEntries[0].status}`);
         return true;
       }
       
       // Mark as processed atomically
       duplicateBlockerRef.current.add(duplicateKey);
-      console.log(`✅ ATOMIC MARK: Patient ${patientId} marked as processed`);
+      logger.log(`✅ ATOMIC MARK: Patient ${patientId} marked as processed`);
       return false;
       
     } catch (error) {
-      console.error('Error in atomic duplicate check:', error);
+      logger.error('Error in atomic duplicate check:', error);
       return false; // Allow if we can't check
     }
   };
@@ -364,7 +365,7 @@ const QueueManagement = () => {
     
     // Check in-memory first
     if (duplicateBlockerRef.current.has(duplicateKey)) {
-      console.log(`🚫 DUPLICATE BLOCKED (Memory): Patient ${patientId} already processed today`);
+      logger.log(`🚫 DUPLICATE BLOCKED (Memory): Patient ${patientId} already processed today`);
       return true;
     }
     
@@ -379,22 +380,22 @@ const QueueManagement = () => {
         .lt('created_at', `${todayKey}T23:59:59.999Z`);
       
       if (error) {
-        console.error('Error checking for duplicates:', error);
+        logger.error('Error checking for duplicates:', error);
         return false; // Allow if we can't check
       }
       
       if (existingEntries && existingEntries.length > 0) {
-        console.log(`🚫 DUPLICATE BLOCKED (Database): Patient ${patientId} already in queue today with status: ${existingEntries[0].status}`);
+        logger.log(`🚫 DUPLICATE BLOCKED (Database): Patient ${patientId} already in queue today with status: ${existingEntries[0].status}`);
         return true;
       }
     } catch (error) {
-      console.error('Error in duplicate check:', error);
+      logger.error('Error in duplicate check:', error);
       return false; // Allow if we can't check
     }
     
     // Mark this patient as processed
     duplicateBlockerRef.current.add(duplicateKey);
-    console.log(`✅ Patient ${patientId} marked as processed for today`);
+    logger.log(`✅ Patient ${patientId} marked as processed for today`);
     return false;
   };
 
@@ -402,7 +403,7 @@ const QueueManagement = () => {
   const cleanupExistingDuplicates = async () => {
     try {
       const todayKey = getTodayDate();
-      console.log('🧹 Cleaning up existing duplicates for today:', todayKey);
+      logger.log('🧹 Cleaning up existing duplicates for today:', todayKey);
       
       // Get all queue entries for today
       const { data: todayEntries, error } = await supabase
@@ -413,12 +414,12 @@ const QueueManagement = () => {
         .order('created_at', { ascending: true });
       
       if (error) {
-        console.error('Error fetching today entries:', error);
+        logger.error('Error fetching today entries:', error);
         return;
       }
       
       if (!todayEntries || todayEntries.length === 0) {
-        console.log('🧹 No entries found for today');
+        logger.log('🧹 No entries found for today');
         return;
       }
       
@@ -436,7 +437,7 @@ const QueueManagement = () => {
       Object.keys(patientGroups).forEach(patientId => {
         const entries = patientGroups[patientId];
         if (entries.length > 1) {
-          console.log(`🧹 Found ${entries.length} entries for patient ${patientId}, removing duplicates`);
+          logger.log(`🧹 Found ${entries.length} entries for patient ${patientId}, removing duplicates`);
           // Keep the first entry, mark others for deletion
           for (let i = 1; i < entries.length; i++) {
             entriesToDelete.push(entries[i].id);
@@ -446,20 +447,20 @@ const QueueManagement = () => {
       
       // Delete duplicate entries
       if (entriesToDelete.length > 0) {
-        console.log(`🧹 Deleting ${entriesToDelete.length} duplicate entries`);
+        logger.log(`🧹 Deleting ${entriesToDelete.length} duplicate entries`);
         const { error: deleteError } = await supabase
           .from('queue')
           .delete()
           .in('id', entriesToDelete);
         
         if (deleteError) {
-          console.error('Error deleting duplicates:', deleteError);
+          logger.error('Error deleting duplicates:', deleteError);
         } else {
-          console.log(`✅ Successfully deleted ${entriesToDelete.length} duplicate entries`);
+          logger.log(`✅ Successfully deleted ${entriesToDelete.length} duplicate entries`);
         }
       }
     } catch (error) {
-      console.error('Error in cleanupExistingDuplicates:', error);
+      logger.error('Error in cleanupExistingDuplicates:', error);
     }
   };
 
@@ -479,7 +480,7 @@ const QueueManagement = () => {
     });
     
     if (entriesToRemove.length > 0) {
-      console.log(`🧹 Cleaned up ${entriesToRemove.length} old duplicate blocker entries`);
+      logger.log(`🧹 Cleaned up ${entriesToRemove.length} old duplicate blocker entries`);
     }
   };
 
@@ -495,7 +496,7 @@ const QueueManagement = () => {
         seenPatients.add(patientId);
         uniquePatients.push(patient);
       } else {
-        console.log(`🚫 Removed duplicate patient from display: ${patient.name || patient.patient_name || patient.patientProfile?.full_name}`);
+        logger.log(`🚫 Removed duplicate patient from display: ${patient.name || patient.patient_name || patient.patientProfile?.full_name}`);
       }
     });
     
@@ -507,13 +508,13 @@ const QueueManagement = () => {
     setIsLoading(true);
     try {
       const todayDate = getTodayDate();
-      console.log('=== FETCHING QUEUE DATA (NO AUTO-ADD) ===');
-      console.log('Today date:', todayDate);
+      logger.log('=== FETCHING QUEUE DATA (NO AUTO-ADD) ===');
+      logger.log('Today date:', todayDate);
       
       // Skip auto-add logic for real-time updates
       await fetchQueueDataInternal(todayDate, true);
     } catch (error) {
-      console.error('Error fetching queue data:', error);
+      logger.error('Error fetching queue data:', error);
       toast.error('Failed to fetch queue data');
     } finally {
       setIsLoading(false);
@@ -524,19 +525,19 @@ const QueueManagement = () => {
     setIsLoading(true);
     try {
       const todayDate = getTodayDate();
-      console.log('=== FETCHING QUEUE DATA ===');
-      console.log('Today date:', todayDate);
-      console.log('User role:', userRole);
+      logger.log('=== FETCHING QUEUE DATA ===');
+      logger.log('Today date:', todayDate);
+      logger.log('User role:', userRole);
       
       // Check if auto-add has already been processed today globally
       const globalAutoAddKey = `globalAutoAddProcessed_${todayDate}`;
       const hasAutoAddBeenProcessed = sessionStorage.getItem(globalAutoAddKey);
       
-      console.log('Global auto-add check:', { globalAutoAddKey, hasAutoAddBeenProcessed });
+      logger.log('Global auto-add check:', { globalAutoAddKey, hasAutoAddBeenProcessed });
       
       await fetchQueueDataInternal(todayDate, false, hasAutoAddBeenProcessed);
     } catch (error) {
-      console.error('Error fetching queue data:', error);
+      logger.error('Error fetching queue data:', error);
       toast.error('Failed to fetch queue data');
     } finally {
       setIsLoading(false);
@@ -549,13 +550,13 @@ const QueueManagement = () => {
       const globalAutoAddKey = `globalAutoAddProcessed_${todayDate}`;
       
       // Test database connection first
-      console.log('=== TESTING DATABASE CONNECTION ===');
+      logger.log('=== TESTING DATABASE CONNECTION ===');
       const { data: testData, error: testError } = await supabase
         .from('queue')
         .select('count')
         .limit(1);
       
-      console.log('Database connection test:', { testData, testError });
+      logger.log('Database connection test:', { testData, testError });
       
       // Test if queue table exists and has data
       const { data: tableTest, error: tableError } = await supabase
@@ -563,8 +564,8 @@ const QueueManagement = () => {
         .select('*')
         .limit(1);
       
-      console.log('Queue table test:', { tableTest, tableError });
-      console.log('Queue table has data:', tableTest?.length > 0);
+      logger.log('Queue table test:', { tableTest, tableError });
+      logger.log('Queue table has data:', tableTest?.length > 0);
       
       // First, fetch all services
       const { data: servicesData, error: servicesError } = await supabase
@@ -572,7 +573,7 @@ const QueueManagement = () => {
         .select('*');
         
       if (servicesError) {
-        console.error('Error fetching services:', servicesError);
+        logger.error('Error fetching services:', servicesError);
         throw servicesError;
       }
       
@@ -605,11 +606,11 @@ const QueueManagement = () => {
          .order('appointment_time', { ascending: true });
       
       if (appointmentsError) {
-        console.error('Error fetching today\'s appointments:', appointmentsError);
+        logger.error('Error fetching today\'s appointments:', appointmentsError);
         throw appointmentsError;
       }
       
-             console.log(`Found ${todayAppointments?.length || 0} confirmed/appointed/pending appointments for today`);
+             logger.log(`Found ${todayAppointments?.length || 0} confirmed/appointed/pending appointments for today`);
       
       // Fetch patient profiles for appointments
       const appointmentPatientIds = [...new Set((todayAppointments || []).map(a => a.patient_id))];
@@ -622,7 +623,7 @@ const QueueManagement = () => {
           .in('id', appointmentPatientIds);
           
         if (patientProfilesError) {
-          console.error('Error fetching patient profiles:', patientProfilesError);
+          logger.error('Error fetching patient profiles:', patientProfilesError);
         } else if (patientProfilesData) {
           patientProfilesData.forEach(profile => {
             appointmentPatientProfiles[profile.id] = profile;
@@ -641,7 +642,7 @@ const QueueManagement = () => {
           .in('id', guardianIds);
           
         if (guardianProfilesError) {
-          console.error('Error fetching guardian profiles:', guardianProfilesError);
+          logger.error('Error fetching guardian profiles:', guardianProfilesError);
         } else if (guardianProfilesData) {
           guardianProfilesData.forEach(profile => {
             guardianProfiles[profile.id] = profile;
@@ -660,7 +661,7 @@ const QueueManagement = () => {
           .in('id', doctorIds);
           
         if (doctorProfilesError) {
-          console.error('Error fetching doctor profiles:', doctorProfilesError);
+          logger.error('Error fetching doctor profiles:', doctorProfilesError);
         } else if (doctorProfilesData) {
           doctorProfilesData.forEach(profile => {
             doctorProfiles[profile.id] = profile;
@@ -679,7 +680,7 @@ const QueueManagement = () => {
           .in('appointment_id', appointmentIds);
           
         if (servicesJoinError) {
-          console.error('Error fetching appointment services:', servicesJoinError);
+          logger.error('Error fetching appointment services:', servicesJoinError);
         } else if (servicesJoinData) {
           appointmentServicesData = servicesJoinData;
         }
@@ -750,7 +751,7 @@ const QueueManagement = () => {
       }
       
       // Fetch current queue entries
-      console.log('=== DEBUG: Fetching active queue entries ===');
+      logger.log('=== DEBUG: Fetching active queue entries ===');
       const { data: queueData, error: queueError } = await supabase
         .from('queue')
         .select(`
@@ -768,16 +769,16 @@ const QueueManagement = () => {
         .in('status', ['waiting', 'serving'])
         .order('queue_number', { ascending: true });
       
-      console.log('=== DEBUG: Queue query result ===');
-      console.log('Queue data:', queueData);
-      console.log('Queue error:', queueError);
-      console.log('Queue entries found:', queueData?.length || 0);
+      logger.log('=== DEBUG: Queue query result ===');
+      logger.log('Queue data:', queueData);
+      logger.log('Queue error:', queueError);
+      logger.log('Queue entries found:', queueData?.length || 0);
       
       // Debug: Show all queue entries with their statuses
       if (queueData && queueData.length > 0) {
-        console.log('=== DEBUG: All queue entries with statuses ===');
+        logger.log('=== DEBUG: All queue entries with statuses ===');
         queueData.forEach((entry, index) => {
-          console.log(`Entry ${index + 1}:`, {
+          logger.log(`Entry ${index + 1}:`, {
             id: entry.id,
             patient_id: entry.patient_id,
             queue_number: entry.queue_number,
@@ -789,19 +790,19 @@ const QueueManagement = () => {
       }
       
       if (queueError) {
-        console.error('Error fetching queue data:', queueError);
+        logger.error('Error fetching queue data:', queueError);
         throw queueError;
       }
       
-      console.log(`Found ${queueData?.length || 0} active queue entries (waiting/serving)`);
+      logger.log(`Found ${queueData?.length || 0} active queue entries (waiting/serving)`);
       
              // Check for today's confirmed/appointed/pending appointments that should be in queue but aren't
        const currentQueue = queueData || [];
        const queuePatientIds = new Set(currentQueue.map(q => q.patient_id));
        const queueAppointmentIds = new Set(currentQueue.map(q => q.appointment_id).filter(Boolean));
        
-       console.log('Current queue patient IDs:', Array.from(queuePatientIds));
-       console.log('Current queue appointment IDs:', Array.from(queueAppointmentIds));
+       logger.log('Current queue patient IDs:', Array.from(queuePatientIds));
+       logger.log('Current queue appointment IDs:', Array.from(queueAppointmentIds));
        
        const missingAppointments = [];
        const appointmentsToRemove = [];
@@ -826,7 +827,7 @@ const QueueManagement = () => {
              // Only add if current time is within 5 hours of appointment time
              shouldAddToQueue = now > fiveHoursBefore;
              
-             console.log(`Appointment ${appointment.id} timing check:`, {
+             logger.log(`Appointment ${appointment.id} timing check:`, {
                appointmentTime: appointment.appointment_time,
                appointmentDateTime: appointmentDateTime.toISOString(),
                fiveHoursBefore: fiveHoursBefore.toISOString(),
@@ -835,7 +836,7 @@ const QueueManagement = () => {
              });
            }
            
-           console.log(`Checking appointment ${appointment.id} for patient ${appointment.patient_id}:`, {
+           logger.log(`Checking appointment ${appointment.id} for patient ${appointment.patient_id}:`, {
              status: appointment.status,
              isAppointmentInQueue,
              isPatientInQueue,
@@ -844,13 +845,13 @@ const QueueManagement = () => {
            });
            
            if (!isAppointmentInQueue && !isPatientInQueue && shouldAddToQueue) {
-             console.log(`Appointment ${appointment.id} for patient ${appointment.patient_id} (${appointment.patientProfile?.full_name}) should be in queue but isn't - adding to missing list`);
+             logger.log(`Appointment ${appointment.id} for patient ${appointment.patient_id} (${appointment.patientProfile?.full_name}) should be in queue but isn't - adding to missing list`);
              missingAppointments.push(appointment);
            }
            
            // Check if appointment is in queue but shouldn't be (too early)
            if ((isAppointmentInQueue || isPatientInQueue) && !shouldAddToQueue) {
-             console.log(`Appointment ${appointment.id} for patient ${appointment.patient_id} (${appointment.patientProfile?.full_name}) is in queue but shouldn't be yet - adding to removal list`);
+             logger.log(`Appointment ${appointment.id} for patient ${appointment.patient_id} (${appointment.patientProfile?.full_name}) is in queue but shouldn't be yet - adding to removal list`);
              appointmentsToRemove.push(appointment);
            }
          }
@@ -858,7 +859,7 @@ const QueueManagement = () => {
        
        // Remove appointments that are in queue but shouldn't be yet (too early)
        if (appointmentsToRemove.length > 0 && !isAutoAddingRef.current) {
-         console.log(`Removing ${appointmentsToRemove.length} appointments that were added too early to queue`);
+         logger.log(`Removing ${appointmentsToRemove.length} appointments that were added too early to queue`);
          
          let removedCount = 0;
          isAutoAddingRef.current = true;
@@ -877,14 +878,14 @@ const QueueManagement = () => {
                  .eq('id', queueEntry.id);
                
                if (error) {
-                 console.error(`Error removing queue entry ${queueEntry.id}:`, error);
+                 logger.error(`Error removing queue entry ${queueEntry.id}:`, error);
                } else {
                  removedCount++;
-                 console.log(`Successfully removed queue entry ${queueEntry.id} for appointment ${appointment.id}`);
+                 logger.log(`Successfully removed queue entry ${queueEntry.id} for appointment ${appointment.id}`);
                }
              }
            } catch (error) {
-             console.error(`Error removing appointment ${appointment.id} from queue:`, error);
+             logger.error(`Error removing appointment ${appointment.id} from queue:`, error);
            }
          }
          
@@ -903,7 +904,7 @@ const QueueManagement = () => {
        // ONLY DOCTORS can auto-add appointments to prevent duplication
        // Staff and Admin roles will only see the queue, not add to it
        if (missingAppointments.length > 0 && !isAutoAddingRef.current && !hasAutoAddBeenProcessed && !skipAutoAdd && userRole === 'doctor') {
-         console.log(`👨‍⚕️ DOCTOR ROLE: Auto-adding ${missingAppointments.length} confirmed/appointed/pending appointments to queue`);
+         logger.log(`👨‍⚕️ DOCTOR ROLE: Auto-adding ${missingAppointments.length} confirmed/appointed/pending appointments to queue`);
          
          // Mark that auto-add is being processed globally
          sessionStorage.setItem(globalAutoAddKey, 'true');
@@ -916,19 +917,19 @@ const QueueManagement = () => {
            try {
              // 🚫 DUPLICATE BLOCKER: Check if this patient has already been processed today
              if (await isDuplicatePatient(appointment.patient_id)) {
-               console.log(`🚫 Skipping duplicate patient ${appointment.patient_id} (${appointment.patientProfile?.full_name})`);
+               logger.log(`🚫 Skipping duplicate patient ${appointment.patient_id} (${appointment.patientProfile?.full_name})`);
                continue;
              }
              
              const result = await QueueService.addAppointmentToQueue(appointment, { source: 'doctor_queue_management' });
              if (result.success) {
                addedCount++;
-               console.log(`✅ Successfully added appointment ${appointment.id} to queue as #${result.queueNumber || 'unknown'}`);
+               logger.log(`✅ Successfully added appointment ${appointment.id} to queue as #${result.queueNumber || 'unknown'}`);
              } else {
-               console.error(`❌ Failed to add appointment ${appointment.id} to queue:`, result.error);
+               logger.error(`❌ Failed to add appointment ${appointment.id} to queue:`, result.error);
              }
            } catch (error) {
-             console.error(`❌ Error adding appointment ${appointment.id} to queue:`, error);
+             logger.error(`❌ Error adding appointment ${appointment.id} to queue:`, error);
            }
          }
          isAutoAddingRef.current = false;
@@ -941,7 +942,7 @@ const QueueManagement = () => {
            return;
          }
        } else if (missingAppointments.length > 0 && userRole !== 'doctor') {
-         console.log(`🚫 ${userRole?.toUpperCase()} ROLE: Auto-add blocked - only doctors can auto-add appointments to prevent duplication`);
+         logger.log(`🚫 ${userRole?.toUpperCase()} ROLE: Auto-add blocked - only doctors can auto-add appointments to prevent duplication`);
        }
       
       // Fetch patient profiles for queue entries
@@ -955,7 +956,7 @@ const QueueManagement = () => {
           .in('id', queuePatientIds_array);
           
         if (queueProfilesError) {
-          console.error('Error fetching queue patient profiles:', queueProfilesError);
+          logger.error('Error fetching queue patient profiles:', queueProfilesError);
         } else if (queueProfilesData) {
           queueProfilesData.forEach(profile => {
             queuePatientProfiles[profile.id] = profile;
@@ -1031,37 +1032,37 @@ const QueueManagement = () => {
       }
       
       // Apply branch filtering if a specific branch is selected
-      console.log('=== DEBUG: Branch filtering ===');
-      console.log('Active branch:', activeBranch);
-      console.log('Formatted queue before filtering:', formattedQueue.length);
+      logger.log('=== DEBUG: Branch filtering ===');
+      logger.log('Active branch:', activeBranch);
+      logger.log('Formatted queue before filtering:', formattedQueue.length);
       
       if (activeBranch !== 'all') {
         const branchName = activeBranch === 'cabugao' ? 'Cabugao' : 'San Juan';
-        console.log('Filtering for branch:', branchName);
+        logger.log('Filtering for branch:', branchName);
         formattedQueue = formattedQueue.filter(item => item.branch === branchName);
-        console.log('Formatted queue after filtering:', formattedQueue.length);
+        logger.log('Formatted queue after filtering:', formattedQueue.length);
       } else {
-        console.log('No branch filtering applied - showing all branches');
+        logger.log('No branch filtering applied - showing all branches');
       }
       
       // Set current patients and waiting list
       const serving = formattedQueue.filter(p => p.status === 'serving');
       const waiting = formattedQueue.filter(p => p.status === 'waiting');
       
-      console.log('=== DEBUG: Before duplicate removal ===');
-      console.log('Total formatted queue entries:', formattedQueue.length);
-      console.log('Serving patients:', serving.length);
-      console.log('Waiting patients:', waiting.length);
-      console.log('Waiting patients details:', waiting.map(p => ({ id: p.id, patientId: p.patientId, name: p.name, status: p.status })));
+      logger.log('=== DEBUG: Before duplicate removal ===');
+      logger.log('Total formatted queue entries:', formattedQueue.length);
+      logger.log('Serving patients:', serving.length);
+      logger.log('Waiting patients:', waiting.length);
+      logger.log('Waiting patients details:', waiting.map(p => ({ id: p.id, patientId: p.patientId, name: p.name, status: p.status })));
       
       // 🚫 Remove duplicate patients from display
       const uniqueWaiting = removeDuplicatePatients(waiting);
       const uniqueServing = removeDuplicatePatients(serving);
       
-      console.log('=== DEBUG: After duplicate removal ===');
-      console.log('Unique serving patients:', uniqueServing.length);
-      console.log('Unique waiting patients:', uniqueWaiting.length);
-      console.log('Unique waiting patients details:', uniqueWaiting.map(p => ({ id: p.id, patientId: p.patientId, name: p.name, status: p.status })));
+      logger.log('=== DEBUG: After duplicate removal ===');
+      logger.log('Unique serving patients:', uniqueServing.length);
+      logger.log('Unique waiting patients:', uniqueWaiting.length);
+      logger.log('Unique waiting patients details:', uniqueWaiting.map(p => ({ id: p.id, patientId: p.patientId, name: p.name, status: p.status })));
       
       setServingPatients(uniqueServing);
       setWaitingPatients(uniqueWaiting);
@@ -1073,13 +1074,13 @@ const QueueManagement = () => {
         setSelectedPatient(null);
       }
       
-      console.log(`Queue setup complete: ${formattedQueue.length} total, ${serving.length} serving, ${waiting.length} waiting`);
+      logger.log(`Queue setup complete: ${formattedQueue.length} total, ${serving.length} serving, ${waiting.length} waiting`);
       
       // Fetch today's activity logs
       await fetchTodayActivity(todayDate);
       
     } catch (error) {
-      console.error('Error in fetchQueueData:', error);
+      logger.error('Error in fetchQueueData:', error);
       toast.error('Failed to load queue data: ' + error.message);
     } finally {
       setIsLoading(false);
@@ -1089,10 +1090,10 @@ const QueueManagement = () => {
 
   const fetchTodayActivity = async (todayDate) => {
     try {
-      console.log('=== FETCHING ACTIVITY LOGS ===');
-      console.log('Date:', todayDate);
-      console.log('Date range start:', `${todayDate}T00:00:00`);
-      console.log('Date range end:', `${todayDate}T23:59:59`);
+      logger.log('=== FETCHING ACTIVITY LOGS ===');
+      logger.log('Date:', todayDate);
+      logger.log('Date range start:', `${todayDate}T00:00:00`);
+      logger.log('Date range end:', `${todayDate}T23:59:59`);
       
       // Get unique queue entries for today (remove duplicates by patient_id)
       const { data: todayQueueEntries, error: queueError } = await supabase
@@ -1110,7 +1111,7 @@ const QueueManagement = () => {
         .order('created_at', { ascending: false });
       
       if (queueError) {
-        console.error('Error fetching queue entries:', queueError);
+        logger.error('Error fetching queue entries:', queueError);
         setActivityLogs([]);
         return;
       }
@@ -1128,7 +1129,7 @@ const QueueManagement = () => {
         });
       }
       
-      console.log(`Found ${todayQueueEntries?.length || 0} total entries, ${uniqueEntries.length} unique patients`);
+      logger.log(`Found ${todayQueueEntries?.length || 0} total entries, ${uniqueEntries.length} unique patients`);
       
       // First, let's check if there are ANY queue entries at all
       const { data: anyQueueEntries, error: queueError2 } = await supabase
@@ -1144,13 +1145,13 @@ const QueueManagement = () => {
         .order('created_at', { ascending: false })
         .limit(10);
       
-      console.log('=== DEBUG: All queue entries (any date) ===');
-      console.log('Raw query result:', anyQueueEntries);
-      console.log('Query error:', queueError);
-      console.log('Total entries found:', anyQueueEntries?.length || 0);
+      logger.log('=== DEBUG: All queue entries (any date) ===');
+      logger.log('Raw query result:', anyQueueEntries);
+      logger.log('Query error:', queueError);
+      logger.log('Total entries found:', anyQueueEntries?.length || 0);
       
       if (queueError) {
-        console.error('Error fetching queue entries:', queueError);
+        logger.error('Error fetching queue entries:', queueError);
         return;
       }
       
@@ -1173,16 +1174,16 @@ const QueueManagement = () => {
         .order('created_at', { ascending: false })
         .limit(200);
       
-      console.log('=== DEBUG: Today-specific queue entries ===');
-      console.log('Today query result:', todayQueueEntries2);
-      console.log('Today query error:', todayError);
-      console.log('Today entries found:', todayQueueEntries2?.length || 0);
+      logger.log('=== DEBUG: Today-specific queue entries ===');
+      logger.log('Today query result:', todayQueueEntries2);
+      logger.log('Today query error:', todayError);
+      logger.log('Today entries found:', todayQueueEntries2?.length || 0);
       
       // Debug patient data specifically
       if (todayQueueEntries2 && todayQueueEntries2.length > 0) {
-        console.log('=== DEBUG: Patient data in today entries ===');
+        logger.log('=== DEBUG: Patient data in today entries ===');
         todayQueueEntries2.forEach((entry, index) => {
-          console.log(`Entry ${index}:`, {
+          logger.log(`Entry ${index}:`, {
             id: entry.id,
             patient_id: entry.patient_id,
             queue_number: entry.queue_number,
@@ -1193,17 +1194,17 @@ const QueueManagement = () => {
       }
       
       if (todayError) {
-        console.error('Error fetching today queue entries:', todayError);
+        logger.error('Error fetching today queue entries:', todayError);
         return;
       }
       
       // Use today's entries if available, otherwise use all entries
       let allQueueEntries = todayQueueEntries2 || [];
-      console.log('Using queue entries:', allQueueEntries);
+      logger.log('Using queue entries:', allQueueEntries);
       
       // If no data found, let's try a broader search
       if (allQueueEntries.length === 0) {
-        console.log('=== NO DATA FOUND - TRYING BROADER SEARCH ===');
+        logger.log('=== NO DATA FOUND - TRYING BROADER SEARCH ===');
         
         // Try without date filter with proper patient name fetching
         const { data: allTimeEntries, error: allTimeError } = await supabase
@@ -1222,14 +1223,14 @@ const QueueManagement = () => {
           .order('created_at', { ascending: false })
           .limit(50);
         
-        console.log('All-time queue entries:', allTimeEntries);
-        console.log('All-time error:', allTimeError);
+        logger.log('All-time queue entries:', allTimeEntries);
+        logger.log('All-time error:', allTimeError);
         
         if (allTimeEntries && allTimeEntries.length > 0) {
-          console.log('Found historical data, using it for activity log');
+          logger.log('Found historical data, using it for activity log');
           allQueueEntries = allTimeEntries;
         } else {
-          console.log('No queue data found at all - database might be empty');
+          logger.log('No queue data found at all - database might be empty');
           setActivityLogs([]);
           return;
         }
@@ -1246,7 +1247,7 @@ const QueueManagement = () => {
           .in('id', appointmentIds);
           
         if (appointmentError) {
-          console.error('Error fetching appointment data:', appointmentError);
+          logger.error('Error fetching appointment data:', appointmentError);
         } else if (appointments) {
           appointments.forEach(appointment => {
             appointmentData[appointment.id] = appointment;
@@ -1259,24 +1260,24 @@ const QueueManagement = () => {
       let patientData = {};
       
       if (patientIds.length > 0) {
-        console.log('=== DEBUG: Fetching patient names manually ===');
-        console.log('Patient IDs to fetch:', patientIds);
+        logger.log('=== DEBUG: Fetching patient names manually ===');
+        logger.log('Patient IDs to fetch:', patientIds);
         
         const { data: patients, error: patientError } = await supabase
           .from('profiles')
           .select('id, full_name')
           .in('id', patientIds);
           
-        console.log('Manual patient fetch result:', patients);
-        console.log('Manual patient fetch error:', patientError);
+        logger.log('Manual patient fetch result:', patients);
+        logger.log('Manual patient fetch error:', patientError);
         
         if (patientError) {
-          console.error('Error fetching patient data manually:', patientError);
+          logger.error('Error fetching patient data manually:', patientError);
         } else if (patients) {
           patients.forEach(patient => {
             patientData[patient.id] = patient;
           });
-          console.log('Patient data map:', patientData);
+          logger.log('Patient data map:', patientData);
         }
       }
       
@@ -1302,7 +1303,7 @@ const QueueManagement = () => {
         } else if (patientData[item.patient_id]?.full_name) {
           patientName = patientData[item.patient_id].full_name;
         } else {
-          console.log(`No patient name found for patient_id: ${item.patient_id}`);
+          logger.log(`No patient name found for patient_id: ${item.patient_id}`);
         }
         
         let logEntry = {
@@ -1338,20 +1339,20 @@ const QueueManagement = () => {
       // Sort by timestamp (most recent first)
       activityLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
       
-      console.log('Processed activity logs:', activityLogs);
+      logger.log('Processed activity logs:', activityLogs);
       
       // Apply branch filtering to activity logs
       if (activeBranch !== 'all') {
         const branchName = activeBranch === 'cabugao' ? 'Cabugao' : 'San Juan';
         activityLogs = activityLogs.filter(log => log.branch === branchName);
-        console.log('Filtered logs for branch', branchName, ':', activityLogs);
+        logger.log('Filtered logs for branch', branchName, ':', activityLogs);
       }
       
       setActivityLogs(activityLogs);
-      console.log('Final activity logs set:', activityLogs);
+      logger.log('Final activity logs set:', activityLogs);
       
     } catch (error) {
-      console.error('Error fetching activity logs:', error);
+      logger.error('Error fetching activity logs:', error);
     }
   };
   
@@ -1447,7 +1448,7 @@ const QueueManagement = () => {
         setPatientsList([...priorityPatients, ...otherPatients]);
       }
     } catch (error) {
-      console.error('Error fetching patients:', error);
+      logger.error('Error fetching patients:', error);
       toast.error('Failed to load patient list');
     }
   };
@@ -1478,7 +1479,7 @@ const QueueManagement = () => {
           .eq('id', nextPatient.appointmentId);
         
         if (appointmentError) {
-          console.error('Could not update appointment status:', appointmentError);
+          logger.error('Could not update appointment status:', appointmentError);
         }
       }
       
@@ -1496,7 +1497,7 @@ const QueueManagement = () => {
       
       toast.success(`Now serving: ${nextPatient.name}`);
     } catch (error) {
-      console.error('Error calling next patient:', error);
+      logger.error('Error calling next patient:', error);
       toast.error('Failed to call next patient');
     }
   };
@@ -1527,7 +1528,7 @@ const QueueManagement = () => {
           .eq('id', patient.appointmentId);
         
         if (appointmentError) {
-          console.error('Could not update appointment status:', appointmentError);
+          logger.error('Could not update appointment status:', appointmentError);
         }
       }
       
@@ -1544,7 +1545,7 @@ const QueueManagement = () => {
       
       toast.success(`Now serving: ${patient.name}`);
     } catch (error) {
-      console.error('Error calling patient:', error);
+      logger.error('Error calling patient:', error);
       toast.error('Failed to call patient');
       fetchQueueData();
     }
@@ -1574,7 +1575,7 @@ const QueueManagement = () => {
           .eq('id', patient.appointmentId);
         
         if (appointmentError) {
-          console.error('Could not update appointment status:', appointmentError);
+          logger.error('Could not update appointment status:', appointmentError);
         }
       } else {
         // No linked appointment (likely a walk-in). Create a completed appointment record
@@ -1611,10 +1612,10 @@ const QueueManagement = () => {
             ]);
 
           if (insertApptErr) {
-            console.error('Failed to create completed appointment for walk-in:', insertApptErr);
+            logger.error('Failed to create completed appointment for walk-in:', insertApptErr);
           }
         } catch (e) {
-          console.error('Unexpected error creating completed appointment for walk-in:', e);
+          logger.error('Unexpected error creating completed appointment for walk-in:', e);
         }
       }
       
@@ -1658,7 +1659,7 @@ const QueueManagement = () => {
       
       setSelectedPatient(null);
     } catch (error) {
-      console.error('Error completing patient session:', error);
+      logger.error('Error completing patient session:', error);
       toast.error('Failed to complete patient session');
     } finally {
       setCompletingPatient(false);
@@ -1677,7 +1678,7 @@ const QueueManagement = () => {
     
     // Prevent multiple invoice generation
     if (isGeneratingInvoice) {
-      console.log('Invoice generation already in progress, skipping...');
+      logger.log('Invoice generation already in progress, skipping...');
       return;
     }
     
@@ -1702,15 +1703,15 @@ const QueueManagement = () => {
         const matched = availableDoctors.find(d => d.full_name === completedPatientData.doctorName);
         const assignedDoctorId = completedPatientData.doctorId || matched?.id || '';
         doctorInfo = ` - Doctor: Dr. ${completedPatientData.doctorName}${assignedDoctorId ? ` | DoctorId: ${assignedDoctorId}` : ''}`;
-        console.log('Using assigned doctor for invoice:', completedPatientData.doctorName, assignedDoctorId ? `(id ${assignedDoctorId})` : '');
-        console.log('Current doctor completing:', user?.full_name || 'Unknown');
+        logger.log('Using assigned doctor for invoice:', completedPatientData.doctorName, assignedDoctorId ? `(id ${assignedDoctorId})` : '');
+        logger.log('Current doctor completing:', user?.full_name || 'Unknown');
       } else {
-        console.log('No assigned doctor found for invoice');
+        logger.log('No assigned doctor found for invoice');
       }
 
-      console.log('Selected doctor for invoice:', selectedDoctorForInvoice);
-      console.log('Available doctors:', availableDoctors);
-      console.log('Completed patient data:', completedPatientData);
+      logger.log('Selected doctor for invoice:', selectedDoctorForInvoice);
+      logger.log('Available doctors:', availableDoctors);
+      logger.log('Completed patient data:', completedPatientData);
 
       const invoiceData = {
         invoice_number: generateInvoiceNumber(),
@@ -1729,9 +1730,9 @@ const QueueManagement = () => {
         created_by: user?.id || completedPatientData.patientId
       };
       
-      console.log('Creating invoice with data:', invoiceData);
-      console.log('Final notes field:', invoiceData.notes);
-      console.log('Doctor ID (created_by):', user?.id);
+      logger.log('Creating invoice with data:', invoiceData);
+      logger.log('Final notes field:', invoiceData.notes);
+      logger.log('Doctor ID (created_by):', user?.id);
       
       const { data: invoiceResult, error: invoiceError } = await supabase
         .from('invoices')
@@ -1739,12 +1740,12 @@ const QueueManagement = () => {
         .select('id');
       
       if (invoiceError) {
-        console.error('Invoice creation error:', invoiceError);
+        logger.error('Invoice creation error:', invoiceError);
         throw invoiceError;
       }
       
       const invoiceId = invoiceResult[0].id;
-      console.log('Invoice created successfully with ID:', invoiceId);
+      logger.log('Invoice created successfully with ID:', invoiceId);
       
       const invoiceItemsData = invoiceItems.map(item => ({
         invoice_id: invoiceId,
@@ -1772,28 +1773,28 @@ const QueueManagement = () => {
       fetchQueueData();
       
       // Redirect based on user role with small delay to ensure proper navigation
-      console.log('🔀 Navigation Debug - User role:', userRole);
-      console.log('🔀 Navigation Debug - User object:', user);
+      logger.log('🔀 Navigation Debug - User role:', userRole);
+      logger.log('🔀 Navigation Debug - User object:', user);
       
       setTimeout(() => {
         if (userRole === 'doctor') {
-          console.log('🔀 Redirecting doctor to /doctor/billing');
+          logger.log('🔀 Redirecting doctor to /doctor/billing');
           navigate('/doctor/billing');
         } else if (userRole === 'staff') {
-          console.log('🔀 Redirecting staff to /staff/payments');
+          logger.log('🔀 Redirecting staff to /staff/payments');
           navigate('/staff/payments');
         } else if (userRole === 'admin') {
-          console.log('🔀 Redirecting admin to /admin/billing');
+          logger.log('🔀 Redirecting admin to /admin/billing');
           navigate('/admin/billing');
         } else {
-          console.log('🔀 Fallback redirect to /doctor/billing for role:', userRole);
+          logger.log('🔀 Fallback redirect to /doctor/billing for role:', userRole);
           // Fallback to doctor billing for other roles
           navigate('/doctor/billing');
         }
       }, 100); // Small delay to ensure navigation works properly
       
     } catch (error) {
-      console.error('Error generating invoice:', error);
+      logger.error('Error generating invoice:', error);
       toast.error('Failed to generate invoice: ' + error.message);
     } finally {
       setIsGeneratingInvoice(false);
@@ -1832,12 +1833,12 @@ const QueueManagement = () => {
             .update({ status: 'rejected', updated_at: new Date().toISOString() })
             .eq('id', patientToCancel.appointmentId);
           if (apptErr) {
-            console.error('Failed updating appointment status to rejected:', apptErr);
+            logger.error('Failed updating appointment status to rejected:', apptErr);
           } else {
-            console.log('Successfully rejected appointment:', patientToCancel.appointmentId);
+            logger.log('Successfully rejected appointment:', patientToCancel.appointmentId);
           }
         } catch (e) {
-          console.error('Unexpected error updating appointment to rejected:', e);
+          logger.error('Unexpected error updating appointment to rejected:', e);
         }
       }
       
@@ -1860,7 +1861,7 @@ const QueueManagement = () => {
       fetchQueueData();
       fetchTodayActivity(getTodayDate());
     } catch (error) {
-      console.error('Error cancelling patient session:', error);
+      logger.error('Error cancelling patient session:', error);
       toast.error('Failed to cancel patient session');
     } finally {
       setShowCancelModal(false);
@@ -1924,7 +1925,7 @@ const QueueManagement = () => {
         .limit(1);
       
       if (appointmentError) {
-        console.error('Error checking patient appointment:', appointmentError);
+        logger.error('Error checking patient appointment:', appointmentError);
       }
       
       const selectedDoctor = availableDoctors.find(d => d.id === selectedDoctorForInvoice);
@@ -1968,7 +1969,7 @@ const QueueManagement = () => {
       
       fetchQueueData();
     } catch (error) {
-      console.error('Error adding patient to queue:', error);
+      logger.error('Error adding patient to queue:', error);
       toast.error('Failed to add patient to queue: ' + error.message);
     }
   };
@@ -2000,12 +2001,12 @@ const QueueManagement = () => {
             .update({ status: 'rejected', updated_at: new Date().toISOString() })
             .eq('id', patientToRemove.appointmentId);
           if (apptErr) {
-            console.error('Failed updating appointment status to rejected:', apptErr);
+            logger.error('Failed updating appointment status to rejected:', apptErr);
           } else {
-            console.log('Successfully rejected appointment:', patientToRemove.appointmentId);
+            logger.log('Successfully rejected appointment:', patientToRemove.appointmentId);
           }
         } catch (e) {
-          console.error('Unexpected error updating appointment to rejected:', e);
+          logger.error('Unexpected error updating appointment to rejected:', e);
         }
       }
       
@@ -2025,7 +2026,7 @@ const QueueManagement = () => {
       // Refresh activity logs to show the cancellation
       fetchTodayActivity(getTodayDate());
     } catch (error) {
-      console.error('Error removing patient from queue:', error);
+      logger.error('Error removing patient from queue:', error);
       toast.error('Failed to remove patient from queue');
     }
   };
@@ -2465,7 +2466,7 @@ const QueueManagement = () => {
               <div className="flex space-x-2">
                 <button 
                   onClick={() => {
-                    console.log('Manual refresh triggered');
+                    logger.log('Manual refresh triggered');
                     fetchTodayActivity(getTodayDate());
                   }}
                   className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
@@ -2475,9 +2476,9 @@ const QueueManagement = () => {
                 </button>
                 <button 
                   onClick={() => {
-                    console.log('Current activity logs:', activityLogs);
-                    console.log('Current branch filter:', activeBranch);
-                    console.log('Today date:', getTodayDate());
+                    logger.log('Current activity logs:', activityLogs);
+                    logger.log('Current branch filter:', activeBranch);
+                    logger.log('Today date:', getTodayDate());
                   }}
                   className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                   title="Debug activity log"
@@ -2557,7 +2558,7 @@ const QueueManagement = () => {
                 <div className="space-y-2">
                   <button 
                     onClick={() => {
-                      console.log('Manual refresh from empty state');
+                      logger.log('Manual refresh from empty state');
                       fetchTodayActivity(getTodayDate());
                     }}
                     className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"

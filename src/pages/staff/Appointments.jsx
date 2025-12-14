@@ -14,6 +14,7 @@ import 'react-datepicker/dist/react-datepicker.css';
 import { useUniversalAudit } from '../../hooks/useUniversalAudit';
 import { QueueService } from '../../services/queueService';
 import { isPatientInTodayQueue, getNextQueueNumberForToday } from '../../utils/philippineTime';
+import logger from '../../utils/logger';
 
 const StaffAppointments = () => {
   const { user } = useAuth();
@@ -61,30 +62,30 @@ const StaffAppointments = () => {
   // Check which patients are in today's queue
   const checkPatientsInQueue = async () => {
     try {
-      console.log('🔄 Checking patients in queue...');
+      logger.log('🔄 Checking patients in queue...');
       const todayAppointments = appointments.filter(apt => 
         apt.appointment_date === getTodayDate() && 
         apt.status === 'confirmed'
       );
       
-      console.log(`📅 Found ${todayAppointments.length} confirmed appointments for today`);
+      logger.log(`📅 Found ${todayAppointments.length} confirmed appointments for today`);
       
       const queueStatus = new Set();
       for (const appointment of todayAppointments) {
-        console.log(`🔍 Checking patient ${appointment.patient_id} (${appointment.patient_name})...`);
+        logger.log(`🔍 Checking patient ${appointment.patient_id} (${appointment.patient_name})...`);
         const isInQueue = await isPatientInTodayQueue(supabase, appointment.patient_id);
         if (isInQueue) {
-          console.log(`✅ Patient ${appointment.patient_id} is in queue`);
+          logger.log(`✅ Patient ${appointment.patient_id} is in queue`);
           queueStatus.add(appointment.patient_id);
         } else {
-          console.log(`❌ Patient ${appointment.patient_id} is NOT in queue`);
+          logger.log(`❌ Patient ${appointment.patient_id} is NOT in queue`);
         }
       }
       
-      console.log(`📊 Queue status updated:`, Array.from(queueStatus));
+      logger.log(`📊 Queue status updated:`, Array.from(queueStatus));
       setPatientsInQueue(queueStatus);
     } catch (error) {
-      console.error('Error checking patients in queue:', error);
+      logger.error('Error checking patients in queue:', error);
     }
   };
 
@@ -147,11 +148,11 @@ const StaffAppointments = () => {
         .single();
       
       if (error) {
-        console.error('Role check error:', error);
+        logger.error('Role check error:', error);
         throw error;
       }
       
-      console.log('User role:', data.role);
+      logger.log('User role:', data.role);
       
       if (['doctor', 'admin', 'staff'].includes(data.role)) {
         // Log page view
@@ -173,7 +174,7 @@ const StaffAppointments = () => {
         setIsInitialLoad(false);
       }
     } catch (error) {
-      console.error('Error checking user role:', error);
+      logger.error('Error checking user role:', error);
       toast.error('Failed to verify your account permissions');
       setIsLoading(false);
       setIsInitialLoad(false);
@@ -221,13 +222,13 @@ const StaffAppointments = () => {
         .order('full_name');
       
       if (error) {
-        console.error('Doctor fetch error:', error);
+        logger.error('Doctor fetch error:', error);
         throw error;
       }
       
       setDoctors(data || []);
     } catch (error) {
-      console.error('Error fetching doctors:', error);
+      logger.error('Error fetching doctors:', error);
       toast.error(`Failed to load doctors: ${error.message}`);
     }
   };
@@ -242,7 +243,7 @@ const StaffAppointments = () => {
         .single();
         
       if (testError) {
-        console.error('Test connection error:', testError);
+        logger.error('Test connection error:', testError);
         throw new Error('Could not connect to database. Please check your network connection.');
       }
       
@@ -253,7 +254,7 @@ const StaffAppointments = () => {
         .eq('role', 'patient');
       
       if (error) {
-        console.error('Patient fetch error:', error);
+        logger.error('Patient fetch error:', error);
         throw error;
       }
       
@@ -276,7 +277,7 @@ const StaffAppointments = () => {
       setPatients(formattedPatients);
       setFilteredPatients(formattedPatients);
     } catch (error) {
-      console.error('Error fetching patients:', error);
+      logger.error('Error fetching patients:', error);
       toast.error(`Failed to load patients: ${error.message}`);
     }
   };
@@ -286,7 +287,7 @@ const StaffAppointments = () => {
       setIsLoading(true);
     }
     try {
-      console.log('Fetching appointments...');
+      logger.log('Fetching appointments...');
       
       // 1. Test basic connection with a simple query
       const { data: testData, error: testError } = await supabase
@@ -296,11 +297,11 @@ const StaffAppointments = () => {
         .single();
       
       if (testError) {
-        console.error('Connection test failed:', testError);
+        logger.error('Connection test failed:', testError);
         throw new Error('Database connection test failed. Please check your network connection.');
       }
       
-      console.log('Connection test successful, proceeding with appointments query');
+      logger.log('Connection test successful, proceeding with appointments query');
       
       // 2. Fetch basic appointment data first (without complex joins)
       let query = supabase
@@ -330,11 +331,11 @@ const StaffAppointments = () => {
       const { data: appointmentData, error: appointmentError } = await query;
       
       if (appointmentError) {
-        console.error('Error fetching appointments:', appointmentError);
+        logger.error('Error fetching appointments:', appointmentError);
         throw appointmentError;
       }
       
-      console.log(`Fetched ${appointmentData.length} appointments`);
+      logger.log(`Fetched ${appointmentData.length} appointments`);
       
       // 3. Fetch patient profiles separately
       const patientIds = [...new Set(appointmentData.map(a => a.patient_id))];
@@ -345,7 +346,7 @@ const StaffAppointments = () => {
         .in('id', patientIds);
       
       if (patientError) {
-        console.error('Error fetching patient profiles:', patientError);
+        logger.error('Error fetching patient profiles:', patientError);
         // Continue anyway with empty patient data
       }
       
@@ -360,7 +361,7 @@ const StaffAppointments = () => {
         : { data: [], error: null };
 
       if (doctorError) {
-        console.error('Error fetching doctor profiles:', doctorError);
+        logger.error('Error fetching doctor profiles:', doctorError);
       }
 
       // Fetch guardian profiles for appointments with guardian_id
@@ -373,7 +374,7 @@ const StaffAppointments = () => {
         : { data: [], error: null };
 
       if (guardianError) {
-        console.error('Error fetching guardian profiles:', guardianError);
+        logger.error('Error fetching guardian profiles:', guardianError);
       }
 
       // Create a lookup map for patient/doctor/guardian data
@@ -407,7 +408,7 @@ const StaffAppointments = () => {
          .in('appointment_id', appointmentIds);
        
        if (serviceJoinError) {
-         console.error('Error fetching appointment-service join data:', serviceJoinError);
+         logger.error('Error fetching appointment-service join data:', serviceJoinError);
          // Continue anyway with empty service data
        }
        
@@ -423,7 +424,7 @@ const StaffAppointments = () => {
          : { data: [], error: null };
        
        if (serviceError) {
-         console.error('Error fetching service details:', serviceError);
+         logger.error('Error fetching service details:', serviceError);
          // Continue anyway with empty service details
        }
        
@@ -481,7 +482,7 @@ const StaffAppointments = () => {
        });
       
       setAppointments(formattedAppointments);
-      console.log('Appointments processed successfully');
+      logger.log('Appointments processed successfully');
       
       // 6. Try to fetch appointment durations if that table exists
       try {
@@ -498,16 +499,16 @@ const StaffAppointments = () => {
           
           setAppointmentDurations(durationMap);
         } else {
-          console.log('Appointment durations may not exist yet:', durationError);
+          logger.log('Appointment durations may not exist yet:', durationError);
           // If the table doesn't exist, this is fine - just use empty durations
           setAppointmentDurations({});
         }
       } catch (durationErr) {
-        console.log('Appointment durations table might not exist yet');
+        logger.log('Appointment durations table might not exist yet');
         setAppointmentDurations({});
       }
     } catch (error) {
-      console.error('Error fetching appointments:', error);
+      logger.error('Error fetching appointments:', error);
       setDebugInfo(JSON.stringify(error, null, 2));
       toast.error(`Failed to load appointments: ${error.message}`);
     } finally {
@@ -619,7 +620,7 @@ const StaffAppointments = () => {
       const availableSlots = allTimeSlots.filter(time => !allBookedTimeStrings.includes(time));
       setAvailableTimeSlots(availableSlots);
     } catch (err) {
-      console.error('Error fetching available time slots:', err);
+      logger.error('Error fetching available time slots:', err);
       toast.error('Failed to load available time slots');
     }
   };
@@ -671,12 +672,12 @@ const StaffAppointments = () => {
       // Add status change if needed
       if (shouldChangeToPending) {
         updateData.status = 'pending';
-        console.log('Changing status to pending for rejected/cancelled appointment');
+        logger.log('Changing status to pending for rejected/cancelled appointment');
       }
       
-      console.log('Updating appointment with data:', updateData);
-      console.log('Appointment ID:', selectedAppointment.id);
-      console.log('Current appointment status:', selectedAppointment.status);
+      logger.log('Updating appointment with data:', updateData);
+      logger.log('Appointment ID:', selectedAppointment.id);
+      logger.log('Current appointment status:', selectedAppointment.status);
       
       // Validate data before sending
       if (!updateData.appointment_date || !updateData.appointment_time || !updateData.branch) {
@@ -696,7 +697,7 @@ const StaffAppointments = () => {
       }
       
       // First, verify the appointment exists (optional - don't fail if not found)
-      console.log('Fetching appointment details...');
+      logger.log('Fetching appointment details...');
       const { data: existingAppointment, error: fetchError } = await supabase
         .from('appointments')
         .select('id, status, appointment_date, appointment_time, branch, patient_id')
@@ -704,10 +705,10 @@ const StaffAppointments = () => {
         .single();
       
       if (fetchError) {
-        console.warn('Could not fetch appointment details:', fetchError);
-        console.warn('Continuing with reschedule using local appointment data...');
+        logger.warn('Could not fetch appointment details:', fetchError);
+        logger.warn('Continuing with reschedule using local appointment data...');
       } else {
-        console.log('Found appointment:', existingAppointment);
+        logger.log('Found appointment:', existingAppointment);
       }
       
       // Check if the new time slot is available
@@ -721,7 +722,7 @@ const StaffAppointments = () => {
         .in('status', ['pending', 'confirmed']);
       
       if (conflictError) {
-        console.error('Error checking for conflicts:', conflictError);
+        logger.error('Error checking for conflicts:', conflictError);
         throw new Error(`Failed to check availability: ${conflictError.message}`);
       }
       
@@ -731,8 +732,8 @@ const StaffAppointments = () => {
       }
       
       // Try a simple update first to test basic functionality
-      console.log('Attempting to update appointment...');
-      console.log('Update data being sent:', JSON.stringify(updateData, null, 2));
+      logger.log('Attempting to update appointment...');
+      logger.log('Update data being sent:', JSON.stringify(updateData, null, 2));
       
       // Ensure all data is properly formatted
       const sanitizedUpdateData = {
@@ -745,7 +746,7 @@ const StaffAppointments = () => {
         sanitizedUpdateData.status = updateData.status;
       }
       
-      console.log('Sanitized update data:', JSON.stringify(sanitizedUpdateData, null, 2));
+      logger.log('Sanitized update data:', JSON.stringify(sanitizedUpdateData, null, 2));
       
       let { data: updateResult, error } = await supabase
         .from('appointments')
@@ -754,10 +755,10 @@ const StaffAppointments = () => {
         .select('id, status, appointment_date, appointment_time, branch');
         
       if (error) {
-        console.error('Database update error:', error);
-        console.error('Update data that failed:', updateData);
-        console.error('Appointment ID:', selectedAppointment.id);
-        console.error('Error details:', {
+        logger.error('Database update error:', error);
+        logger.error('Update data that failed:', updateData);
+        logger.error('Appointment ID:', selectedAppointment.id);
+        logger.error('Error details:', {
           message: error.message,
           details: error.details,
           hint: error.hint,
@@ -766,7 +767,7 @@ const StaffAppointments = () => {
         
         // Try a different approach - update without status first
         if (shouldChangeToPending) {
-          console.log('Trying update without status change...');
+          logger.log('Trying update without status change...');
           const { status, ...dataWithoutStatus } = updateData;
           
           const result2 = await supabase
@@ -776,10 +777,10 @@ const StaffAppointments = () => {
             .select('id, status, appointment_date, appointment_time, branch');
           
           if (result2.error) {
-            console.error('Second update attempt also failed:', result2.error);
+            logger.error('Second update attempt also failed:', result2.error);
             throw error; // Throw original error
           } else {
-            console.log('Second update successful, now trying status update...');
+            logger.log('Second update successful, now trying status update...');
             // Now try to update just the status
             const { data: statusOnlyData, error: statusOnlyError } = await supabase
               .from('appointments')
@@ -788,16 +789,16 @@ const StaffAppointments = () => {
               .select('id, status');
             
             if (statusOnlyError) {
-              console.error('Status-only update failed:', statusOnlyError);
+              logger.error('Status-only update failed:', statusOnlyError);
             } else {
-              console.log('Status-only update successful:', statusOnlyData);
+              logger.log('Status-only update successful:', statusOnlyData);
             }
           }
         } else {
           throw error; // Throw original error for non-status-change updates
         }
       } else {
-        console.log('Update successful:', updateResult);
+        logger.log('Update successful:', updateResult);
       }
 
       // Update local state with the new appointment data
@@ -822,7 +823,7 @@ const StaffAppointments = () => {
       setSelectedBranchForReschedule('');
       setAvailableTimeSlots([]);
     } catch (err) {
-      console.error('Error rescheduling appointment:', err);
+      logger.error('Error rescheduling appointment:', err);
       toast.error('Failed to reschedule appointment');
     }
   };
@@ -873,12 +874,12 @@ const StaffAppointments = () => {
       ));
       
       // Refresh appointments from database to ensure consistency
-      console.log('Refreshing appointments after status update...');
+      logger.log('Refreshing appointments after status update...');
       await fetchAppointments(false);
       
       toast.success(`Appointment ${newStatus} successfully`);
     } catch (error) {
-      console.error(`Error updating appointment status to ${newStatus}:`, error);
+      logger.error(`Error updating appointment status to ${newStatus}:`, error);
       toast.error(`Failed to ${newStatus} appointment`);
     }
   };
@@ -917,7 +918,7 @@ const StaffAppointments = () => {
       setIsAssigningDoctor(false);
       setSelectedDoctor('');
     } catch (error) {
-      console.error('Error assigning doctor:', error);
+      logger.error('Error assigning doctor:', error);
       toast.error(`Failed to assign doctor: ${error.message}`);
     }
   };
@@ -939,11 +940,11 @@ const StaffAppointments = () => {
         if (testError && testError.code === 'PGRST116') {
           // Empty result is fine
         } else if (testError) {
-          console.error('Error checking durations table:', testError);
+          logger.error('Error checking durations table:', testError);
           tableExists = false;
         }
       } catch (err) {
-        console.error('Error checking durations table:', err);
+        logger.error('Error checking durations table:', err);
         tableExists = false;
       }
       
@@ -970,7 +971,7 @@ const StaffAppointments = () => {
           setIsSettingDuration(false);
           return;
         } catch (err) {
-          console.error('Error updating appointment with duration:', err);
+          logger.error('Error updating appointment with duration:', err);
           throw new Error('Failed to set duration. Durations table may need to be created by an administrator.');
         }
       }
@@ -1018,7 +1019,7 @@ const StaffAppointments = () => {
       toast.success('Appointment duration set successfully');
       setIsSettingDuration(false);
     } catch (error) {
-      console.error('Error setting appointment duration:', error);
+      logger.error('Error setting appointment duration:', error);
       toast.error(`Failed to set appointment duration: ${error.message}`);
     }
   };

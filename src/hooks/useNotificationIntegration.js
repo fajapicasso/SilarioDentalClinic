@@ -3,6 +3,7 @@ import { useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import notificationService from '../services/notificationService';
 import supabase from '../config/supabaseClient';
+import logger from '../utils/logger';
 
 // Hook for appointment-related notifications
 export const useAppointmentNotifications = () => {
@@ -10,7 +11,7 @@ export const useAppointmentNotifications = () => {
 
   const createAppointment = useCallback(async (appointmentData) => {
     try {
-      console.log('Creating appointment with notifications:', appointmentData);
+      logger.log('Creating appointment with notifications:', appointmentData);
 
       // Create the appointment first
       const { data: appointment, error: appointmentError } = await supabase
@@ -53,17 +54,17 @@ export const useAppointmentNotifications = () => {
         patientData
       );
 
-      console.log('Appointment created successfully with notifications');
+      logger.log('Appointment created successfully with notifications');
       return { success: true, data: appointment };
     } catch (error) {
-      console.error('Error creating appointment:', error);
+      logger.error('Error creating appointment:', error);
       return { success: false, error: error.message };
     }
   }, []);
 
   const updateAppointmentStatus = useCallback(async (appointmentId, newStatus, doctorId = null) => {
     try {
-      console.log('Updating appointment status with notifications:', { appointmentId, newStatus, doctorId });
+      logger.log('Updating appointment status with notifications:', { appointmentId, newStatus, doctorId });
 
       // Get current appointment data
       const { data: currentAppointment, error: fetchError } = await supabase
@@ -120,10 +121,10 @@ export const useAppointmentNotifications = () => {
         doctorData
       );
 
-      console.log('Appointment status updated successfully with notifications');
+      logger.log('Appointment status updated successfully with notifications');
       return { success: true, data: appointment };
     } catch (error) {
-      console.error('Error updating appointment status:', error);
+      logger.error('Error updating appointment status:', error);
       return { success: false, error: error.message };
     }
   }, []);
@@ -160,7 +161,7 @@ export const usePaymentNotifications = () => {
 
   const createPayment = useCallback(async (paymentData) => {
     try {
-      console.log('Creating payment with notifications:', paymentData);
+      logger.log('Creating payment with notifications:', paymentData);
 
       // Create the payment first
       const { data: payment, error: paymentError } = await supabase
@@ -206,17 +207,17 @@ export const usePaymentNotifications = () => {
         invoiceData.patient
       );
 
-      console.log('Payment created successfully with notifications');
+      logger.log('Payment created successfully with notifications');
       return { success: true, data: payment };
     } catch (error) {
-      console.error('Error creating payment:', error);
+      logger.error('Error creating payment:', error);
       return { success: false, error: error.message };
     }
   }, [user]);
 
   const updatePaymentStatus = useCallback(async (paymentId, newStatus, approverId = null) => {
     try {
-      console.log('Updating payment status with notifications:', { paymentId, newStatus, approverId });
+      logger.log('Updating payment status with notifications:', { paymentId, newStatus, approverId });
 
       // Get current payment data
       const { data: currentPayment, error: fetchError } = await supabase
@@ -272,10 +273,10 @@ export const usePaymentNotifications = () => {
         approverData
       );
 
-      console.log('Payment status updated successfully with notifications');
+      logger.log('Payment status updated successfully with notifications');
       return { success: true, data: payment };
     } catch (error) {
-      console.error('Error updating payment status:', error);
+      logger.error('Error updating payment status:', error);
       return { success: false, error: error.message };
     }
   }, []);
@@ -303,7 +304,7 @@ export const useSystemNotifications = () => {
       await notificationService.notifyWelcomeNewUser(userData);
       return { success: true };
     } catch (error) {
-      console.error('Error sending welcome notification:', error);
+      logger.error('Error sending welcome notification:', error);
       return { success: false, error: error.message };
     }
   }, []);
@@ -313,7 +314,7 @@ export const useSystemNotifications = () => {
       await notificationService.sendTestNotification(userId, userRole);
       return { success: true };
     } catch (error) {
-      console.error('Error sending test notification:', error);
+      logger.error('Error sending test notification:', error);
       return { success: false, error: error.message };
     }
   }, []);
@@ -333,7 +334,7 @@ export const useSystemNotifications = () => {
       });
       return { success: true };
     } catch (error) {
-      console.error('Error sending announcement:', error);
+      logger.error('Error sending announcement:', error);
       return { success: false, error: error.message };
     }
   }, []);
@@ -359,7 +360,7 @@ export const useSystemNotifications = () => {
       
       return { success: true };
     } catch (error) {
-      console.error('Error sending emergency alert:', error);
+      logger.error('Error sending emergency alert:', error);
       return { success: false, error: error.message };
     }
   }, []);
@@ -381,7 +382,7 @@ export const useNotificationActions = () => {
       const result = await notificationService.markNotificationAsRead(notificationId, user.id);
       return result;
     } catch (error) {
-      console.error('Error marking notification as read:', error);
+      logger.error('Error marking notification as read:', error);
       return { success: false, error: error.message };
     }
   }, [user]);
@@ -391,7 +392,7 @@ export const useNotificationActions = () => {
       const result = await notificationService.deleteNotification(notificationId, user.id);
       return result;
     } catch (error) {
-      console.error('Error deleting notification:', error);
+      logger.error('Error deleting notification:', error);
       return { success: false, error: error.message };
     }
   }, [user]);
@@ -411,7 +412,7 @@ export const useNotificationActions = () => {
 
       return { success: true };
     } catch (error) {
-      console.error('Error marking all notifications as read:', error);
+      logger.error('Error marking all notifications as read:', error);
       return { success: false, error: error.message };
     }
   }, [user]);
@@ -421,7 +422,7 @@ export const useNotificationActions = () => {
       const result = await notificationService.getUnreadCount(user.id);
       return result;
     } catch (error) {
-      console.error('Error getting unread count:', error);
+      logger.error('Error getting unread count:', error);
       return { success: false, error: error.message, count: 0 };
     }
   }, [user]);

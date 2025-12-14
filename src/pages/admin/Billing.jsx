@@ -13,6 +13,7 @@ import UnifiedInvoicePrinter from '../../components/common/UnifiedInvoicePrinter
 import logo from '../../assets/Logo.png';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
+import logger from '../../utils/logger';
 
 // IMPORTANT: To enable the Edit Invoice page, add the following route to your router:
 // <Route path="/doctor/billing/edit/:invoiceId" element={<EditInvoice />} />
@@ -768,7 +769,7 @@ const Billing = () => {
       setPatients(data || []);
       setFilteredPatients(data || []);
     } catch (error) {
-      console.error('Error fetching patients:', error);
+      logger.error('Error fetching patients:', error);
       toast.error('Failed to load patients');
     }
   };
@@ -783,7 +784,7 @@ const Billing = () => {
       if (error) throw error;
       setAllServices(data || []);
     } catch (error) {
-      console.error('Error fetching services:', error);
+      logger.error('Error fetching services:', error);
     }
   };
   
@@ -835,7 +836,7 @@ const Billing = () => {
       
       setPatientAppointments(formattedAppointments);
     } catch (error) {
-      console.error('Error fetching patient appointments:', error);
+      logger.error('Error fetching patient appointments:', error);
       toast.error('Failed to load patient appointments');
     } finally {
       setIsLoading(false);
@@ -876,7 +877,7 @@ const Billing = () => {
       setLineItems(prevItems => [...prevItems, ...newLineItems]);
       
     } catch (error) {
-      console.error('Error fetching appointment services:', error);
+      logger.error('Error fetching appointment services:', error);
       toast.error('Failed to load appointment services');
     } finally {
       setIsLoading(false);
@@ -887,7 +888,7 @@ const Billing = () => {
     setIsLoading(true);
     try {
       const today = new Date().toISOString().split('T')[0];
-      console.log('Fetching all invoices for admin access');
+      logger.log('Fetching all invoices for admin access');
       
       // Fetch ALL invoices for admin access (no doctor filtering)
       const { data, error } = await supabase
@@ -920,11 +921,11 @@ const Billing = () => {
         .order('created_at', { ascending: false });
       
       if (error) {
-        console.error('Error fetching invoices:', error);
+        logger.error('Error fetching invoices:', error);
         throw error;
       }
       
-      console.log('Raw invoice data:', data);
+      logger.log('Raw invoice data:', data);
       
       // Fetch guardian information for all minors
       const guardianIds = [...new Set(
@@ -990,11 +991,11 @@ const Billing = () => {
           invoice_items: invoice.invoice_items || [],
           assignedDoctor: assignedDoctor
         };
-        console.log('Fetched invoice in history:', { id: invoice.id, items: formatted.invoice_items, doctor: assignedDoctor, guardian: guardianName });
+        logger.log('Fetched invoice in history:', { id: invoice.id, items: formatted.invoice_items, doctor: assignedDoctor, guardian: guardianName });
         return formatted;
       });
       
-      console.log('Formatted invoices:', formattedInvoices);
+      logger.log('Formatted invoices:', formattedInvoices);
       
       // Separate groups: partial payments first, then pending, then paid
       const isToday = (d) => {
@@ -1008,10 +1009,10 @@ const Billing = () => {
       setInvoices(prioritized);
       setFilteredInvoices(prioritized);
       
-      console.log('Final prioritized invoices:', prioritized);
+      logger.log('Final prioritized invoices:', prioritized);
       
     } catch (error) {
-      console.error('Error in fetchInvoices:', error);
+      logger.error('Error in fetchInvoices:', error);
       toast.error('Failed to load invoices: ' + (error.message || 'Unknown error'));
     } finally {
       setIsLoading(false);
@@ -1021,7 +1022,7 @@ const Billing = () => {
   const fetchPayments = async () => {
     setIsLoading(true);
     try {
-      console.log('Fetching all payments for admin access');
+      logger.log('Fetching all payments for admin access');
       
       // Fetch ALL payments for admin access (no doctor filtering)
       const { data: payments, error: paymentError } = await supabase
@@ -1042,7 +1043,7 @@ const Billing = () => {
 
       if (paymentError) throw paymentError;
       
-      console.log('All payments for admin:', payments?.length || 0);
+      logger.log('All payments for admin:', payments?.length || 0);
       
       if (payments && payments.length > 0) {
         // Store all payments (including rejected ones) for rejection indicators
@@ -1074,7 +1075,7 @@ const Billing = () => {
           .select('id, invoice_number, patient_id, notes, total_amount, amount_paid, status, profiles:patient_id(id, full_name, phone, email, guardian_id)');
         
         if (allInvoicesError) {
-          console.error('Error fetching all invoices:', allInvoicesError);
+          logger.error('Error fetching all invoices:', allInvoicesError);
         }
         
         // Get patient IDs from invoices and add to patientData
@@ -1143,10 +1144,10 @@ const Billing = () => {
         // This gives complete visibility of all payment activities
         const formattedPayments = formattedAllPayments;
 
-        console.log('=== ADMIN PAYMENT ACCESS DEBUG ===');
-        console.log('Total payments fetched:', payments.length);
-        console.log('All payments for admin display:', formattedAllPayments.length);
-        console.log('Payment details:', formattedAllPayments.map(p => ({
+        logger.log('=== ADMIN PAYMENT ACCESS DEBUG ===');
+        logger.log('Total payments fetched:', payments.length);
+        logger.log('All payments for admin display:', formattedAllPayments.length);
+        logger.log('Payment details:', formattedAllPayments.map(p => ({
           id: p.id,
           patientName: p.patientName,
           invoiceNumber: p.invoiceNumber,
@@ -1155,7 +1156,7 @@ const Billing = () => {
           doctor: p.assignedDoctor || 'Not assigned',
           invoiceNotes: p.invoices?.notes || 'No notes'
         })));
-        console.log('=== END PAYMENT DEBUG ===');
+        logger.log('=== END PAYMENT DEBUG ===');
 
         setPayments(formattedPayments);
         setFilteredPayments(formattedPayments);
@@ -1166,7 +1167,7 @@ const Billing = () => {
         setFilteredPayments([]);
       }
     } catch (error) {
-      console.error('Error fetching payments:', error);
+      logger.error('Error fetching payments:', error);
       toast.error('Failed to load payments: ' + error.message);
     } finally {
       setIsLoading(false);
@@ -1383,7 +1384,7 @@ const Billing = () => {
           .single();
         guardianName = guardianData?.full_name || null;
       } catch (error) {
-        console.error('Error fetching guardian information:', error);
+        logger.error('Error fetching guardian information:', error);
       }
     }
 
@@ -1461,7 +1462,7 @@ const Billing = () => {
           doctor_name: doctorName
         });
       } catch (auditError) {
-        console.error('Error logging invoice creation audit event:', auditError);
+        logger.error('Error logging invoice creation audit event:', auditError);
         // Continue even if audit logging fails
       }
       
@@ -1485,7 +1486,7 @@ const Billing = () => {
       // Switch to history tab
       setActiveTab('history');
     } catch (error) {
-      console.error('Error generating invoice:', error);
+      logger.error('Error generating invoice:', error);
       toast.error('Failed to generate invoice: ' + error.message);
     } finally {
       setIsLoading(false);
@@ -1500,7 +1501,7 @@ const Billing = () => {
         .from('invoice_items')
         .select('id, description, service_name, price, quantity, discount')
         .eq('invoice_id', invoice.id);
-      console.log('Fetched invoice items:', { invoiceId: invoice.id, items, itemsError });
+      logger.log('Fetched invoice items:', { invoiceId: invoice.id, items, itemsError });
       if (itemsError) throw itemsError;
       // Fetch payments for this invoice
       const { data: paymentData, error: paymentError } = await supabase
@@ -1516,7 +1517,7 @@ const Billing = () => {
       });
       setShowInvoicePreview(true);
     } catch (error) {
-      console.error('Error fetching invoice details:', error);
+      logger.error('Error fetching invoice details:', error);
       toast.error('Failed to fetch invoice details');
     } finally {
       setIsLoading(false);
@@ -1649,7 +1650,7 @@ const Billing = () => {
           notificationResult = await approvePayment(paymentId);
         }
       } catch (notificationError) {
-        console.error('Error sending notification:', notificationError);
+        logger.error('Error sending notification:', notificationError);
         // Continue with status update even if notification fails
       }
 
@@ -1678,7 +1679,7 @@ const Billing = () => {
         .eq('id', paymentId);
       
       if (error) {
-        console.error('Error updating payment:', error);
+        logger.error('Error updating payment:', error);
         toast.error('Failed to approve payment. Please try again.');
         return;
       }
@@ -1693,7 +1694,7 @@ const Billing = () => {
           .eq('invoice_id', invoice.id);
         
         if (paymentsError) {
-          console.error('Error fetching invoice payments:', paymentsError);
+          logger.error('Error fetching invoice payments:', paymentsError);
         } else {
           // Calculate amount paid from approved payments only (including the one we just approved)
           const approvedAmount = allInvoicePayments
@@ -1732,7 +1733,7 @@ const Billing = () => {
         setShowPaymentModal(false);
       }
     } catch (error) {
-      console.error('Error approving payment:', error);
+      logger.error('Error approving payment:', error);
       toast.error('Failed to approve payment: ' + error.message);
     } finally {
       setIsLoading(false);
@@ -1765,7 +1766,7 @@ const Billing = () => {
           notificationResult = await rejectPayment(paymentId);
         }
       } catch (notificationError) {
-        console.error('Error sending notification:', notificationError);
+        logger.error('Error sending notification:', notificationError);
         // Continue with status update even if notification fails
       }
 
@@ -1796,7 +1797,7 @@ const Billing = () => {
         .eq('id', paymentId);
       
       if (paymentError) {
-        console.error('Error updating payment:', paymentError);
+        logger.error('Error updating payment:', paymentError);
         toast.error('Failed to reject payment. Please try again.');
         return;
       }
@@ -1811,7 +1812,7 @@ const Billing = () => {
           .eq('invoice_id', invoice.id);
         
         if (paymentsError) {
-          console.error('Error fetching invoice payments:', paymentsError);
+          logger.error('Error fetching invoice payments:', paymentsError);
         } else {
           // Calculate amount paid from approved payments only (excluding the one we just rejected)
           const approvedAmount = allInvoicePayments
@@ -1838,7 +1839,7 @@ const Billing = () => {
             .eq('id', invoice.id);
           
           if (invoiceError) {
-            console.error('Error updating invoice after payment rejection:', invoiceError);
+            logger.error('Error updating invoice after payment rejection:', invoiceError);
             // Continue anyway since payment rejection succeeded
           }
         }
@@ -1859,7 +1860,7 @@ const Billing = () => {
         setShowPaymentModal(false);
       }
     } catch (error) {
-      console.error('Error rejecting payment:', error);
+      logger.error('Error rejecting payment:', error);
       toast.error('Failed to reject payment: ' + error.message);
     } finally {
       setIsLoading(false);
@@ -1971,7 +1972,7 @@ const Billing = () => {
                               payment.notes?.toLowerCase().includes('cash') ||
                               invoice.payment_method === 'cash');
         
-        console.log('Proof filtering:', {
+        logger.log('Proof filtering:', {
           payment_id: payment.id,
           proofUrl,
           isWhitePlaceholder,
@@ -2019,8 +2020,8 @@ const Billing = () => {
       setRelatedRefDetails(refDetails);
       setIsViewingInvoiceProofs(true); // Set flag to indicate we're viewing from invoice
       
-      console.log('Related proofs length:', proofs.length);
-      console.log('Payments data:', payments);
+      logger.log('Related proofs length:', proofs.length);
+      logger.log('Payments data:', payments);
       
       setSelectedPayment({
         id: 'multiple',
@@ -2037,7 +2038,7 @@ const Billing = () => {
       setShowPaymentModal(true);
       
     } catch (error) {
-      console.error('Error loading invoice proofs:', error);
+      logger.error('Error loading invoice proofs:', error);
       toast.error('Failed to load payment proofs: ' + error.message);
     } finally {
       setIsLoading(false);
@@ -2090,7 +2091,7 @@ const Billing = () => {
             quantity: item.quantity,
             discount: item.discount || 0
           }).select('id');
-          console.log('Insert result:', { insertError, inserted, item });
+          logger.log('Insert result:', { insertError, inserted, item });
           if (insertError) throw insertError;
           if (inserted && inserted[0]) item.id = inserted[0].id;
         }
@@ -2160,7 +2161,7 @@ const Billing = () => {
   // Function to check for orphaned payments and help debug the issue
   const checkPaymentAssignments = async () => {
     try {
-      console.log('=== CHECKING PAYMENT ASSIGNMENTS ===');
+      logger.log('=== CHECKING PAYMENT ASSIGNMENTS ===');
       
       // Get all payments
       const { data: allPayments, error: paymentError } = await supabase
@@ -2169,7 +2170,7 @@ const Billing = () => {
         .order('created_at', { ascending: false });
       
       if (paymentError) {
-        console.error('Error fetching payments:', paymentError);
+        logger.error('Error fetching payments:', paymentError);
         return;
       }
       
@@ -2180,12 +2181,12 @@ const Billing = () => {
         .order('created_at', { ascending: false });
       
       if (invoiceError) {
-        console.error('Error fetching invoices:', invoiceError);
+        logger.error('Error fetching invoices:', invoiceError);
         return;
       }
       
-      console.log('Total payments in database:', allPayments.length);
-      console.log('Total invoices in database:', allInvoices.length);
+      logger.log('Total payments in database:', allPayments.length);
+      logger.log('Total invoices in database:', allInvoices.length);
       
       // Check which payments have invoices with doctor assignments
       const paymentsWithDoctorAssignments = allPayments.filter(payment => {
@@ -2200,7 +2201,7 @@ const Billing = () => {
         );
       });
       
-      console.log('Payments with doctor assignments:', paymentsWithDoctorAssignments.length);
+      logger.log('Payments with doctor assignments:', paymentsWithDoctorAssignments.length);
       
       // Check which payments have invoices without doctor assignments
       const paymentsWithoutDoctorAssignments = allPayments.filter(payment => {
@@ -2215,14 +2216,14 @@ const Billing = () => {
         );
       });
       
-      console.log('Payments WITHOUT doctor assignments:', paymentsWithoutDoctorAssignments.length);
+      logger.log('Payments WITHOUT doctor assignments:', paymentsWithoutDoctorAssignments.length);
       
       // Show examples of payments without doctor assignments
       if (paymentsWithoutDoctorAssignments.length > 0) {
-        console.log('Examples of payments without doctor assignments:');
+        logger.log('Examples of payments without doctor assignments:');
         paymentsWithoutDoctorAssignments.slice(0, 5).forEach(payment => {
           const invoice = allInvoices.find(inv => inv.id === payment.invoice_id);
-          console.log({
+          logger.log({
             paymentId: payment.id,
             amount: payment.amount,
             invoiceId: payment.invoice_id,
@@ -2240,7 +2241,7 @@ const Billing = () => {
         .single();
       
       const doctorName = profileData?.full_name || '';
-      console.log('Current doctor name:', doctorName);
+      logger.log('Current doctor name:', doctorName);
       
       // Check which payments should be shown for this doctor
       const paymentsForThisDoctor = allPayments.filter(payment => {
@@ -2268,17 +2269,17 @@ const Billing = () => {
         return false;
       });
       
-      console.log('Payments that should be shown for this doctor:', paymentsForThisDoctor.length);
-      console.log('Payment details for this doctor:', paymentsForThisDoctor.map(p => ({
+      logger.log('Payments that should be shown for this doctor:', paymentsForThisDoctor.length);
+      logger.log('Payment details for this doctor:', paymentsForThisDoctor.map(p => ({
         id: p.id,
         amount: p.amount,
         invoiceId: p.invoice_id
       })));
       
-      console.log('=== END PAYMENT ASSIGNMENT CHECK ===');
+      logger.log('=== END PAYMENT ASSIGNMENT CHECK ===');
       
     } catch (error) {
-      console.error('Error checking payment assignments:', error);
+      logger.error('Error checking payment assignments:', error);
     }
   };
   

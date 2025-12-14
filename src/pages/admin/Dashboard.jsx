@@ -5,6 +5,7 @@ import supabase from '../../config/supabaseClient';
 import { toast } from 'react-toastify';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { useUniversalAudit } from '../../hooks/useUniversalAudit';
+import logger from '../../utils/logger';
 
 const AdminDashboard = () => {
   const { logPageView } = useUniversalAudit();
@@ -34,7 +35,7 @@ const AdminDashboard = () => {
         fetchRecentAppointments()
       ]);
     } catch (error) {
-      console.error('Error fetching dashboard data:', error);
+      logger.error('Error fetching dashboard data:', error);
       toast.error('Failed to load dashboard data');
     } finally {
       setIsLoading(false);
@@ -51,7 +52,7 @@ const AdminDashboard = () => {
       if (error) throw error;
       setStats(prev => ({ ...prev, totalPatients: count || 0 }));
     } catch (error) {
-      console.error('Error fetching patient count:', error);
+      logger.error('Error fetching patient count:', error);
     }
   };
 
@@ -69,7 +70,7 @@ const AdminDashboard = () => {
       if (error) throw error;
       setStats(prev => ({ ...prev, todayAppointments: data?.length || 0 }));
     } catch (error) {
-      console.error('Error fetching today appointments:', error);
+      logger.error('Error fetching today appointments:', error);
     }
   };
 
@@ -96,7 +97,7 @@ const AdminDashboard = () => {
       const totalRevenue = data?.reduce((sum, invoice) => sum + (parseFloat(invoice.total_amount) || 0), 0) || 0;
       setStats(prev => ({ ...prev, monthlyRevenue: totalRevenue }));
     } catch (error) {
-      console.error('Error fetching monthly revenue:', error);
+      logger.error('Error fetching monthly revenue:', error);
     }
   };
 
@@ -110,7 +111,7 @@ const AdminDashboard = () => {
       if (error) throw error;
       setStats(prev => ({ ...prev, pendingAppointments: count || 0 }));
     } catch (error) {
-      console.error('Error fetching pending appointments:', error);
+      logger.error('Error fetching pending appointments:', error);
     }
   };
 
@@ -133,7 +134,7 @@ const AdminDashboard = () => {
       if (error) throw error;
       setRecentAppointments(data || []);
     } catch (error) {
-      console.error('Error fetching recent appointments:', error);
+      logger.error('Error fetching recent appointments:', error);
     }
   };
 

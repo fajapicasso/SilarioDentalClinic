@@ -14,6 +14,7 @@ import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { useAppointmentNotifications } from '../../hooks/useNotificationIntegration';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
+import logger from '../../utils/logger';
 
 const DoctorAppointments = () => {
   const { user } = useAuth();
@@ -82,7 +83,7 @@ const DoctorAppointments = () => {
 
   // Debug: Log appointments when they change
   useEffect(() => {
-    console.log('Appointments updated:', appointments.map(app => ({ 
+    logger.log('Appointments updated:', appointments.map(app => ({ 
       id: app.id, 
       status: app.status, 
       patient: app.patientName,
@@ -100,11 +101,11 @@ const DoctorAppointments = () => {
         .single();
       
       if (error) {
-        console.error('Role check error:', error);
+        logger.error('Role check error:', error);
         throw error;
       }
       
-      console.log('User role:', data.role);
+      logger.log('User role:', data.role);
       const role = data.role;
       setUserRole(role);
       
@@ -118,7 +119,7 @@ const DoctorAppointments = () => {
         setIsLoading(false);
       }
     } catch (error) {
-      console.error('Error checking user role:', error);
+      logger.error('Error checking user role:', error);
       toast.error('Failed to verify your account permissions');
       setIsLoading(false);
     }
@@ -133,7 +134,7 @@ const DoctorAppointments = () => {
         .single();
         
       if (testError) {
-        console.error('Test connection error:', testError);
+        logger.error('Test connection error:', testError);
         throw new Error('Could not connect to database. Please check your network connection.');
       }
       
@@ -143,7 +144,7 @@ const DoctorAppointments = () => {
         .eq('role', 'patient');
       
       if (error) {
-        console.error('Patient fetch error:', error);
+        logger.error('Patient fetch error:', error);
         throw error;
       }
       
@@ -164,7 +165,7 @@ const DoctorAppointments = () => {
       setPatients(formattedPatients);
       setFilteredPatients(formattedPatients);
     } catch (error) {
-      console.error('Error fetching patients:', error);
+      logger.error('Error fetching patients:', error);
       toast.error(`Failed to load patients: ${error.message}`);
     }
   };
@@ -172,7 +173,7 @@ const DoctorAppointments = () => {
   const fetchAppointments = async (role) => {
     setIsLoading(true);
     try {
-      console.log('Fetching appointments for role:', role);
+      logger.log('Fetching appointments for role:', role);
       
       const { data: testData, error: testError } = await supabase
         .from('appointments')
@@ -181,11 +182,11 @@ const DoctorAppointments = () => {
         .single();
       
       if (testError) {
-        console.error('Connection test failed:', testError);
+        logger.error('Connection test failed:', testError);
         throw new Error('Database connection test failed. Please check your network connection.');
       }
       
-      console.log('Connection test successful, proceeding with appointments query');
+      logger.log('Connection test successful, proceeding with appointments query');
       
       // Build base query - filter by doctor assignment based on role
       let query = supabase
@@ -222,12 +223,12 @@ const DoctorAppointments = () => {
       const { data: appointmentData, error: appointmentError } = await query;
       
       if (appointmentError) {
-        console.error('Error fetching appointments:', appointmentError);
+        logger.error('Error fetching appointments:', appointmentError);
         throw appointmentError;
       }
       
-      console.log(`Fetched ${appointmentData.length} appointments for ${role}`);
-      console.log('Appointment statuses found:', appointmentData.map(app => ({ id: app.id, status: app.status, patient_id: app.patient_id })));
+      logger.log(`Fetched ${appointmentData.length} appointments for ${role}`);
+      logger.log('Appointment statuses found:', appointmentData.map(app => ({ id: app.id, status: app.status, patient_id: app.patient_id })));
       
       // Fetch patient profiles separately
       const patientIds = [...new Set(appointmentData.map(a => a.patient_id))];
@@ -238,7 +239,7 @@ const DoctorAppointments = () => {
         .in('id', patientIds);
       
       if (patientError) {
-        console.error('Error fetching patient profiles:', patientError);
+        logger.error('Error fetching patient profiles:', patientError);
       }
       
       // Fetch doctor profiles for assigned appointments
@@ -252,7 +253,7 @@ const DoctorAppointments = () => {
         : { data: [], error: null };
       
       if (doctorError) {
-        console.error('Error fetching doctor profiles:', doctorError);
+        logger.error('Error fetching doctor profiles:', doctorError);
       }
       
       // Fetch guardian profiles for appointments with guardian_id
@@ -265,7 +266,7 @@ const DoctorAppointments = () => {
         : { data: [], error: null };
       
       if (guardianError) {
-        console.error('Error fetching guardian profiles:', guardianError);
+        logger.error('Error fetching guardian profiles:', guardianError);
       }
       
       // Create lookup maps
@@ -292,7 +293,7 @@ const DoctorAppointments = () => {
       
       // Fetch appointment services
       const appointmentIds = appointmentData.map(a => a.id);
-      console.log('Fetching services for appointment IDs:', appointmentIds);
+      logger.log('Fetching services for appointment IDs:', appointmentIds);
       
       const { data: serviceJoinData, error: serviceJoinError } = await supabase
         .from('appointment_services')
@@ -300,12 +301,12 @@ const DoctorAppointments = () => {
         .in('appointment_id', appointmentIds);
       
       if (serviceJoinError) {
-        console.error('Error fetching appointment-service join data:', serviceJoinError);
+        logger.error('Error fetching appointment-service join data:', serviceJoinError);
       }
       
-      console.log('Service join data found:', serviceJoinData);
+      logger.log('Service join data found:', serviceJoinData);
       const serviceIds = serviceJoinData ? [...new Set(serviceJoinData.map(s => s.service_id))] : [];
-      console.log('Service IDs found:', serviceIds);
+      logger.log('Service IDs found:', serviceIds);
       
       const { data: serviceData, error: serviceError } = serviceIds.length > 0 
         ? await supabase
@@ -315,7 +316,7 @@ const DoctorAppointments = () => {
         : { data: [], error: null };
       
       if (serviceError) {
-        console.error('Error fetching service details:', serviceError);
+        logger.error('Error fetching service details:', serviceError);
       }
       
       // Create service lookup maps
@@ -371,7 +372,7 @@ const DoctorAppointments = () => {
       });
       
       setAppointments(formattedAppointments);
-      console.log('Appointments processed successfully');
+      logger.log('Appointments processed successfully');
       
       // Fetch appointment durations
       try {
@@ -387,15 +388,15 @@ const DoctorAppointments = () => {
           
           setAppointmentDurations(durationMap);
         } else {
-          console.log('Appointment durations may not exist yet:', durationError);
+          logger.log('Appointment durations may not exist yet:', durationError);
           setAppointmentDurations({});
         }
       } catch (durationErr) {
-        console.log('Appointment durations table might not exist yet');
+        logger.log('Appointment durations table might not exist yet');
         setAppointmentDurations({});
       }
     } catch (error) {
-      console.error('Error fetching appointments:', error);
+      logger.error('Error fetching appointments:', error);
       setDebugInfo(JSON.stringify(error, null, 2));
       toast.error(`Failed to load appointments: ${error.message}`);
     } finally {
@@ -476,7 +477,7 @@ const DoctorAppointments = () => {
       
       setAvailableTimeSlots(availableSlots);
     } catch (error) {
-      console.error('Error fetching available time slots:', error);
+      logger.error('Error fetching available time slots:', error);
       toast.error('Failed to load available time slots');
     }
   };
@@ -549,7 +550,7 @@ const DoctorAppointments = () => {
           notificationResult = await rejectAppointment(appointmentId);
         }
       } catch (notificationError) {
-        console.error('Error sending notification:', notificationError);
+        logger.error('Error sending notification:', notificationError);
         // Continue with status update even if notification fails
       }
       
@@ -568,9 +569,9 @@ const DoctorAppointments = () => {
       
       // If standard update fails and we're changing from rejected to pending, try completely different approach
       if (error && oldStatus === 'rejected' && newStatus === 'pending') {
-        console.log('Standard status update failed, trying completely different approach for rejected to pending...');
-        console.error('Status update error:', error);
-        console.error('Error details:', {
+        logger.log('Standard status update failed, trying completely different approach for rejected to pending...');
+        logger.error('Status update error:', error);
+        logger.error('Error details:', {
           message: error.message,
           details: error.details,
           hint: error.hint,
@@ -578,20 +579,20 @@ const DoctorAppointments = () => {
         });
         
         // Completely different approach: Create new appointment and delete old one
-        console.log('Trying completely different approach: Create new appointment with pending status...');
+        logger.log('Trying completely different approach: Create new appointment with pending status...');
         
         try {
           // First, fetch the services from the old appointment
-          console.log('Fetching services from old appointment...');
+          logger.log('Fetching services from old appointment...');
           const { data: oldServices, error: servicesError } = await supabase
             .from('appointment_services')
             .select('service_id')
             .eq('appointment_id', appointmentId);
           
           if (servicesError) {
-            console.warn('Could not fetch services from old appointment:', servicesError);
+            logger.warn('Could not fetch services from old appointment:', servicesError);
           } else {
-            console.log('Found services in old appointment:', oldServices);
+            logger.log('Found services in old appointment:', oldServices);
           }
           
           // Create new appointment with pending status
@@ -605,24 +606,24 @@ const DoctorAppointments = () => {
             notes: appointment.notes || null
           };
           
-          console.log('Creating new appointment with data:', newAppointmentData);
+          logger.log('Creating new appointment with data:', newAppointmentData);
           const createResult = await supabase
             .from('appointments')
             .insert([newAppointmentData])
             .select('id, status, appointment_date, appointment_time, branch');
           
           if (createResult.error) {
-            console.error('Failed to create new appointment:', createResult.error);
+            logger.error('Failed to create new appointment:', createResult.error);
             throw createResult.error;
           } else {
-            console.log('New appointment created successfully:', createResult.data);
+            logger.log('New appointment created successfully:', createResult.data);
             
             const newAppointmentId = createResult.data[0].id;
-            console.log('New appointment ID:', newAppointmentId);
+            logger.log('New appointment ID:', newAppointmentId);
             
             // Copy services from old appointment to new appointment
             if (oldServices && oldServices.length > 0) {
-              console.log('Copying services to new appointment...');
+              logger.log('Copying services to new appointment...');
               const newServicesData = oldServices.map(service => ({
                 appointment_id: newAppointmentId,
                 service_id: service.service_id
@@ -633,27 +634,27 @@ const DoctorAppointments = () => {
                 .insert(newServicesData);
               
               if (copyServicesError) {
-                console.error('Failed to copy services to new appointment:', copyServicesError);
-                console.warn('New appointment created but services not copied. You may need to manually add services.');
+                logger.error('Failed to copy services to new appointment:', copyServicesError);
+                logger.warn('New appointment created but services not copied. You may need to manually add services.');
               } else {
-                console.log('Services copied successfully to new appointment');
+                logger.log('Services copied successfully to new appointment');
               }
             } else {
-              console.log('No services found in old appointment to copy');
+              logger.log('No services found in old appointment to copy');
             }
             
             // Delete the old rejected appointment
-            console.log('Deleting old rejected appointment...');
+            logger.log('Deleting old rejected appointment...');
             const deleteResult = await supabase
               .from('appointments')
               .delete()
               .eq('id', appointmentId);
             
             if (deleteResult.error) {
-              console.error('Failed to delete old appointment:', deleteResult.error);
-              console.warn('New appointment created but old one not deleted. You may need to manually clean up.');
+              logger.error('Failed to delete old appointment:', deleteResult.error);
+              logger.warn('New appointment created but old one not deleted. You may need to manually clean up.');
             } else {
-              console.log('Old appointment deleted successfully');
+              logger.log('Old appointment deleted successfully');
             }
             
             // Update the result with the new appointment data
@@ -680,7 +681,7 @@ const DoctorAppointments = () => {
             appointmentId = newAppointmentId;
           }
         } catch (createError) {
-          console.error('Completely different approach failed:', createError);
+          logger.error('Completely different approach failed:', createError);
           throw error; // Throw original error
         }
       } else if (error) {
@@ -698,7 +699,7 @@ const DoctorAppointments = () => {
           changed_by: user.id
         });
       } catch (auditError) {
-        console.error('Error logging audit event:', auditError);
+        logger.error('Error logging audit event:', auditError);
         // Continue even if audit logging fails
       }
       
@@ -738,7 +739,7 @@ const DoctorAppointments = () => {
       
       // Verify the status was actually updated in the database (especially for rejected to pending)
       if (oldStatus === 'rejected' && newStatus === 'pending') {
-        console.log('Verifying status update in database...');
+        logger.log('Verifying status update in database...');
         const { data: verifyData, error: verifyError } = await supabase
           .from('appointments')
           .select('id, status, appointment_date, appointment_time, branch')
@@ -746,12 +747,12 @@ const DoctorAppointments = () => {
           .single();
         
         if (verifyError) {
-          console.error('Error verifying status update:', verifyError);
+          logger.error('Error verifying status update:', verifyError);
         } else {
-          console.log('Database verification result:', verifyData);
+          logger.log('Database verification result:', verifyData);
           if (verifyData.status !== 'pending') {
-            console.warn('Status was not updated to pending in database. Current status:', verifyData.status);
-            console.log('Attempting final status update...');
+            logger.warn('Status was not updated to pending in database. Current status:', verifyData.status);
+            logger.log('Attempting final status update...');
             
             const { error: finalStatusError } = await supabase
               .from('appointments')
@@ -759,12 +760,12 @@ const DoctorAppointments = () => {
               .eq('id', appointmentId);
             
             if (finalStatusError) {
-              console.error('Final status update failed:', finalStatusError);
+              logger.error('Final status update failed:', finalStatusError);
             } else {
-              console.log('Final status update successful');
+              logger.log('Final status update successful');
             }
           } else {
-            console.log('Status successfully updated to pending in database');
+            logger.log('Status successfully updated to pending in database');
           }
         }
       }
@@ -781,8 +782,8 @@ const DoctorAppointments = () => {
       ));
       
       // Refresh appointments from database to ensure consistency
-      console.log('Refreshing appointments after status update...');
-      console.log('New appointment ID after status update:', appointmentId);
+      logger.log('Refreshing appointments after status update...');
+      logger.log('New appointment ID after status update:', appointmentId);
       await fetchAppointments(userRole);
       
       if (notificationResult?.success) {
@@ -791,7 +792,7 @@ const DoctorAppointments = () => {
         toast.success(`Appointment ${newStatus} successfully${newStatus === 'confirmed' && userRole === 'doctor' ? ' and assigned to you' : ''}`);
       }
     } catch (error) {
-      console.error(`Error updating appointment status to ${newStatus}:`, error);
+      logger.error(`Error updating appointment status to ${newStatus}:`, error);
       toast.error(`Failed to ${newStatus} appointment`);
     }
   };
@@ -836,7 +837,7 @@ const DoctorAppointments = () => {
       setSelectedBranchForReschedule('');
       setAvailableTimeSlots([]);
     } catch (error) {
-      console.error('Error rescheduling appointment:', error);
+      logger.error('Error rescheduling appointment:', error);
       toast.error('Failed to reschedule appointment');
     }
   };
@@ -857,11 +858,11 @@ const DoctorAppointments = () => {
         if (testError && testError.code === 'PGRST116') {
           // Empty result is fine
         } else if (testError) {
-          console.error('Error checking durations table:', testError);
+          logger.error('Error checking durations table:', testError);
           tableExists = false;
         }
       } catch (err) {
-        console.error('Error checking durations table:', err);
+        logger.error('Error checking durations table:', err);
         tableExists = false;
       }
       
@@ -885,7 +886,7 @@ const DoctorAppointments = () => {
           setIsSettingDuration(false);
           return;
         } catch (err) {
-          console.error('Error updating appointment with duration:', err);
+          logger.error('Error updating appointment with duration:', err);
           throw new Error('Failed to set duration. Durations table may need to be created by an administrator.');
         }
       }
@@ -928,7 +929,7 @@ const DoctorAppointments = () => {
       toast.success('Appointment duration set successfully');
       setIsSettingDuration(false);
     } catch (error) {
-      console.error('Error setting appointment duration:', error);
+      logger.error('Error setting appointment duration:', error);
       toast.error(`Failed to set appointment duration: ${error.message}`);
     }
   };

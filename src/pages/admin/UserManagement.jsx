@@ -12,6 +12,7 @@ import {
 } from 'react-icons/fi';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { Link } from 'react-router-dom';
+import logger from '../../utils/logger';
 
 const UserManagement = () => {
   const { user, requestPasswordResetToken } = useAuth();
@@ -114,7 +115,7 @@ const UserManagement = () => {
       
       setUsers(processedUsers || []);
     } catch (error) {
-      console.error('Error fetching users:', error);
+      logger.error('Error fetching users:', error);
       toast.error('Failed to load users');
     } finally {
       setIsLoading(false);
@@ -219,7 +220,7 @@ const UserManagement = () => {
       });
       
       if (authError) {
-        console.error('Auth creation error:', authError);
+        logger.error('Auth creation error:', authError);
         throw authError;
       }
       
@@ -250,7 +251,7 @@ const UserManagement = () => {
         profileError = error;
       } catch (enhancedError) {
         // If enhanced function doesn't exist, try simple function
-        console.log("Enhanced function not found, trying simple function");
+        logger.log("Enhanced function not found, trying simple function");
         const { error } = await supabase.rpc('admin_upsert_profile_simple', {
           p_profile_id: authData.user.id,
           p_email: formData.email,
@@ -268,7 +269,7 @@ const UserManagement = () => {
       }
       
       if (profileError) {
-        console.error('Profile update error:', profileError);
+        logger.error('Profile update error:', profileError);
         throw profileError;
       }
       
@@ -286,7 +287,7 @@ const UserManagement = () => {
           address: address
         });
       } catch (auditError) {
-        console.error('Error logging user creation audit event:', auditError);
+        logger.error('Error logging user creation audit event:', auditError);
         // Continue even if audit logging fails
       }
 
@@ -295,7 +296,7 @@ const UserManagement = () => {
       resetForm();
       fetchUsers();
     } catch (error) {
-      console.error('Error creating user:', error);
+      logger.error('Error creating user:', error);
       toast.error(`Failed to create user: ${error.message}`);
     } finally {
       setIsProcessing(false);
@@ -360,7 +361,7 @@ const UserManagement = () => {
           phone: formData.phone
         });
       } catch (auditError) {
-        console.error('Error logging user update audit event:', auditError);
+        logger.error('Error logging user update audit event:', auditError);
         // Continue even if audit logging fails
       }
       
@@ -369,7 +370,7 @@ const UserManagement = () => {
       resetForm();
       fetchUsers();
     } catch (error) {
-      console.error('Error updating user:', error);
+      logger.error('Error updating user:', error);
       toast.error(`Failed to update user: ${error.message}`);
     } finally {
       setIsProcessing(false);
@@ -427,7 +428,7 @@ const UserManagement = () => {
         )
       );
     } catch (error) {
-      console.error('Error disabling user:', error);
+      logger.error('Error disabling user:', error);
       toast.error(`Failed to archive user: ${error.message}`);
     } finally {
       setIsProcessing(false);
@@ -468,7 +469,7 @@ const UserManagement = () => {
         )
       );
     } catch (error) {
-      console.error('Error enabling user:', error);
+      logger.error('Error enabling user:', error);
       toast.error(`Failed to restore user: ${error.message}`);
     } finally {
       setIsProcessing(false);
@@ -495,7 +496,7 @@ const UserManagement = () => {
         throw new Error(error || 'Failed to send reset code');
       }
     } catch (error) {
-      console.error('Error sending password reset token:', error);
+      logger.error('Error sending password reset token:', error);
       toast.error(`Failed to send reset code: ${error.message}`);
     } finally {
       setIsProcessing(false);

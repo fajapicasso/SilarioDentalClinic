@@ -14,6 +14,7 @@ import {
   getNextQueueNumberForToday, 
   isPatientInTodayQueue 
 } from '../../utils/philippineTime';
+import logger from '../../utils/logger';
 
 const StaffDashboard = () => {
   const { user } = useAuth();
@@ -129,7 +130,7 @@ const StaffDashboard = () => {
         if (pendingError) throw pendingError;
         setPendingApprovals(pendingCount || 0);
       } catch (error) {
-        console.error('Error fetching dashboard data:', error);
+        logger.error('Error fetching dashboard data:', error);
         toast.error('Failed to load dashboard data');
       } finally {
         setIsLoading(false);
@@ -207,7 +208,7 @@ const StaffDashboard = () => {
         toast.success('Patient added to waiting queue');
       }
     } catch (error) {
-      console.error('Error adding to queue:', error);
+      logger.error('Error adding to queue:', error);
       toast.error('Failed to add patient to queue');
     }
   };
@@ -377,7 +378,7 @@ const StaffDashboard = () => {
                               if (error) throw error;
                               toast.success('Appointment confirmed and added to queue');
                             } catch (error) {
-                              console.error('Error confirming appointment:', error);
+                              logger.error('Error confirming appointment:', error);
                               toast.error('Failed to confirm appointment');
                             }
                           }}

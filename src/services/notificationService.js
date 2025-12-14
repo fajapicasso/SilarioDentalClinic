@@ -1,5 +1,6 @@
 // src/services/notificationService.js - Fixed to match new function parameters
 import supabase from '../config/supabaseClient';
+import logger from '../utils/logger';
 
 class NotificationService {
   constructor() {
@@ -14,9 +15,9 @@ class NotificationService {
       // Test connection
       await supabase.from('notifications').select('count', { count: 'exact' }).limit(1);
       this.initialized = true;
-      console.log('NotificationService initialized successfully');
+      logger.log('NotificationService initialized successfully');
     } catch (error) {
-      console.error('Failed to initialize NotificationService:', error);
+      logger.error('Failed to initialize NotificationService:', error);
     }
   }
 
@@ -58,10 +59,10 @@ class NotificationService {
 
       if (error) throw error;
 
-      console.log('Notification created:', data.id);
+      logger.log('Notification created:', data.id);
       return { success: true, data };
     } catch (error) {
-      console.error('Error creating notification:', error);
+      logger.error('Error creating notification:', error);
       return { success: false, error };
     }
   }
@@ -93,7 +94,7 @@ class NotificationService {
       if (userError) throw userError;
 
       if (!users || users.length === 0) {
-        console.warn(`No active users found with role: ${role}`);
+        logger.warn(`No active users found with role: ${role}`);
         return { success: true, count: 0 };
       }
 
@@ -120,10 +121,10 @@ class NotificationService {
 
       if (error) throw error;
 
-      console.log(`Created ${data.length} notifications for role: ${role}`);
+      logger.log(`Created ${data.length} notifications for role: ${role}`);
       return { success: true, count: data.length, data };
     } catch (error) {
-      console.error(`Error creating notifications for role ${role}:`, error);
+      logger.error(`Error creating notifications for role ${role}:`, error);
       return { success: false, error };
     }
   }
@@ -133,7 +134,7 @@ class NotificationService {
     try {
       const { patientId, appointmentId, date, time, branch } = appointmentData;
       
-      console.log('Creating appointment notifications for:', { appointmentId, patientId });
+      logger.log('Creating appointment notifications for:', { appointmentId, patientId });
 
       // Notify the patient
       await this.createNotification({
@@ -176,7 +177,7 @@ class NotificationService {
 
       return { success: true };
     } catch (error) {
-      console.error('Error in notifyAppointmentCreated:', error);
+      logger.error('Error in notifyAppointmentCreated:', error);
       return { success: false, error };
     }
   }
@@ -185,7 +186,7 @@ class NotificationService {
     try {
       const { patientId, appointmentId, date, time, branch } = appointmentData;
       
-      console.log('Creating appointment status change notification:', { appointmentId, oldStatus, newStatus });
+      logger.log('Creating appointment status change notification:', { appointmentId, oldStatus, newStatus });
 
       let title, message, type, priority;
 
@@ -243,7 +244,7 @@ class NotificationService {
 
       return { success: true };
     } catch (error) {
-      console.error('Error in notifyAppointmentStatusChange:', error);
+      logger.error('Error in notifyAppointmentStatusChange:', error);
       return { success: false, error };
     }
   }
@@ -253,7 +254,7 @@ class NotificationService {
     try {
       const { patientId, paymentId, invoiceId, amount, method } = paymentData;
       
-      console.log('Creating payment received notifications for:', { paymentId, patientId });
+      logger.log('Creating payment received notifications for:', { paymentId, patientId });
 
       // Notify the patient
       await this.createNotification({
@@ -296,7 +297,7 @@ class NotificationService {
 
       return { success: true };
     } catch (error) {
-      console.error('Error in notifyPaymentReceived:', error);
+      logger.error('Error in notifyPaymentReceived:', error);
       return { success: false, error };
     }
   }
@@ -305,7 +306,7 @@ class NotificationService {
     try {
       const { patientId, paymentId, invoiceId, amount } = paymentData;
       
-      console.log('Creating payment status change notification:', { paymentId, oldStatus, newStatus });
+      logger.log('Creating payment status change notification:', { paymentId, oldStatus, newStatus });
 
       let title, message, type, priority;
 
@@ -343,7 +344,7 @@ class NotificationService {
 
       return { success: true };
     } catch (error) {
-      console.error('Error in notifyPaymentStatusChange:', error);
+      logger.error('Error in notifyPaymentStatusChange:', error);
       return { success: false, error };
     }
   }
@@ -353,7 +354,7 @@ class NotificationService {
     try {
       const { userId, fullName, role } = userData;
       
-      console.log('Creating welcome notification for:', { userId, role });
+      logger.log('Creating welcome notification for:', { userId, role });
 
       const roleMessages = {
         patient: 'Welcome to Silario Dental Clinic! You can now book appointments, view your dental records, and manage your payments.',
@@ -376,7 +377,7 @@ class NotificationService {
 
       return { success: true };
     } catch (error) {
-      console.error('Error in notifyWelcomeNewUser:', error);
+      logger.error('Error in notifyWelcomeNewUser:', error);
       return { success: false, error };
     }
   }
@@ -384,7 +385,7 @@ class NotificationService {
   // Utility methods
   async sendTestNotification(userId, userRole) {
     try {
-      console.log('Sending test notification to:', { userId, userRole });
+      logger.log('Sending test notification to:', { userId, userRole });
 
       const testMessages = {
         admin: 'This is a test notification for administrators.',
@@ -407,7 +408,7 @@ class NotificationService {
 
       return { success: true };
     } catch (error) {
-      console.error('Error sending test notification:', error);
+      logger.error('Error sending test notification:', error);
       return { success: false, error };
     }
   }
@@ -427,7 +428,7 @@ class NotificationService {
 
       return { success: true };
     } catch (error) {
-      console.error('Error marking notification as read:', error);
+      logger.error('Error marking notification as read:', error);
       return { success: false, error };
     }
   }
@@ -444,7 +445,7 @@ class NotificationService {
 
       return { success: true };
     } catch (error) {
-      console.error('Error deleting notification:', error);
+      logger.error('Error deleting notification:', error);
       return { success: false, error };
     }
   }
@@ -461,7 +462,7 @@ class NotificationService {
 
       return { success: true, count: count || 0 };
     } catch (error) {
-      console.error('Error getting unread count:', error);
+      logger.error('Error getting unread count:', error);
       return { success: false, error, count: 0 };
     }
   }
@@ -483,8 +484,8 @@ class NotificationService {
       const day = String(tomorrow.getDate()).padStart(2, '0');
       const tomorrowDateStr = `${year}-${month}-${day}`;
 
-      console.log('[BracesCheckupReminder] Checking for braces checkups on:', tomorrowDateStr);
-      console.log('[BracesCheckupReminder] Today is:', new Date().toISOString().split('T')[0]);
+      logger.log('[BracesCheckupReminder] Checking for braces checkups on:', tomorrowDateStr);
+      logger.log('[BracesCheckupReminder] Today is:', new Date().toISOString().split('T')[0]);
 
       // Get all braces checkups scheduled for tomorrow that haven't been attended
       // Since appointment_date is stored as a date (not datetime), we can use eq for exact match
@@ -503,14 +504,14 @@ class NotificationService {
         .not('appointment_date', 'is', null); // Ensure appointment_date is not null
 
       if (checkupError) {
-        console.error('[BracesCheckupReminder] Error fetching checkups:', checkupError);
+        logger.error('[BracesCheckupReminder] Error fetching checkups:', checkupError);
         throw checkupError;
       }
 
-      console.log('[BracesCheckupReminder] Found', upcomingCheckups?.length || 0, 'checkups for tomorrow');
+      logger.log('[BracesCheckupReminder] Found', upcomingCheckups?.length || 0, 'checkups for tomorrow');
 
       if (!upcomingCheckups || upcomingCheckups.length === 0) {
-        console.log('[BracesCheckupReminder] No braces checkups scheduled for tomorrow');
+        logger.log('[BracesCheckupReminder] No braces checkups scheduled for tomorrow');
         return { success: true, count: 0 };
       }
 
@@ -520,7 +521,7 @@ class NotificationService {
       );
 
       if (activeCheckups.length === 0) {
-        console.log('No active patients with braces checkups tomorrow');
+        logger.log('No active patients with braces checkups tomorrow');
         return { success: true, count: 0 };
       }
 
@@ -534,7 +535,7 @@ class NotificationService {
         .lte('created_at', `${today}T23:59:59.999Z`);
 
       if (notifError) {
-        console.warn('Error checking existing notifications:', notifError);
+        logger.warn('Error checking existing notifications:', notifError);
       }
 
       const existingCheckupIds = new Set(
@@ -549,12 +550,12 @@ class NotificationService {
       for (const checkup of activeCheckups) {
         // Skip if notification already exists for this checkup today
         if (existingCheckupIds.has(checkup.id)) {
-          console.log(`Notification already exists for checkup ${checkup.id}`);
+          logger.log(`Notification already exists for checkup ${checkup.id}`);
           continue;
         }
 
         if (!checkup.patient_id || !checkup.patients) {
-          console.warn('Skipping checkup with missing patient data:', checkup.id);
+          logger.warn('Skipping checkup with missing patient data:', checkup.id);
           continue;
         }
 
@@ -596,16 +597,16 @@ class NotificationService {
 
         if (result.success) {
           notificationsCreated++;
-          console.log(`[BracesCheckupReminder] Created reminder notification for patient ${checkup.patients.full_name} (checkup ID: ${checkup.id})`);
+          logger.log(`[BracesCheckupReminder] Created reminder notification for patient ${checkup.patients.full_name} (checkup ID: ${checkup.id})`);
         } else {
-          console.error(`[BracesCheckupReminder] Failed to create notification for checkup ${checkup.id}:`, result.error);
+          logger.error(`[BracesCheckupReminder] Failed to create notification for checkup ${checkup.id}:`, result.error);
         }
       }
 
-      console.log(`[BracesCheckupReminder] Successfully created ${notificationsCreated} reminder notification(s)`);
+      logger.log(`[BracesCheckupReminder] Successfully created ${notificationsCreated} reminder notification(s)`);
       return { success: true, count: notificationsCreated };
     } catch (error) {
-      console.error('[BracesCheckupReminder] Error checking and notifying braces checkups:', error);
+      logger.error('[BracesCheckupReminder] Error checking and notifying braces checkups:', error);
       return { success: false, error: error.message || error };
     }
   }
@@ -615,7 +616,7 @@ class NotificationService {
 const notificationService = new NotificationService();
 
 // Auto-initialize on import
-notificationService.initialize().catch(console.error);
+notificationService.initialize().catch(logger.error);
 
 export default notificationService;
 

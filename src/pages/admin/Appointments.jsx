@@ -13,7 +13,8 @@ import {
 } from 'react-icons/fi';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import DatePicker from 'react-datepicker';
-import "react-datepicker/dist/react-datepicker.css"; 
+import "react-datepicker/dist/react-datepicker.css";
+import logger from '../../utils/logger'; 
 
 const AdminAppointments = () => {
   const { user } = useAuth();
@@ -62,14 +63,14 @@ const AdminAppointments = () => {
   useEffect(() => {
     filterAppointments();
     if (activeTab === 'cancelled') {
-      console.log('Cancelled tab selected, filteredAppointments:', filteredAppointments.length);
+      logger.log('Cancelled tab selected, filteredAppointments:', filteredAppointments.length);
     }
   }, [activeTab, searchQuery, selectedBranch, selectedDoctor, dateRange, appointments]);
 
   const fetchAppointments = async () => {
     setIsLoading(true);
     try {
-      console.log('Fetching appointments...');
+      logger.log('Fetching appointments...');
       
       const { data: testData, error: testError } = await supabase
         .from('appointments')
@@ -78,11 +79,11 @@ const AdminAppointments = () => {
         .single();
       
       if (testError) {
-        console.error('Connection test failed:', testError);
+        logger.error('Connection test failed:', testError);
         throw new Error('Database connection test failed. Please check your authentication status.');
       }
       
-      console.log('Connection test successful, proceeding with appointments query');
+      logger.log('Connection test successful, proceeding with appointments query');
       
       // Fetch appointments with proper doctor assignment data
       const { data, error } = await supabase
@@ -106,7 +107,7 @@ const AdminAppointments = () => {
         .order('created_at', { ascending: false });
       
       if (error) {
-        console.error('Error fetching appointments:', error);
+        logger.error('Error fetching appointments:', error);
         throw error;
       }
       
@@ -120,7 +121,7 @@ const AdminAppointments = () => {
         : { data: [], error: null };
       
       if (guardianError) {
-        console.error('Error fetching guardian profiles:', guardianError);
+        logger.error('Error fetching guardian profiles:', guardianError);
       }
       
       const guardianMap = {};
@@ -142,7 +143,7 @@ const AdminAppointments = () => {
         .in('appointment_id', appointmentIds);
       
       if (servicesError) {
-        console.error('Error fetching services:', servicesError);
+        logger.error('Error fetching services:', servicesError);
       }
       
       const servicesMap = {};
@@ -176,7 +177,7 @@ const AdminAppointments = () => {
         };
       });
       
-      console.log(`Successfully loaded ${formattedAppointments.length} appointments`);
+      logger.log(`Successfully loaded ${formattedAppointments.length} appointments`);
       setAppointments(formattedAppointments);
       
       // Fetch appointment durations
@@ -193,15 +194,15 @@ const AdminAppointments = () => {
           });
           
           setAppointmentDurations(durationMap);
-          console.log('Appointment durations loaded:', Object.keys(durationMap).length);
+          logger.log('Appointment durations loaded:', Object.keys(durationMap).length);
         } else if (durationError) {
-          console.warn('Could not fetch appointment durations:', durationError);
+          logger.warn('Could not fetch appointment durations:', durationError);
         }
       } catch (durationErr) {
-        console.warn('Error fetching appointment durations:', durationErr);
+        logger.warn('Error fetching appointment durations:', durationErr);
       }
     } catch (error) {
-      console.error('Error fetching appointments:', error);
+      logger.error('Error fetching appointments:', error);
       toast.error(`Failed to load appointments: ${error.message}`);
     } finally {
       setIsLoading(false);
@@ -217,7 +218,7 @@ const AdminAppointments = () => {
         .limit(1);
       
       if (testError) {
-        console.error('Doctor connection test failed:', testError);
+        logger.error('Doctor connection test failed:', testError);
         throw new Error('Database connection test failed for doctors query.');
       }
       
@@ -230,14 +231,14 @@ const AdminAppointments = () => {
         .order('full_name');
       
       if (error) {
-        console.error('Error details:', error);
+        logger.error('Error details:', error);
         throw error;
       }
       
-      console.log(`Successfully loaded ${data?.length || 0} active doctors`);
+      logger.log(`Successfully loaded ${data?.length || 0} active doctors`);
       setDoctors(data || []);
     } catch (error) {
-      console.error('Error fetching doctors:', error);
+      logger.error('Error fetching doctors:', error);
       toast.error(`Failed to load doctors: ${error.message}`);
     }
   };
@@ -371,7 +372,7 @@ const AdminAppointments = () => {
       
       setAvailableTimeSlots(availableSlots);
     } catch (error) {
-      console.error('Error fetching available time slots:', error);
+      logger.error('Error fetching available time slots:', error);
       toast.error('Failed to load available time slots');
     }
   };
@@ -408,7 +409,7 @@ const AdminAppointments = () => {
         // Also log with comprehensive audit
         await logAppointmentUpdate(appointmentId, { status: oldStatus }, { status: newStatus });
       } catch (auditError) {
-        console.error('Error logging audit event:', auditError);
+        logger.error('Error logging audit event:', auditError);
         // Continue even if audit logging fails
       }
       
@@ -445,7 +446,7 @@ const AdminAppointments = () => {
       
       toast.success(`Appointment ${newStatus} successfully`);
     } catch (error) {
-      console.error(`Error updating appointment status to ${newStatus}:`, error);
+      logger.error(`Error updating appointment status to ${newStatus}:`, error);
       toast.error(`Failed to ${newStatus} appointment`);
     }
   };
@@ -498,12 +499,12 @@ const AdminAppointments = () => {
       // Add status change if needed
       if (shouldChangeToPending) {
         updateData.status = 'pending';
-        console.log('Changing status to pending for rejected/cancelled appointment');
+        logger.log('Changing status to pending for rejected/cancelled appointment');
       }
       
-      console.log('Updating appointment with data:', updateData);
-      console.log('Appointment ID:', selectedAppointment.id);
-      console.log('Current appointment status:', selectedAppointment.status);
+      logger.log('Updating appointment with data:', updateData);
+      logger.log('Appointment ID:', selectedAppointment.id);
+      logger.log('Current appointment status:', selectedAppointment.status);
       
       // Validate data before sending
       if (!updateData.appointment_date || !updateData.appointment_time || !updateData.branch) {
@@ -523,7 +524,7 @@ const AdminAppointments = () => {
       }
       
       // First, verify the appointment exists (optional - don't fail if not found)
-      console.log('Fetching appointment details...');
+      logger.log('Fetching appointment details...');
       const { data: existingAppointment, error: fetchError } = await supabase
         .from('appointments')
         .select('id, status, appointment_date, appointment_time, branch, patient_id')
@@ -531,17 +532,17 @@ const AdminAppointments = () => {
         .single();
       
       if (fetchError) {
-        console.warn('Could not fetch appointment details:', fetchError);
-        console.warn('Fetch error details:', {
+        logger.warn('Could not fetch appointment details:', fetchError);
+        logger.warn('Fetch error details:', {
           message: fetchError.message,
           details: fetchError.details,
           hint: fetchError.hint,
           code: fetchError.code
         });
-        console.warn('Continuing with reschedule using local appointment data...');
+        logger.warn('Continuing with reschedule using local appointment data...');
         // Don't throw error, just continue with the reschedule using local data
       } else {
-        console.log('Found appointment:', existingAppointment);
+        logger.log('Found appointment:', existingAppointment);
       }
       
       // Check if the new time slot is available
@@ -555,7 +556,7 @@ const AdminAppointments = () => {
         .in('status', ['pending', 'confirmed']);
       
       if (conflictError) {
-        console.error('Error checking for conflicts:', conflictError);
+        logger.error('Error checking for conflicts:', conflictError);
         throw new Error(`Failed to check availability: ${conflictError.message}`);
       }
       
@@ -565,8 +566,8 @@ const AdminAppointments = () => {
       }
       
       // Try a simple update first to test basic functionality
-      console.log('Attempting to update appointment...');
-      console.log('Update data being sent:', JSON.stringify(updateData, null, 2));
+      logger.log('Attempting to update appointment...');
+      logger.log('Update data being sent:', JSON.stringify(updateData, null, 2));
       
       // Ensure all data is properly formatted
       const sanitizedUpdateData = {
@@ -579,7 +580,7 @@ const AdminAppointments = () => {
         sanitizedUpdateData.status = updateData.status;
       }
       
-      console.log('Sanitized update data:', JSON.stringify(sanitizedUpdateData, null, 2));
+      logger.log('Sanitized update data:', JSON.stringify(sanitizedUpdateData, null, 2));
       
       let { data: updateResult, error } = await supabase
         .from('appointments')
@@ -588,10 +589,10 @@ const AdminAppointments = () => {
         .select('id, status, appointment_date, appointment_time, branch');
         
         if (error) {
-        console.error('Database update error:', error);
-        console.error('Update data that failed:', updateData);
-        console.error('Appointment ID:', selectedAppointment.id);
-        console.error('Error details:', {
+        logger.error('Database update error:', error);
+        logger.error('Update data that failed:', updateData);
+        logger.error('Appointment ID:', selectedAppointment.id);
+        logger.error('Error details:', {
           message: error.message,
           details: error.details,
           hint: error.hint,
@@ -600,7 +601,7 @@ const AdminAppointments = () => {
         
         // Try a different approach - update without status first
         if (shouldChangeToPending) {
-          console.log('Trying update without status change...');
+          logger.log('Trying update without status change...');
           const { status, ...dataWithoutStatus } = updateData;
           
           const result2 = await supabase
@@ -610,12 +611,12 @@ const AdminAppointments = () => {
             .select('id, status, appointment_date, appointment_time, branch');
           
           if (result2.error) {
-            console.error('Second update attempt also failed:', result2.error);
+            logger.error('Second update attempt also failed:', result2.error);
             throw error; // Throw original error
           } else {
-            console.log('Update without status succeeded, now updating status...');
+            logger.log('Update without status succeeded, now updating status...');
             // Now try to update status separately
-            console.log('Attempting separate status update to pending...');
+            logger.log('Attempting separate status update to pending...');
             const statusResult = await supabase
               .from('appointments')
               .update({ status: 'pending' })
@@ -623,17 +624,17 @@ const AdminAppointments = () => {
               .select('id, status, appointment_date, appointment_time, branch');
             
             if (statusResult.error) {
-              console.error('Status update failed:', statusResult.error);
-              console.error('Status update error details:', {
+              logger.error('Status update failed:', statusResult.error);
+              logger.error('Status update error details:', {
                 message: statusResult.error.message,
                 details: statusResult.error.details,
                 hint: statusResult.error.hint,
                 code: statusResult.error.code
               });
               // Don't throw error, but log the issue
-              console.warn('Status update failed, but appointment was rescheduled. Status remains:', result2.data[0]?.status);
+              logger.warn('Status update failed, but appointment was rescheduled. Status remains:', result2.data[0]?.status);
             } else {
-              console.log('Status update successful:', statusResult.data);
+              logger.log('Status update successful:', statusResult.data);
               // Use the status update result which includes the new status
               updateResult = statusResult.data;
             }
@@ -648,11 +649,11 @@ const AdminAppointments = () => {
         }
       }
       
-      console.log('Update successful:', updateResult);
+      logger.log('Update successful:', updateResult);
       
       // Force status update if needed - try this immediately after the main update
       if (shouldChangeToPending) {
-        console.log('Forcing status update to pending immediately...');
+        logger.log('Forcing status update to pending immediately...');
         
         // Try updating with all fields including status to bypass constraint
         const { data: forceStatusData, error: forceStatusError } = await supabase
@@ -668,8 +669,8 @@ const AdminAppointments = () => {
           .select('id, status, appointment_date, appointment_time, branch');
         
         if (forceStatusError) {
-          console.error('Force status update failed:', forceStatusError);
-          console.error('Force status error details:', {
+          logger.error('Force status update failed:', forceStatusError);
+          logger.error('Force status error details:', {
             message: forceStatusError.message,
             details: forceStatusError.details,
             hint: forceStatusError.hint,
@@ -677,7 +678,7 @@ const AdminAppointments = () => {
           });
           
           // Try a different approach - update without status first, then try to update status
-          console.log('Trying alternative approach - update without status first...');
+          logger.log('Trying alternative approach - update without status first...');
           const { data: altUpdateData, error: altError } = await supabase
             .from('appointments')
             .update({
@@ -690,9 +691,9 @@ const AdminAppointments = () => {
             .select('id, status, appointment_date, appointment_time, branch');
           
           if (altError) {
-            console.error('Alternative update also failed:', altError);
+            logger.error('Alternative update also failed:', altError);
           } else {
-            console.log('Alternative update successful, now trying status update...');
+            logger.log('Alternative update successful, now trying status update...');
             // Now try to update just the status
             const { data: statusOnlyData, error: statusOnlyError } = await supabase
               .from('appointments')
@@ -701,25 +702,25 @@ const AdminAppointments = () => {
               .select('id, status');
             
             if (statusOnlyError) {
-              console.error('Status-only update failed:', statusOnlyError);
+              logger.error('Status-only update failed:', statusOnlyError);
             } else {
-              console.log('Status-only update successful:', statusOnlyData);
+              logger.log('Status-only update successful:', statusOnlyData);
             }
           }
         } else {
-          console.log('Force status update successful:', forceStatusData);
+          logger.log('Force status update successful:', forceStatusData);
         }
       }
       
       // Wait a moment for database to process the update
       if (shouldChangeToPending) {
-        console.log('Waiting for database to process status update...');
+        logger.log('Waiting for database to process status update...');
         await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
       }
       
       // Verify the status was actually updated in the database
       if (shouldChangeToPending) {
-        console.log('Verifying status update in database...');
+        logger.log('Verifying status update in database...');
         const { data: verifyData, error: verifyError } = await supabase
           .from('appointments')
           .select('id, status, appointment_date, appointment_time, branch')
@@ -727,12 +728,12 @@ const AdminAppointments = () => {
           .single();
         
         if (verifyError) {
-          console.error('Error verifying status update:', verifyError);
+          logger.error('Error verifying status update:', verifyError);
         } else {
-          console.log('Database verification result:', verifyData);
+          logger.log('Database verification result:', verifyData);
           if (verifyData.status !== 'pending') {
-            console.warn('Status was not updated to pending in database. Current status:', verifyData.status);
-            console.log('Attempting final status update with explicit data...');
+            logger.warn('Status was not updated to pending in database. Current status:', verifyData.status);
+            logger.log('Attempting final status update with explicit data...');
             
             // Try updating with explicit data and proper error handling
             const { data: finalUpdateData, error: finalStatusError } = await supabase
@@ -745,8 +746,8 @@ const AdminAppointments = () => {
               .select('id, status, appointment_date, appointment_time, branch');
             
             if (finalStatusError) {
-              console.error('Final status update failed:', finalStatusError);
-              console.error('Final status error details:', {
+              logger.error('Final status update failed:', finalStatusError);
+              logger.error('Final status error details:', {
                 message: finalStatusError.message,
                 details: finalStatusError.details,
                 hint: finalStatusError.hint,
@@ -754,7 +755,7 @@ const AdminAppointments = () => {
               });
               
               // Try one more time with just the status field
-              console.log('Trying one more time with just status field...');
+              logger.log('Trying one more time with just status field...');
               const { data: simpleUpdateData, error: simpleError } = await supabase
                 .from('appointments')
                 .update({ status: 'pending' })
@@ -762,29 +763,29 @@ const AdminAppointments = () => {
                 .select('id, status');
               
               if (simpleError) {
-                console.error('Simple status update also failed:', simpleError);
+                logger.error('Simple status update also failed:', simpleError);
               } else {
-                console.log('Simple status update successful:', simpleUpdateData);
+                logger.log('Simple status update successful:', simpleUpdateData);
               }
             } else {
-              console.log('Final status update successful:', finalUpdateData);
+              logger.log('Final status update successful:', finalUpdateData);
             }
           } else {
-            console.log('Status successfully updated to pending in database');
+            logger.log('Status successfully updated to pending in database');
           }
         }
       }
       
       // If status change was needed but didn't work, try a separate update
       if (shouldChangeToPending && updateResult && updateResult[0] && updateResult[0].status !== 'pending') {
-        console.log('Status change may have failed, attempting separate status update...');
+        logger.log('Status change may have failed, attempting separate status update...');
         const { error: statusError } = await supabase
           .from('appointments')
           .update({ status: 'pending' })
           .eq('id', selectedAppointment.id);
         
         if (statusError) {
-          console.warn('Status update failed, but appointment was rescheduled:', statusError);
+          logger.warn('Status update failed, but appointment was rescheduled:', statusError);
         }
       }
       
@@ -815,26 +816,26 @@ const AdminAppointments = () => {
       setAvailableTimeSlots([]);
       
       // Wait a moment for all database updates to complete
-      console.log('Waiting for all database updates to complete...');
+      logger.log('Waiting for all database updates to complete...');
       await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
       
       // Refresh appointments to ensure UI shows latest data from database
-      console.log('Refreshing appointments to get latest status from database...');
+      logger.log('Refreshing appointments to get latest status from database...');
       await fetchAppointments();
     } catch (error) {
-      console.error('Error rescheduling appointment:', error);
-      console.error('Error details:', {
+      logger.error('Error rescheduling appointment:', error);
+      logger.error('Error details:', {
         message: error.message,
         details: error.details,
         hint: error.hint,
         code: error.code
       });
-      console.error('Full error object:', error);
-      console.error('Error stack:', error.stack);
+      logger.error('Full error object:', error);
+      logger.error('Error stack:', error.stack);
       
       // Check if it's a specific "case not found" error
       if (error.message && error.message.includes('case not found')) {
-        console.error('"Case not found" error detected - this might be a database constraint issue');
+        logger.error('"Case not found" error detected - this might be a database constraint issue');
         toast.error('Database constraint error - please try again or contact support');
       } else {
         toast.error(`Failed to reschedule appointment: ${error.message}`);
@@ -884,7 +885,7 @@ const AdminAppointments = () => {
       toast.success(`Doctor ${doctor?.full_name} assigned successfully`);
       setIsAssigningDoctor(false);
     } catch (error) {
-      console.error('Error assigning doctor:', error);
+      logger.error('Error assigning doctor:', error);
       toast.error('Failed to assign doctor');
     }
   };
@@ -915,7 +916,7 @@ const AdminAppointments = () => {
       
       toast.success('Doctor unassigned successfully');
     } catch (error) {
-      console.error('Error unassigning doctor:', error);
+      logger.error('Error unassigning doctor:', error);
       toast.error('Failed to unassign doctor');
     }
   };

@@ -21,17 +21,18 @@ import { RiWalletLine } from 'react-icons/ri';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import ScheduleService from '../../services/scheduleService';
 import ScheduleUtils from '../../services/scheduleUtils';
+import logger from '../../utils/logger';
 
-// Debug: Make ScheduleService available in window for debugging
-if (typeof window !== 'undefined') {
+// Debug: Make ScheduleService available in window for debugging (development only)
+if (typeof window !== 'undefined' && import.meta.env.DEV) {
   window.ScheduleService = ScheduleService;
-  console.log('✅ ScheduleService loaded and available in window.ScheduleService');
-  console.log('🔧 Debug methods available:');
-  console.log('  - window.ScheduleService.debugScheduleIssue(branch, date)');
-  console.log('  - window.ScheduleService.debugMultiDoctorAvailability(branch, date, time)');
-  console.log('📝 Examples:');
-  console.log('  - window.ScheduleService.debugScheduleIssue("Cabugao", "2024-12-15")');
-  console.log('  - window.ScheduleService.debugMultiDoctorAvailability("Cabugao", "2024-12-15", "10:00")');
+  logger.log('✅ ScheduleService loaded and available in window.ScheduleService');
+  logger.log('🔧 Debug methods available:');
+  logger.log('  - window.ScheduleService.debugScheduleIssue(branch, date)');
+  logger.log('  - window.ScheduleService.debugMultiDoctorAvailability(branch, date, time)');
+  logger.log('📝 Examples:');
+  logger.log('  - window.ScheduleService.debugScheduleIssue("Cabugao", "2024-12-15")');
+  logger.log('  - window.ScheduleService.debugMultiDoctorAvailability("Cabugao", "2024-12-15", "10:00")');
 }
 import { useAppointmentNotifications } from '../../hooks/useNotificationIntegration';
 import { useUniversalAudit } from '../../hooks/useUniversalAudit';
@@ -218,7 +219,7 @@ const PatientAppointments = () => {
 
       toast.success(`Found your location! ${closest} branch is nearest to you.`);
     } catch (error) {
-      console.error('Error getting location:', error);
+      logger.error('Error getting location:', error);
       
       let errorMessage = 'Unable to get your location';
       if (error.code === 1) {
@@ -260,7 +261,7 @@ const PatientAppointments = () => {
       if (error) throw error;
       setChildren(data || []);
     } catch (error) {
-      console.error('Error fetching children:', error);
+      logger.error('Error fetching children:', error);
       // Don't show error toast, just log it - children are optional
     } finally {
       setIsLoadingChildren(false);
@@ -294,13 +295,13 @@ const PatientAppointments = () => {
         .in('status', ['pending', 'confirmed']); // Only check active appointments
       
       if (error) {
-        console.error('Error checking existing appointments:', error);
+        logger.error('Error checking existing appointments:', error);
         return false; // Allow booking if check fails
       }
       
       return data && data.length > 0;
     } catch (error) {
-      console.error('Error checking existing appointments:', error);
+      logger.error('Error checking existing appointments:', error);
       return false; // Allow booking if check fails
     }
   };
@@ -336,7 +337,7 @@ const PatientAppointments = () => {
         .in('status', ['pending', 'confirmed']); // Only check active appointments
       
       if (error) {
-        console.error('Error loading unavailable dates:', error);
+        logger.error('Error loading unavailable dates:', error);
         return new Set();
       }
       
@@ -347,11 +348,11 @@ const PatientAppointments = () => {
         });
       }
       
-      console.log(`Loaded unavailable dates for patient ${patientIdToCheck}:`, Array.from(unavailableSet));
+      logger.log(`Loaded unavailable dates for patient ${patientIdToCheck}:`, Array.from(unavailableSet));
       setUnavailableDates(unavailableSet);
       return unavailableSet;
     } catch (error) {
-      console.error('Error loading unavailable dates:', error);
+      logger.error('Error loading unavailable dates:', error);
       return new Set();
     }
   };
@@ -407,7 +408,7 @@ const PatientAppointments = () => {
         .in('appointment_id', appointmentIds);
       
       if (error) {
-        console.error('Error fetching durations:', error);
+        logger.error('Error fetching durations:', error);
         return {};
       }
       
@@ -436,7 +437,7 @@ const PatientAppointments = () => {
       
       return result;
     } catch (err) {
-      console.error('Error in fetchAppointmentDurations:', err);
+      logger.error('Error in fetchAppointmentDurations:', err);
       return {};
     }
   };
@@ -528,7 +529,7 @@ const PatientAppointments = () => {
       
       // Remove duplicate appointments
       if (duplicatesToRemove.length > 0) {
-        console.log('Cleaning up duplicate appointments:', duplicatesToRemove);
+        logger.log('Cleaning up duplicate appointments:', duplicatesToRemove);
         
         // Remove associated services for duplicate appointments
         await supabase
@@ -555,7 +556,7 @@ const PatientAppointments = () => {
         return 0;
       }
     } catch (error) {
-      console.error('Error cleaning up duplicate appointments:', error);
+      logger.error('Error cleaning up duplicate appointments:', error);
       if (showMessages) {
         toast.error('Failed to clean up duplicates');
       }
@@ -689,7 +690,7 @@ const PatientAppointments = () => {
           .in('appointment_id', appointmentIds);
         
         if (appointmentServicesError) {
-          console.error('Error fetching appointment services:', appointmentServicesError);
+          logger.error('Error fetching appointment services:', appointmentServicesError);
         }
         
         // Combine data
@@ -733,7 +734,7 @@ const PatientAppointments = () => {
         
         setAppointments(formattedAppointments);
       } catch (error) {
-        console.error('Error fetching data:', error);
+        logger.error('Error fetching data:', error);
         toast.error('Failed to load appointments data');
       } finally {
         setIsLoading(false);
@@ -801,7 +802,7 @@ const PatientAppointments = () => {
     if (!showTimeSlots || !selectedDate || !selectedBranch) return;
 
     const interval = setInterval(async () => {
-      console.log('🔄 Auto-refreshing time slots...');
+      logger.log('🔄 Auto-refreshing time slots...');
       await fetchAvailableTimeSlots(selectedDate, selectedBranch, estimatedDuration);
     }, 30000); // 30 seconds
 
@@ -811,7 +812,7 @@ const PatientAppointments = () => {
   // Debug reschedule state
   useEffect(() => {
     if (isRescheduling) {
-      console.log('Reschedule modal state changed:', {
+      logger.log('Reschedule modal state changed:', {
         isRescheduling,
         selectedAppointmentForAction,
         rescheduleDate,
@@ -837,7 +838,7 @@ const PatientAppointments = () => {
   const fetchAvailableTimeSlots = async (date, branch, durationMinutes = 30) => {
     if (!date || !branch) return;
     
-    console.log('🔍 fetchAvailableTimeSlots called with:', { date, branch, durationMinutes });
+    logger.log('🔍 fetchAvailableTimeSlots called with:', { date, branch, durationMinutes });
     
     // Use formatDateLocal to avoid timezone conversion issues
     // Both API calls and localStorage should use local date format (YYYY-MM-DD)
@@ -851,14 +852,14 @@ const PatientAppointments = () => {
     localStorage.setItem('temp_selected_date', formattedDate);
     
     try {
-      console.log('📞 Calling ScheduleService methods...');
+      logger.log('📞 Calling ScheduleService methods...');
       
       // Check if ScheduleService is available
       if (!ScheduleService) {
         throw new Error('ScheduleService is not available');
       }
       
-      console.log('✅ ScheduleService is available, making calls...');
+      logger.log('✅ ScheduleService is available, making calls...');
       
       // Get branch hours and available providers
       const [hoursResult, providersResult, slotsResult] = await Promise.all([
@@ -867,7 +868,7 @@ const PatientAppointments = () => {
         ScheduleService.getAvailableTimeSlots(branch, formattedDate, durationMinutes, null) // null = show all doctors and all appointments
       ]);
       
-      console.log('📊 ScheduleService results:', {
+      logger.log('📊 ScheduleService results:', {
         hoursResult,
         providersCount: providersResult?.length || 0,
         slotsCount: slotsResult?.availableSlots?.length || 0,
@@ -878,7 +879,7 @@ const PatientAppointments = () => {
       setAvailableProviders(providersResult);
       
       if (slotsResult.message) {
-        console.log('ℹ️ Schedule service message:', slotsResult.message);
+        logger.log('ℹ️ Schedule service message:', slotsResult.message);
         toast.info(slotsResult.message);
       }
       
@@ -886,17 +887,17 @@ const PatientAppointments = () => {
       setAvailableTimeSlots(slotsResult.availableSlots);
       setFormattedTimeSlots(slotsResult.formattedSlots);
       
-      console.log('✅ Time slots updated successfully');
+      logger.log('✅ Time slots updated successfully');
       
       // Show appropriate message if no slots available
       if (slotsResult.availableSlots.length === 0 && slotsResult.message) {
         // The message from schedule service explains why no slots are available
-        console.log('No appointment slots available:', slotsResult.message);
+        logger.log('No appointment slots available:', slotsResult.message);
       }
       
     } catch (error) {
-      console.error('❌ Error fetching available time slots:', error);
-      console.error('Error details:', {
+      logger.error('❌ Error fetching available time slots:', error);
+      logger.error('Error details:', {
         message: error.message,
         code: error.code,
         details: error.details,
@@ -908,7 +909,7 @@ const PatientAppointments = () => {
                              error.code === '42703';
       
       if (isDatabaseError) {
-        console.warn('Database schema issue detected:', error.message);
+        logger.warn('Database schema issue detected:', error.message);
         toast.error('Schedule system needs database setup. Please contact administrator to run the SQL migration scripts.');
         setAvailableTimeSlots([]);
         setFormattedTimeSlots([]);
@@ -929,7 +930,7 @@ const PatientAppointments = () => {
       }
       
       toast.error(errorMessage);
-      console.log('🔧 To debug this issue, run the schedule diagnostic tool in console');
+      logger.log('🔧 To debug this issue, run the schedule diagnostic tool in console');
       
       setAvailableTimeSlots([]);
       setFormattedTimeSlots([]);
@@ -962,7 +963,7 @@ const PatientAppointments = () => {
    */
   const findNextAvailableTimeSlot = async (date, branch, requestedTime, durationMinutes = 30, excludeAppointmentId = null) => {
     try {
-      console.log('🔍 Finding next available time slot...', { date, branch, requestedTime, durationMinutes });
+      logger.log('🔍 Finding next available time slot...', { date, branch, requestedTime, durationMinutes });
       
       // First, try to find next available slot on the same date
       const slotsResult = await ScheduleService.getAvailableTimeSlots(branch, date, durationMinutes, null);
@@ -980,13 +981,13 @@ const PatientAppointments = () => {
         });
         
         if (nextSlot) {
-          console.log('✅ Found next available slot on same date:', nextSlot);
+          logger.log('✅ Found next available slot on same date:', nextSlot);
           return { nextTime: nextSlot, nextDate: date, found: true };
         }
       }
       
       // If no slot found on same date, try next 7 days
-      console.log('⚠️ No available slot on same date, checking next days...');
+      logger.log('⚠️ No available slot on same date, checking next days...');
       let currentDate = new Date(date);
       
       for (let i = 1; i <= 7; i++) {
@@ -998,15 +999,15 @@ const PatientAppointments = () => {
         if (nextSlotsResult && nextSlotsResult.availableSlots && nextSlotsResult.availableSlots.length > 0) {
           // Get the first available slot of the day
           const firstSlot = nextSlotsResult.availableSlots[0];
-          console.log('✅ Found next available slot on', nextDateStr, ':', firstSlot);
+          logger.log('✅ Found next available slot on', nextDateStr, ':', firstSlot);
           return { nextTime: firstSlot, nextDate: nextDateStr, found: true };
         }
       }
       
-      console.log('❌ No available slots found in next 7 days');
+      logger.log('❌ No available slots found in next 7 days');
       return { nextTime: null, nextDate: null, found: false };
     } catch (error) {
-      console.error('❌ Error finding next available time slot:', error);
+      logger.error('❌ Error finding next available time slot:', error);
       return { nextTime: null, nextDate: null, found: false };
     }
   };
@@ -1090,7 +1091,7 @@ const PatientAppointments = () => {
       return { availableSlots, formattedSlots };
       
     } catch (error) {
-      console.error('Error in fallback time slot generation:', error);
+      logger.error('Error in fallback time slot generation:', error);
       return { availableSlots: [], formattedSlots: [] };
     }
   };
@@ -1120,7 +1121,7 @@ const PatientAppointments = () => {
           throw new Error('Invalid date');
         }
       } catch (error) {
-        console.error('Date parsing error:', error, 'values.appointment_date:', values.appointment_date);
+        logger.error('Date parsing error:', error, 'values.appointment_date:', values.appointment_date);
         toast.error('Invalid appointment date. Please select a valid date.');
         setSubmitting(false);
         return;
@@ -1257,13 +1258,13 @@ const PatientAppointments = () => {
           .in('status', ['pending', 'confirmed']);
         
         if (conflictCheckError) {
-          console.error('Error checking for conflicts:', conflictCheckError);
+          logger.error('Error checking for conflicts:', conflictCheckError);
           throw conflictCheckError;
         }
         
         // If conflict detected, automatically reschedule to next available time
         if (conflictingAppointments && conflictingAppointments.length > 0) {
-          console.log('⚠️ Time slot conflict detected, finding next available slot...');
+          logger.log('⚠️ Time slot conflict detected, finding next available slot...');
           
           const nextSlotResult = await findNextAvailableTimeSlot(
             appointmentData.appointment_date,
@@ -1283,7 +1284,7 @@ const PatientAppointments = () => {
               { autoClose: 6000 }
             );
             
-            console.log('✅ Auto-rescheduled to:', nextSlotResult.nextDate, nextSlotResult.nextTime);
+            logger.log('✅ Auto-rescheduled to:', nextSlotResult.nextDate, nextSlotResult.nextTime);
           } else {
             // No available slots found
             toast.error('The requested time slot is already taken, and no available slots were found in the next 7 days. Please try selecting a different time manually.');
@@ -1297,7 +1298,7 @@ const PatientAppointments = () => {
         let assignmentMessage = '';
         
         try {
-          console.log('🤖 Starting automatic doctor assignment...');
+          logger.log('🤖 Starting automatic doctor assignment...');
           const AutoDoctorAssignmentService = (await import('../../services/autoDoctorAssignmentService.js')).default;
           
           const assignmentData = {
@@ -1308,21 +1309,21 @@ const PatientAppointments = () => {
             duration_minutes: duration
           };
           
-          console.log('📋 Assignment data:', assignmentData);
+          logger.log('📋 Assignment data:', assignmentData);
           
           const assignmentResult = await AutoDoctorAssignmentService.assignDoctorAutomatically(assignmentData);
           
-          console.log('📊 Assignment result:', assignmentResult);
+          logger.log('📊 Assignment result:', assignmentResult);
           
           if (assignmentResult.success) {
             assignedDoctorId = assignmentResult.doctor_id;
             assignmentMessage = assignmentResult.message;
-            console.log('✅ Automatic doctor assignment successful:', assignmentMessage);
+            logger.log('✅ Automatic doctor assignment successful:', assignmentMessage);
           } else {
-            console.log('⚠️ Automatic doctor assignment failed:', assignmentResult.message);
+            logger.log('⚠️ Automatic doctor assignment failed:', assignmentResult.message);
           }
         } catch (assignmentError) {
-          console.error('❌ Error in automatic doctor assignment:', assignmentError);
+          logger.error('❌ Error in automatic doctor assignment:', assignmentError);
           // Continue with appointment creation even if auto-assignment fails
         }
         
@@ -1357,7 +1358,7 @@ const PatientAppointments = () => {
             auto_assigned: !!assignedDoctorId
           });
         } catch (auditError) {
-          console.error('Error logging appointment creation audit event:', auditError);
+          logger.error('Error logging appointment creation audit event:', auditError);
           // Continue even if audit logging fails
         }
         
@@ -1391,7 +1392,7 @@ const PatientAppointments = () => {
             : 'Appointment booked successfully!';
           toast.success(successMsg);
         } catch (notificationError) {
-          console.error('Error sending notification:', notificationError);
+          logger.error('Error sending notification:', notificationError);
           // Don't fail the appointment creation if notification fails
           const successMsg = assignedDoctorId 
             ? `Appointment booked successfully! ${assignmentMessage} (Notification may have failed)`
@@ -1412,7 +1413,7 @@ const PatientAppointments = () => {
           .insert(serviceAssociations);
         
         if (serviceError) {
-          console.error('Error inserting appointment services:', serviceError);
+          logger.error('Error inserting appointment services:', serviceError);
           // If services fail to insert, clean up the appointment
           if (!editingAppointment) {
             await supabase
@@ -1426,7 +1427,7 @@ const PatientAppointments = () => {
 
       // Refresh time slots after successful booking to show updated availability
       if (!editingAppointment && selectedDate && selectedBranch) {
-        console.log('🔄 Refreshing time slots after booking...');
+        logger.log('🔄 Refreshing time slots after booking...');
         await fetchAvailableTimeSlots(selectedDate, selectedBranch, estimatedDuration);
       }
 
@@ -1456,7 +1457,7 @@ const PatientAppointments = () => {
       // Refresh appointments
       refreshAppointments();
     } catch (error) {
-      console.error('Error booking appointment:', error);
+      logger.error('Error booking appointment:', error);
       toast.error(error.message || 'Failed to book appointment');
     } finally {
       setSubmitting(false);
@@ -1498,7 +1499,7 @@ const PatientAppointments = () => {
         
         toast.success(`Successfully joined the queue! Your number is ${nextQueueNumber}`);
       } catch (error) {
-        console.error('Error joining queue:', error);
+        logger.error('Error joining queue:', error);
         toast.error('Failed to join queue: ' + error.message);
       }
     }
@@ -1581,7 +1582,7 @@ const PatientAppointments = () => {
         .in('appointment_id', appointmentIds);
       
       if (appointmentServicesError) {
-        console.error('Error fetching appointment services:', appointmentServicesError);
+        logger.error('Error fetching appointment services:', appointmentServicesError);
       }
       
       const formattedAppointments = appointmentsData.map(appointment => {
@@ -1630,7 +1631,7 @@ const PatientAppointments = () => {
       
       setAppointments(formattedAppointments);
     } catch (error) {
-      console.error('Error refreshing appointments:', error);
+      logger.error('Error refreshing appointments:', error);
       toast.error('Failed to refresh appointments');
     }
   };
@@ -1662,7 +1663,7 @@ const PatientAppointments = () => {
 
   // Unified cancel/reschedule modal
   const openActionModal = (appointment, type) => {
-    console.log('Opening action modal:', { appointment, type });
+    logger.log('Opening action modal:', { appointment, type });
     setSelectedAppointmentForAction(appointment);
     setActionType(type);
     setShowActionModal(true);
@@ -1682,7 +1683,7 @@ const PatientAppointments = () => {
           .single();
         
         if (verifyError || !verifyAppointment) {
-          console.error('Error verifying appointment ownership:', verifyError);
+          logger.error('Error verifying appointment ownership:', verifyError);
           toast.error('You do not have permission to cancel this appointment.');
           setShowActionModal(false);
           setSelectedAppointmentForAction(null);
@@ -1697,7 +1698,7 @@ const PatientAppointments = () => {
           .eq('id', selectedAppointmentForAction.id);
         
         if (error) {
-          console.error('Error canceling appointment:', error);
+          logger.error('Error canceling appointment:', error);
           throw error;
         }
         
@@ -1722,7 +1723,7 @@ const PatientAppointments = () => {
         setActionType('');
       } else if (actionType === 'reschedule') {
         // Start reschedule process with proper modal
-        console.log('Starting reschedule process for appointment:', selectedAppointmentForAction);
+        logger.log('Starting reschedule process for appointment:', selectedAppointmentForAction);
         
         // Reset all reschedule states first
         setRescheduleDate(null);
@@ -1740,7 +1741,7 @@ const PatientAppointments = () => {
         
         // Fetch available time slots for the current date and branch
         const duration = selectedAppointmentForAction.duration || 30;
-        console.log('Fetching time slots for reschedule:', {
+        logger.log('Fetching time slots for reschedule:', {
           date: selectedAppointmentForAction.appointment_date,
           branch: initialBranch,
           duration: duration
@@ -1751,7 +1752,7 @@ const PatientAppointments = () => {
         setShowActionModal(false);
       }
     } catch (error) {
-      console.error('Error handling appointment action:', error);
+      logger.error('Error handling appointment action:', error);
       toast.error(`Failed to ${actionType} appointment: ${error.message}`);
       setShowActionModal(false);
       setSelectedAppointmentForAction(null);
@@ -1775,7 +1776,7 @@ const PatientAppointments = () => {
     if (!date || !branch) return;
     
     try {
-      console.log('Fetching reschedule time slots for:', { date, branch, duration });
+      logger.log('Fetching reschedule time slots for:', { date, branch, duration });
       
       // Normalize date to avoid timezone issues
       const dateObj = date instanceof Date ? date : new Date(date);
@@ -1791,13 +1792,13 @@ const PatientAppointments = () => {
       
       if (result && result.formattedSlots) {
         setRescheduleAvailableTimeSlots(result.formattedSlots);
-        console.log('Reschedule time slots loaded:', result.formattedSlots.length);
+        logger.log('Reschedule time slots loaded:', result.formattedSlots.length);
       } else {
         setRescheduleAvailableTimeSlots([]);
-        console.log('No reschedule time slots available');
+        logger.log('No reschedule time slots available');
       }
     } catch (error) {
-      console.error('Error fetching reschedule time slots:', error);
+      logger.error('Error fetching reschedule time slots:', error);
       setRescheduleAvailableTimeSlots([]);
       toast.error('Failed to load available time slots');
     }
@@ -1827,7 +1828,7 @@ const PatientAppointments = () => {
     }
 
     try {
-      console.log('Patient rescheduling appointment:', {
+      logger.log('Patient rescheduling appointment:', {
         appointmentId: selectedAppointmentForAction.id,
         newDate: rescheduleDate.toISOString().split('T')[0],
         newTime: rescheduleTimeSlot,
@@ -1836,7 +1837,7 @@ const PatientAppointments = () => {
       });
 
       // First, verify the appointment exists and belongs to the patient or guardian
-      console.log('Verifying appointment ownership...');
+      logger.log('Verifying appointment ownership...');
       const { data: existingAppointment, error: fetchError } = await supabase
         .from('appointments')
         .select('id, patient_id, guardian_id, status, appointment_date, appointment_time, branch')
@@ -1845,17 +1846,17 @@ const PatientAppointments = () => {
         .single();
       
       if (fetchError) {
-        console.warn('Could not fetch appointment details:', fetchError);
-        console.warn('Fetch error details:', {
+        logger.warn('Could not fetch appointment details:', fetchError);
+        logger.warn('Fetch error details:', {
           message: fetchError.message,
           details: fetchError.details,
           hint: fetchError.hint,
           code: fetchError.code
         });
-        console.warn('Continuing with reschedule using local appointment data...');
+        logger.warn('Continuing with reschedule using local appointment data...');
         // Don't throw error, just continue with the reschedule using local data
       } else {
-        console.log('Found appointment:', existingAppointment);
+        logger.log('Found appointment:', existingAppointment);
       }
 
       // Check if the new time slot is available
@@ -1870,7 +1871,7 @@ const PatientAppointments = () => {
         .in('status', ['pending', 'confirmed']);
       
       if (conflictError) {
-        console.error('Error checking for conflicts:', conflictError);
+        logger.error('Error checking for conflicts:', conflictError);
         throw new Error(`Failed to check availability: ${conflictError.message}`);
       }
       
@@ -1879,7 +1880,7 @@ const PatientAppointments = () => {
       let finalRescheduleTime = rescheduleTimeSlot;
       
       if (conflictingAppointments && conflictingAppointments.length > 0) {
-        console.log('⚠️ Time slot conflict detected during reschedule, finding next available slot...');
+        logger.log('⚠️ Time slot conflict detected during reschedule, finding next available slot...');
         
         // Get duration for the appointment
         const appointmentDuration = duration || 30;
@@ -1903,7 +1904,7 @@ const PatientAppointments = () => {
             { autoClose: 6000 }
           );
           
-          console.log('✅ Auto-rescheduled to:', nextSlotResult.nextDate, nextSlotResult.nextTime);
+          logger.log('✅ Auto-rescheduled to:', nextSlotResult.nextDate, nextSlotResult.nextTime);
         } else {
           // No available slots found
           toast.error('The requested time slot is already taken, and no available slots were found in the next 7 days. Please try selecting a different time manually.');
@@ -1926,15 +1927,15 @@ const PatientAppointments = () => {
       if (shouldChangeToPending) {
         updateData.status = 'pending';
         updateData.updated_at = new Date().toISOString();
-        console.log('Adding status change to pending for rejected appointment');
+        logger.log('Adding status change to pending for rejected appointment');
       }
       
-      console.log('Should change to pending:', shouldChangeToPending);
-      console.log('Original status:', selectedAppointmentForAction.status);
+      logger.log('Should change to pending:', shouldChangeToPending);
+      logger.log('Original status:', selectedAppointmentForAction.status);
       
-      console.log('Updating appointment with data:', updateData);
-      console.log('Appointment ID:', selectedAppointmentForAction.id);
-      console.log('Patient ID:', user.id);
+      logger.log('Updating appointment with data:', updateData);
+      logger.log('Appointment ID:', selectedAppointmentForAction.id);
+      logger.log('Patient ID:', user.id);
       
       // Validate data before sending
       if (!updateData.appointment_date || !updateData.appointment_time || !updateData.branch) {
@@ -1969,13 +1970,13 @@ const PatientAppointments = () => {
         updateResult = result.data;
         error = result.error;
       } catch (dbError) {
-        console.error('Database connection error:', dbError);
+        logger.error('Database connection error:', dbError);
         throw new Error(`Database connection failed: ${dbError.message}`);
       }
       
       if (error) {
-        console.error('Database update error:', error);
-        console.error('Error details:', {
+        logger.error('Database update error:', error);
+        logger.error('Error details:', {
           message: error.message,
           details: error.details,
           hint: error.hint,
@@ -1983,7 +1984,7 @@ const PatientAppointments = () => {
         });
         
         // Try a different approach - update without status first
-        console.log('Trying update without status change...');
+        logger.log('Trying update without status change...');
         
         // Remove status from updateData for the fallback attempt
         const { status, ...dataWithoutStatus } = updateData;
@@ -1995,14 +1996,14 @@ const PatientAppointments = () => {
           .select('id, status, appointment_date, appointment_time, branch');
         
         if (result2.error) {
-          console.error('Second update attempt also failed:', result2.error);
+          logger.error('Second update attempt also failed:', result2.error);
           throw error; // Throw original error
         } else {
-          console.log('Update without status succeeded, now updating status if needed...');
+          logger.log('Update without status succeeded, now updating status if needed...');
           
           // Now try to update status separately if needed
           if (shouldChangeToPending) {
-            console.log('Attempting to update status to pending...');
+            logger.log('Attempting to update status to pending...');
             
             // Try updating with all fields including status to bypass constraint
             const statusResult = await supabase
@@ -2018,8 +2019,8 @@ const PatientAppointments = () => {
               .select('id, status, appointment_date, appointment_time, branch');
             
             if (statusResult.error) {
-              console.warn('Status update failed, but appointment was rescheduled:', statusResult.error);
-              console.error('Status update error details:', {
+              logger.warn('Status update failed, but appointment was rescheduled:', statusResult.error);
+              logger.error('Status update error details:', {
                 message: statusResult.error.message,
                 details: statusResult.error.details,
                 hint: statusResult.error.hint,
@@ -2027,7 +2028,7 @@ const PatientAppointments = () => {
               });
               
               // Try alternative approach - update without status first
-              console.log('Trying alternative approach for status update...');
+              logger.log('Trying alternative approach for status update...');
               const altResult = await supabase
                 .from('appointments')
                 .update({
@@ -2040,9 +2041,9 @@ const PatientAppointments = () => {
                 .select('id, status, appointment_date, appointment_time, branch');
               
               if (altResult.error) {
-                console.error('Alternative update failed:', altResult.error);
+                logger.error('Alternative update failed:', altResult.error);
               } else {
-                console.log('Alternative update successful, trying status update...');
+                logger.log('Alternative update successful, trying status update...');
                 // Now try to update just the status
                 const finalStatusResult = await supabase
                   .from('appointments')
@@ -2051,14 +2052,14 @@ const PatientAppointments = () => {
                   .select('id, status');
                 
                 if (finalStatusResult.error) {
-                  console.error('Final status update failed:', finalStatusResult.error);
+                  logger.error('Final status update failed:', finalStatusResult.error);
                 } else {
-                  console.log('Final status update successful:', finalStatusResult.data);
+                  logger.log('Final status update successful:', finalStatusResult.data);
                   updateResult = finalStatusResult.data;
                 }
               }
             } else {
-              console.log('Status updated to pending successfully:', statusResult.data);
+              logger.log('Status updated to pending successfully:', statusResult.data);
               // Update the result with the new status
               if (statusResult.data && statusResult.data[0]) {
                 updateResult = statusResult.data;
@@ -2073,12 +2074,12 @@ const PatientAppointments = () => {
         }
       }
       
-      console.log('Update successful:', updateResult);
+      logger.log('Update successful:', updateResult);
       
       // Update local state with the actual updated status from database
       const updatedStatus = shouldChangeToPending ? 'pending' : updateResult[0]?.status || selectedAppointmentForAction.status;
       
-      console.log('Final status update:', {
+      logger.log('Final status update:', {
         shouldChangeToPending,
         updateResult: updateResult[0],
         updatedStatus,
@@ -2118,12 +2119,12 @@ const PatientAppointments = () => {
       setRescheduleAvailableTimeSlots([]);
       
       // Refresh appointments to get the latest status from database
-      console.log('Refreshing appointments to get updated status...');
+      logger.log('Refreshing appointments to get updated status...');
       await refreshAppointments();
       
     } catch (error) {
-      console.error('Error rescheduling appointment:', error);
-      console.error('Error details:', {
+      logger.error('Error rescheduling appointment:', error);
+      logger.error('Error details:', {
         message: error.message,
         details: error.details,
         hint: error.hint,
@@ -2187,7 +2188,7 @@ const PatientAppointments = () => {
     today.setHours(0, 0, 0, 0);
     
     const isEditable = isEditableStatus && appointmentDate >= today;
-    console.log('Checking if appointment is editable:', {
+    logger.log('Checking if appointment is editable:', {
       appointmentId: appointment.id,
       status: appointment.status,
       isEditableStatus,
@@ -3636,7 +3637,7 @@ const PatientAppointments = () => {
       {/* Reschedule Modal */}
       {isRescheduling && selectedAppointmentForAction && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          {console.log('Rendering reschedule modal for:', selectedAppointmentForAction)}
+          {logger.log('Rendering reschedule modal for:', selectedAppointmentForAction)}
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <div className="flex justify-between items-start mb-4">
               <h2 className="text-xl font-semibold text-gray-800">Reschedule Appointment</h2>

@@ -12,6 +12,7 @@ import UnifiedInvoicePrinter from '../../components/common/UnifiedInvoicePrinter
 import { useUniversalAudit } from '../../hooks/useUniversalAudit';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
+import logger from '../../utils/logger';
 
 // Import GCash QR Code
 import gcashQR from '../../assets/clinic.png';
@@ -38,7 +39,7 @@ const RejectionMessage = ({ invoiceId }) => {
           setRejectionMessage(rejectionMatch ? rejectionMatch[0] : null);
         }
       } catch (error) {
-        console.error('Error fetching rejection message:', error);
+        logger.error('Error fetching rejection message:', error);
       } finally {
         setLoading(false);
       }
@@ -126,7 +127,7 @@ const Payments = () => {
       
       return !error && payments && payments.length > 0;
     } catch (error) {
-      console.error('Error checking rejected payments:', error);
+      logger.error('Error checking rejected payments:', error);
       return false;
     }
   };
@@ -198,7 +199,7 @@ const Payments = () => {
           return true;
       }
     } catch (error) {
-      console.error('Error in isDateInRange:', error, date);
+      logger.error('Error in isDateInRange:', error, date);
       return false;
     }
   };
@@ -228,7 +229,7 @@ const Payments = () => {
       // Show only invoices for children (where patient_id is in children list)
       filtered = filtered.filter(invoice => {
         const isChildInvoice = childIdsSet.has(invoice.patient_id);
-        console.log('Checking invoice:', {
+        logger.log('Checking invoice:', {
           invoice_id: invoice.id,
           invoice_number: invoice.invoice_number,
           patient_id: invoice.patient_id,
@@ -238,7 +239,7 @@ const Payments = () => {
         });
         return isChildInvoice;
       });
-      console.log(`Filtered to ${filtered.length} child invoices out of ${invoices.length} total`);
+      logger.log(`Filtered to ${filtered.length} child invoices out of ${invoices.length} total`);
     }
     // If invoiceFilter === 'all', show all invoices (no additional filtering)
     
@@ -261,7 +262,7 @@ const Payments = () => {
       );
     }
     
-    console.log(`Final filtered invoices: ${filtered.length}`, filtered.map(inv => ({
+    logger.log(`Final filtered invoices: ${filtered.length}`, filtered.map(inv => ({
       id: inv.id,
       invoice_number: inv.invoice_number,
       patient_name: inv.profiles?.full_name,
@@ -333,7 +334,7 @@ const Payments = () => {
         .single();
 
       if (error) {
-        console.error('Failed to fetch invoice for printing:', error);
+        logger.error('Failed to fetch invoice for printing:', error);
         toast.error('Failed to load invoice for printing');
         return;
       }
@@ -345,7 +346,7 @@ const Payments = () => {
 
       printInvoice(fullInvoice);
     } catch (e) {
-      console.error('Unexpected error printing invoice:', e);
+      logger.error('Unexpected error printing invoice:', e);
       toast.error('Unexpected error while preparing invoice print');
     }
   };
@@ -377,7 +378,7 @@ const Payments = () => {
         .single();
 
       if (error) {
-        console.error('Failed to fetch invoice for PDF:', error);
+        logger.error('Failed to fetch invoice for PDF:', error);
         toast.error('Failed to load invoice for PDF download');
         return;
       }
@@ -414,7 +415,7 @@ const Payments = () => {
 
       await InvoicePDF.generateInvoicePDF(fullInvoice, toast);
     } catch (e) {
-      console.error('Unexpected error downloading invoice PDF:', e);
+      logger.error('Unexpected error downloading invoice PDF:', e);
       toast.error('Unexpected error while preparing invoice PDF');
     }
   };
@@ -545,11 +546,11 @@ const Payments = () => {
       // Log page view
       logPageView('Patient Payments', 'billing', 'patient_management');
       
-      console.log('User found, fetching data:', user.id);
+      logger.log('User found, fetching data:', user.id);
       fetchInvoices();
       fetchPaymentHistory();
     } else {
-      console.log('No user found');
+      logger.log('No user found');
     }
   }, [user, logPageView]);
 
@@ -574,11 +575,11 @@ const Payments = () => {
   const extractProofUrlFromNotes = (notes) => {
     if (!notes || !notes.includes('Payment proof:')) return null;
     
-    console.log('Extracting URL from notes:', notes);
+    logger.log('Extracting URL from notes:', notes);
     
     // Get the part after "Payment proof:"
     let url = notes.split('Payment proof: ')[1];
-    console.log('Initial URL extraction:', url);
+    logger.log('Initial URL extraction:', url);
     
     // Handle all possible approval/rejection patterns by removing them
     const patterns = [
@@ -600,7 +601,7 @@ const Payments = () => {
       if (typeof pattern === 'string') {
       if (url.includes(pattern)) {
         url = url.split(pattern)[0].trim();
-        console.log(`Found pattern "${pattern}", cleaned URL:`, url);
+        logger.log(`Found pattern "${pattern}", cleaned URL:`, url);
         break;
         }
       } else {
@@ -608,13 +609,13 @@ const Payments = () => {
         const match = url.match(pattern);
         if (match) {
           url = url.replace(pattern, '').trim();
-          console.log(`Found regex pattern, cleaned URL:`, url);
+          logger.log(`Found regex pattern, cleaned URL:`, url);
           break;
         }
       }
     }
     
-    console.log('Final extracted URL:', url);
+    logger.log('Final extracted URL:', url);
     return url;
   };
 
@@ -681,7 +682,7 @@ const Payments = () => {
         setProofInvoiceMeta({ total_amount: inv.total_amount || 0, amount_paid: inv.amount_paid || 0 });
       }
     } catch (e) {
-      console.error('Failed to load proofs for invoice:', e);
+      logger.error('Failed to load proofs for invoice:', e);
       toast.error('Could not load payment proofs');
       setShowProofModal(false);
     }
@@ -690,7 +691,7 @@ const Payments = () => {
   const fetchInvoices = async () => {
     setIsLoading(true);
     try {
-      console.log('Fetching invoices for user:', user.id);
+      logger.log('Fetching invoices for user:', user.id);
       
       // First, fetch all children of the user (minors where guardian_id = user.id)
       const { data: childrenData, error: childrenError } = await supabase
@@ -700,7 +701,7 @@ const Payments = () => {
         .eq('role', 'patient');
       
       if (childrenError) {
-        console.error('Error fetching children:', childrenError);
+        logger.error('Error fetching children:', childrenError);
       }
       
       // Build list of patient IDs: user's own ID + all children IDs
@@ -708,7 +709,7 @@ const Payments = () => {
       if (childrenData && childrenData.length > 0) {
         const childIds = childrenData.map(child => child.id);
         patientIds.push(...childIds);
-        console.log(`Found ${childIds.length} children, fetching invoices for ${patientIds.length} patients total`);
+        logger.log(`Found ${childIds.length} children, fetching invoices for ${patientIds.length} patients total`);
         
         // Store children list for filter display
         const { data: childrenProfiles } = await supabase
@@ -716,13 +717,13 @@ const Payments = () => {
           .select('id, full_name')
           .in('id', childIds);
         setChildren(childrenProfiles || []);
-        console.log('Children profiles:', childrenProfiles);
+        logger.log('Children profiles:', childrenProfiles);
       } else {
         setChildren([]);
-        console.log('No children found for user');
+        logger.log('No children found for user');
       }
       
-      console.log('Patient IDs to fetch invoices for:', patientIds);
+      logger.log('Patient IDs to fetch invoices for:', patientIds);
       
       // Fetch invoices with patient information
       // Use separate queries for each status to avoid OR operator issues
@@ -761,7 +762,7 @@ const Payments = () => {
       
       if (!pendingError && pendingData) {
         allInvoices = [...allInvoices, ...pendingData];
-        console.log(`Found ${pendingData.length} pending invoices`);
+        logger.log(`Found ${pendingData.length} pending invoices`);
       }
       
       // Query for partial invoices
@@ -797,7 +798,7 @@ const Payments = () => {
       
       if (!partialError && partialData) {
         allInvoices = [...allInvoices, ...partialData];
-        console.log(`Found ${partialData.length} partial invoices`);
+        logger.log(`Found ${partialData.length} partial invoices`);
       }
       
       // Query for rejected invoices
@@ -833,14 +834,14 @@ const Payments = () => {
       
       if (!rejectedError && rejectedData) {
         allInvoices = [...allInvoices, ...rejectedData];
-        console.log(`Found ${rejectedData.length} rejected invoices`);
+        logger.log(`Found ${rejectedData.length} rejected invoices`);
       }
       
       // Build children ID map for quick lookup
       const childIdsSet = new Set();
       if (childrenData && childrenData.length > 0) {
         childrenData.forEach(child => childIdsSet.add(child.id));
-        console.log('Children IDs for invoice matching:', Array.from(childIdsSet));
+        logger.log('Children IDs for invoice matching:', Array.from(childIdsSet));
       }
       
       // Fetch guardian information - get user's profile name
@@ -855,7 +856,7 @@ const Payments = () => {
           guardianName = userProfile.full_name;
         }
       } catch (e) {
-        console.error('Error fetching user profile:', e);
+        logger.error('Error fetching user profile:', e);
       }
       
       // Fetch guardian information for invoices that have guardian_id in profile
@@ -913,10 +914,10 @@ const Payments = () => {
         };
       });
       
-      console.log(`Total invoices found: ${enrichedInvoices.length}`);
-      console.log('Children IDs:', Array.from(childIdsSet));
-      console.log('User ID:', user.id);
-      console.log('Invoice details:', enrichedInvoices.map(inv => ({
+      logger.log(`Total invoices found: ${enrichedInvoices.length}`);
+      logger.log('Children IDs:', Array.from(childIdsSet));
+      logger.log('User ID:', user.id);
+      logger.log('Invoice details:', enrichedInvoices.map(inv => ({
         id: inv.id,
         invoice_number: inv.invoice_number,
         patient_id: inv.patient_id,
@@ -930,7 +931,7 @@ const Payments = () => {
       
       // Ensure we have all invoices - if none found, log warning
       if (enrichedInvoices.length === 0) {
-        console.warn('No invoices found! Check:', {
+        logger.warn('No invoices found! Check:', {
           user_id: user.id,
           patientIds: patientIds,
           children_count: childrenData?.length || 0
@@ -949,10 +950,10 @@ const Payments = () => {
       
       // Show message if no invoices found
       if (allInvoices.length === 0) {
-        console.log('No invoices found for user or children');
+        logger.log('No invoices found for user or children');
       }
     } catch (error) {
-      console.error('Error fetching invoices:', error);
+      logger.error('Error fetching invoices:', error);
       toast.error('Failed to load invoice data: ' + error.message);
       // Try fallback approach with all patient IDs
       const patientIds = [user.id];
@@ -966,7 +967,7 @@ const Payments = () => {
           patientIds.push(...childrenData.map(c => c.id));
         }
       } catch (e) {
-        console.error('Error fetching children in catch:', e);
+        logger.error('Error fetching children in catch:', e);
       }
       await fetchWithSeparateQueries(patientIds);
     } finally {
@@ -977,7 +978,7 @@ const Payments = () => {
   // Fallback approach with separate queries
   const fetchWithSeparateQueries = async (patientIds = [user.id]) => {
     try {
-      console.log('Trying fallback approach with separate queries');
+      logger.log('Trying fallback approach with separate queries');
       
       // First query for pending invoices
       const { data: pendingData, error: pendingError } = await supabase
@@ -1008,14 +1009,14 @@ const Payments = () => {
         .order('invoice_date', { ascending: false });
       
       if (pendingError) {
-        console.error('Error fetching pending invoices:', pendingError);
+        logger.error('Error fetching pending invoices:', pendingError);
         toast.error('Error loading pending invoices');
         return;
       }
       
       // Set initial data from pending invoices
       let allInvoices = pendingData || [];
-      console.log(`Found ${allInvoices.length} pending invoices`);
+      logger.log(`Found ${allInvoices.length} pending invoices`);
       
       // Second query for partial invoices
       const { data: partialData, error: partialError } = await supabase
@@ -1046,7 +1047,7 @@ const Payments = () => {
         .order('invoice_date', { ascending: false });
       
       if (!partialError && partialData) {
-        console.log(`Found ${partialData.length} partial invoices`);
+        logger.log(`Found ${partialData.length} partial invoices`);
         // Combine with pending invoices
         allInvoices = [...allInvoices, ...partialData];
       }
@@ -1080,7 +1081,7 @@ const Payments = () => {
         .order('invoice_date', { ascending: false });
       
       if (!rejectedError && rejectedData) {
-        console.log(`Found ${rejectedData.length} rejected invoices`);
+        logger.log(`Found ${rejectedData.length} rejected invoices`);
         // Combine with other invoices
         allInvoices = [...allInvoices, ...rejectedData];
       }
@@ -1088,17 +1089,17 @@ const Payments = () => {
       // Set all invoices
       setInvoices(allInvoices);
       setFilteredInvoices(allInvoices);
-      console.log(`Total invoices: ${allInvoices.length}`);
+      logger.log(`Total invoices: ${allInvoices.length}`);
       
       // Check for rejected payment proofs
       if (allInvoices.length > 0) {
         checkInvoicesForRejectedProofs(allInvoices);
         toast.success(`Found ${allInvoices.length} invoice(s) to process`);
       } else {
-        console.log('No pending or partial invoices found');
+        logger.log('No pending or partial invoices found');
       }
     } catch (error) {
-      console.error('Error in fallback approach:', error);
+      logger.error('Error in fallback approach:', error);
       toast.error('Could not retrieve invoice data');
     }
   };
@@ -1106,18 +1107,18 @@ const Payments = () => {
   // Helper function to extract approval status from notes
   const getApprovalStatusFromNotes = (notes) => {
     if (!notes) {
-      console.log('Notes field is empty');
+      logger.log('Notes field is empty');
       return 'pending';
     }
     
-    console.log('Payment notes (full content):', notes);
+    logger.log('Payment notes (full content):', notes);
     
     // Add a check for space before parenthesis in the pattern
     if (notes.includes('(Approved by doctor)') || 
         notes.includes(' (Approved by doctor)') ||  // Added space before parenthesis
         notes.includes('Approved by doctor') || 
         notes.includes('(Approved)')) {
-      console.log('APPROVED status detected in notes!');
+      logger.log('APPROVED status detected in notes!');
       return 'approved';
     }
     
@@ -1126,11 +1127,11 @@ const Payments = () => {
         notes.includes(' (Rejected by doctor)') ||  // Added space before parenthesis
         notes.includes('Rejected by doctor') || 
         notes.includes('(Rejected)')) {
-      console.log('REJECTED status detected in notes!');
+      logger.log('REJECTED status detected in notes!');
       return 'rejected';
     }
     
-    console.log('No approval/rejection text found, defaulting to pending');
+    logger.log('No approval/rejection text found, defaulting to pending');
     return 'pending';
   };
 
@@ -1173,7 +1174,7 @@ const Payments = () => {
       const rejectionMatch = notes.match(/Dr\. .+ rejected your payment\. You need to pay again and attach valid proof of payment\./);
       return rejectionMatch ? rejectionMatch[0] : null;
     } catch (error) {
-      console.error('Error extracting rejection message:', error);
+      logger.error('Error extracting rejection message:', error);
       return null;
     }
   };
@@ -1284,7 +1285,7 @@ const Payments = () => {
       const url = urls[safeIndex] || null;
       setDoctorQrUrl(url);
     } catch (err) {
-      console.error('Failed to load doctor QR:', err);
+      logger.error('Failed to load doctor QR:', err);
       setDoctorQrUrl(null);
     }
   };
@@ -1292,7 +1293,7 @@ const Payments = () => {
   // Updated fetchPaymentHistory function
   const fetchPaymentHistory = async () => {
     try {
-      console.log('Fetching payment history for user:', user?.id);
+      logger.log('Fetching payment history for user:', user?.id);
       setIsLoading(true);
       
       const { data, error } = await supabase
@@ -1315,7 +1316,7 @@ const Payments = () => {
       
       if (error) throw error;
       
-      console.log('Payment history data:', data);
+      logger.log('Payment history data:', data);
       
       // Fetch invoice data separately to avoid relationship issues
       if (data && data.length > 0) {
@@ -1392,18 +1393,18 @@ const Payments = () => {
               
               if (doctorName) {
                 assignedDoctor = `Dr. ${doctorName}`;
-                console.log(`Found doctor in notes: ${assignedDoctor} for invoice ${matchingInvoice.invoice_number}`);
+                logger.log(`Found doctor in notes: ${assignedDoctor} for invoice ${matchingInvoice.invoice_number}`);
               } else if (matchingInvoice.created_by) {
                 // If no doctor in notes, check if the invoice was created by a doctor
                 const creator = creatorProfiles[matchingInvoice.created_by];
                 if (creator && creator.role === 'doctor') {
                   assignedDoctor = `Dr. ${creator.full_name}`;
-                  console.log(`Found doctor from creator: ${assignedDoctor} for invoice ${matchingInvoice.invoice_number}`);
+                  logger.log(`Found doctor from creator: ${assignedDoctor} for invoice ${matchingInvoice.invoice_number}`);
                 } else {
-                  console.log(`No doctor found for invoice ${matchingInvoice.invoice_number}. Creator:`, creator);
+                  logger.log(`No doctor found for invoice ${matchingInvoice.invoice_number}. Creator:`, creator);
                 }
               } else {
-                console.log(`No creator found for invoice ${matchingInvoice.invoice_number}`);
+                logger.log(`No creator found for invoice ${matchingInvoice.invoice_number}`);
               }
               
               return {
@@ -1422,11 +1423,11 @@ const Payments = () => {
             });
             
             setPaymentHistory(paymentsWithInvoices);
-            console.log('Payment history loaded with statuses:', paymentsWithInvoices.map(p => p.doctor_approval_status));
-            console.log('Final payment history set:', paymentsWithInvoices.length, 'payments');
+            logger.log('Payment history loaded with statuses:', paymentsWithInvoices.map(p => p.doctor_approval_status));
+            logger.log('Final payment history set:', paymentsWithInvoices.length, 'payments');
           } else {
             // If there was an error fetching invoices, still show payment data
-            console.warn('Could not fetch invoice details:', invoicesError);
+            logger.warn('Could not fetch invoice details:', invoicesError);
             // If no invoices found, create simplified payment objects
             const simplifiedPayments = data.map(payment => ({
               ...payment,
@@ -1458,7 +1459,7 @@ const Payments = () => {
         setPaymentHistory([]);
       }
     } catch (error) {
-      console.error('Error fetching payment history:', error);
+      logger.error('Error fetching payment history:', error);
       toast.error('Failed to load payment history: ' + error.message);
       setPaymentHistory([]); // Ensure we always set a valid array even on error
     } finally {
@@ -1490,7 +1491,7 @@ const Payments = () => {
   const forceRefreshPayments = async () => {
     if (!user) return;
     
-    console.log('Force refreshing payment history...');
+    logger.log('Force refreshing payment history...');
     toast.info('Refreshing payment status...');
     
     try {
@@ -1498,7 +1499,7 @@ const Payments = () => {
       await fetchPaymentHistory();
       toast.success('Payment history updated');
     } catch (error) {
-      console.error('Error refreshing payments:', error);
+      logger.error('Error refreshing payments:', error);
       toast.error('Failed to refresh payment data');
     } finally {
       setIsLoading(false);
@@ -1546,7 +1547,7 @@ const Payments = () => {
           const fileExt = paymentProof.name.split('.').pop();
           const fileName = `${user.id}/${Date.now()}.${fileExt}`;
           
-          console.log('Attempting to upload file:', fileName);
+          logger.log('Attempting to upload file:', fileName);
           
           // Check if file size is too large
           if (paymentProof.size > 5 * 1024 * 1024) {
@@ -1563,20 +1564,20 @@ const Payments = () => {
             });
           
           if (uploadError) {
-            console.error('Error uploading file:', uploadError);
+            logger.error('Error uploading file:', uploadError);
             
             if (uploadError.message && uploadError.message.includes('bucket')) {
-              console.log('Storage bucket issue, proceeding without file upload');
+              logger.log('Storage bucket issue, proceeding without file upload');
               toast.warn('File upload not available. Proceeding with payment without receipt.');
             } else if (uploadError.message && uploadError.message.includes('policy')) {
-              console.log('Security policy issue, proceeding without file upload');
+              logger.log('Security policy issue, proceeding without file upload');
               toast.warn('File upload restricted. Proceeding with payment without receipt.');
             } else {
               // For other upload errors, we'll still proceed but notify the user
               toast.warn(`File upload issue: ${uploadError.message}. Proceeding with payment.`);
             }
           } else {
-            console.log('File uploaded successfully:', uploadData);
+            logger.log('File uploaded successfully:', uploadData);
             
             // Get public URL for the uploaded file
             const { data: { publicUrl } } = supabase.storage
@@ -1586,7 +1587,7 @@ const Payments = () => {
             fileUrl = publicUrl;
           }
         } catch (uploadErr) {
-          console.error('Upload attempt failed completely:', uploadErr);
+          logger.error('Upload attempt failed completely:', uploadErr);
           toast.warn('Could not upload file. Proceeding with payment.');
         }
       }
@@ -1628,7 +1629,7 @@ const Payments = () => {
         paymentData.notes = `Payment proof: ${whiteImageUrl}`;
       }
       
-      console.log('Creating payment record:', paymentData);
+      logger.log('Creating payment record:', paymentData);
       
       const { data: paymentRecord, error: paymentError } = await supabase
         .from('payments')
@@ -1636,7 +1637,7 @@ const Payments = () => {
         .select();
       
       if (paymentError) {
-        console.error('Error creating payment record:', paymentError);
+        logger.error('Error creating payment record:', paymentError);
         toast.error(`Database error: ${paymentError.message || 'Could not create payment record'}`);
         setIsUploading(false);
         return;
@@ -1654,13 +1655,13 @@ const Payments = () => {
           );
           
           if (notificationResult.success) {
-            console.log('Doctor notified about new payment submission');
+            logger.log('Doctor notified about new payment submission');
           } else {
-            console.warn('Failed to notify doctor:', notificationResult.error);
+            logger.warn('Failed to notify doctor:', notificationResult.error);
           }
         }
       } catch (notificationError) {
-        console.error('Error sending payment notification:', notificationError);
+        logger.error('Error sending payment notification:', notificationError);
         // Don't fail the payment submission if notification fails
       }
       
@@ -1678,7 +1679,7 @@ const Payments = () => {
         .eq('id', selectedInvoice.id);
       
       if (invoiceUpdateError) {
-        console.error('Error updating invoice:', invoiceUpdateError);
+        logger.error('Error updating invoice:', invoiceUpdateError);
         // Continue anyway since payment was created
       }
 
@@ -1718,7 +1719,7 @@ const Payments = () => {
       fetchPaymentHistory();
       
     } catch (error) {
-      console.error('Error submitting payment:', error);
+      logger.error('Error submitting payment:', error);
       toast.error(`Failed to submit payment: ${error.message || 'Unknown error'}. Please try again.`);
       setIsUploading(false);
     } finally {
