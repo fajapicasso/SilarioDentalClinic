@@ -19,55 +19,24 @@
         if (isProd) {
           var noop = function() {};
           
-          // Block ALL console methods immediately
-          try {
-            console.log = noop;
-            console.info = noop;
-            console.warn = noop;
-            console.debug = noop;
-            console.error = noop;
-            console.table = noop;
-            console.group = noop;
-            console.groupEnd = noop;
-            console.groupCollapsed = noop;
-            console.time = noop;
-            console.timeEnd = noop;
-            console.trace = noop;
-            console.dir = noop;
-            console.dirxml = noop;
-            console.assert = noop;
-            console.count = noop;
-            console.countReset = noop;
-            console.clear = noop;
-            console.profile = noop;
-            console.profileEnd = noop;
-            console.timeStamp = noop;
-            console.memory = noop;
-          } catch(e) {}
+          // Block console methods (but allow errors to be caught by app)
+          console.log = noop;
+          console.info = noop;
+          console.warn = noop;
+          console.debug = noop;
+          console.table = noop;
+          console.group = noop;
+          console.groupEnd = noop;
+          console.groupCollapsed = noop;
+          console.time = noop;
+          console.timeEnd = noop;
+          console.trace = noop;
+          console.dir = noop;
+          console.dirxml = noop;
+          console.assert = noop;
           
-          // Try to suppress network error logging by intercepting fetch
-          try {
-            var originalFetch = window.fetch;
-            window.fetch = function() {
-              return originalFetch.apply(this, arguments).catch(function(error) {
-                // Silently handle errors without logging
-                return Promise.reject(error);
-              });
-            };
-          } catch(e) {}
-          
-          // Continuously enforce console blocking
-          setInterval(function() {
-            if (isProd) {
-              try {
-                console.log = noop;
-                console.error = noop;
-                console.warn = noop;
-                console.info = noop;
-                console.debug = noop;
-              } catch(e) {}
-            }
-          }, 100);
+          // Block console.error but don't break error handling
+          console.error = noop;
         }
       })();
     </script>
