@@ -4,6 +4,7 @@ import { FiUsers, FiCalendar, FiBarChart2, FiPrinter, FiCreditCard, FiRefreshCw,
 import { Chart, registerables } from 'chart.js';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
+import logger from '../../utils/logger';
 Chart.register(...registerables);
 
 const AdminAnalytics = () => {
@@ -56,7 +57,7 @@ const AdminAnalytics = () => {
   }, [timeFilter]);
 
   useEffect(() => {
-    console.log('📊 Admin Revenue Chart useEffect triggered:', { 
+    logger.log('📊 Admin Revenue Chart useEffect triggered:', { 
       revenueByMonthByBranchKeys: Object.keys(revenueByMonthByBranch || {}),
       loading 
     });
@@ -67,15 +68,15 @@ const AdminAnalytics = () => {
         const series = revenueByMonthByBranch[b] || [];
         
         if (!canvas || series.length === 0) {
-          console.log(`📊 Revenue chart for ${b}: Canvas or data not available`);
+          logger.log(`📊 Revenue chart for ${b}: Canvas or data not available`);
           return;
         }
         
-        console.log(`📊 Rendering revenue chart for branch ${b}:`, series);
+        logger.log(`📊 Rendering revenue chart for branch ${b}:`, series);
         
         const key = `adminRevenueChart_${b}`;
         if (window[key]) {
-          console.log(`📊 Destroying existing chart for ${b}`);
+          logger.log(`📊 Destroying existing chart for ${b}`);
           window[key].destroy();
         }
         
@@ -120,9 +121,9 @@ const AdminAnalytics = () => {
               }
             },
           });
-          console.log(`📊 Revenue chart for ${b} created successfully`);
+          logger.log(`📊 Revenue chart for ${b} created successfully`);
         } catch (error) {
-          console.error(`📊 Error creating revenue chart for ${b}:`, error);
+          logger.error(`📊 Error creating revenue chart for ${b}:`, error);
         }
       });
     };
@@ -130,7 +131,7 @@ const AdminAnalytics = () => {
     // Add delay to ensure DOM is ready
     if (Object.keys(revenueByMonthByBranch || {}).length > 0) {
       const timeoutId = setTimeout(() => {
-        console.log('📊 Attempting to render revenue charts after timeout');
+        logger.log('📊 Attempting to render revenue charts after timeout');
         renderRevenueCharts();
       }, 300);
       return () => clearTimeout(timeoutId);
@@ -140,7 +141,7 @@ const AdminAnalytics = () => {
   }, [revenueByMonthByBranch, loading]);
 
   useEffect(() => {
-    console.log('📊 Admin Status Chart useEffect triggered:', { 
+    logger.log('📊 Admin Status Chart useEffect triggered:', { 
       statusByBranchKeys: Object.keys(statusByBranch || {}),
       loading 
     });
@@ -151,15 +152,15 @@ const AdminAnalytics = () => {
         const series = statusByBranch[b] || [];
         
         if (!canvas || series.length === 0) {
-          console.log(`📊 Status chart for ${b}: Canvas or data not available`);
+          logger.log(`📊 Status chart for ${b}: Canvas or data not available`);
           return;
         }
         
-        console.log(`📊 Rendering status chart for branch ${b}:`, series);
+        logger.log(`📊 Rendering status chart for branch ${b}:`, series);
         
         const key = `adminStatusChart_${b}`;
         if (window[key]) {
-          console.log(`📊 Destroying existing status chart for ${b}`);
+          logger.log(`📊 Destroying existing status chart for ${b}`);
           window[key].destroy();
         }
         
@@ -219,9 +220,9 @@ const AdminAnalytics = () => {
               }
             },
           });
-          console.log(`📊 Status chart for ${b} created successfully`);
+          logger.log(`📊 Status chart for ${b} created successfully`);
         } catch (error) {
-          console.error(`📊 Error creating status chart for ${b}:`, error);
+          logger.error(`📊 Error creating status chart for ${b}:`, error);
         }
       });
     };
@@ -229,7 +230,7 @@ const AdminAnalytics = () => {
     // Add delay to ensure DOM is ready
     if (Object.keys(statusByBranch || {}).length > 0) {
       const timeoutId = setTimeout(() => {
-        console.log('📊 Attempting to render status charts after timeout');
+        logger.log('📊 Attempting to render status charts after timeout');
         renderStatusCharts();
       }, 300);
       return () => clearTimeout(timeoutId);
@@ -239,7 +240,7 @@ const AdminAnalytics = () => {
   }, [statusByBranch, loading]);
 
   useEffect(() => {
-    console.log('📊 Admin Pie Chart useEffect triggered:', { 
+    logger.log('📊 Admin Pie Chart useEffect triggered:', { 
       topServicesLength: topServices.length,
       pieRefCurrent: !!pieRef.current,
       loading 
@@ -247,12 +248,12 @@ const AdminAnalytics = () => {
     
     const renderPieChart = () => {
       if (topServices.length > 0 && pieRef.current) {
-        console.log('📊 Rendering pie chart with data:', topServices);
+        logger.log('📊 Rendering pie chart with data:', topServices);
         
         try {
           const ctx = pieRef.current.getContext('2d');
           if (window.adminPieChart) {
-            console.log('📊 Destroying existing pie chart');
+            logger.log('📊 Destroying existing pie chart');
             window.adminPieChart.destroy();
           }
           
@@ -282,12 +283,12 @@ const AdminAnalytics = () => {
               }
             }
           });
-          console.log('📊 Pie chart created successfully');
+          logger.log('📊 Pie chart created successfully');
         } catch (error) {
-          console.error('📊 Error creating pie chart:', error);
+          logger.error('📊 Error creating pie chart:', error);
         }
       } else {
-        console.log('📊 Pie chart conditions not met:', { 
+        logger.log('📊 Pie chart conditions not met:', { 
           hasData: topServices.length > 0, 
           hasCanvas: !!pieRef.current 
         });
@@ -297,7 +298,7 @@ const AdminAnalytics = () => {
     // Add delay to ensure DOM is ready
     if (topServices.length > 0) {
       const timeoutId = setTimeout(() => {
-        console.log('📊 Attempting to render pie chart after timeout');
+        logger.log('📊 Attempting to render pie chart after timeout');
         renderPieChart();
       }, 300);
       return () => clearTimeout(timeoutId);
@@ -351,7 +352,7 @@ const AdminAnalytics = () => {
             }
           });
         } catch (error) {
-          console.error(`📊 Error creating day chart for ${branch}:`, error);
+          logger.error(`📊 Error creating day chart for ${branch}:`, error);
         }
       });
     };
@@ -416,7 +417,7 @@ const AdminAnalytics = () => {
             }
           });
         } catch (error) {
-          console.error(`📊 Error creating time chart for ${branch}:`, error);
+          logger.error(`📊 Error creating time chart for ${branch}:`, error);
         }
       });
     };
@@ -489,9 +490,9 @@ const AdminAnalytics = () => {
               }
             }
           });
-          console.log(`📊 Status breakdown chart for ${branch} created successfully`);
+          logger.log(`📊 Status breakdown chart for ${branch} created successfully`);
         } catch (error) {
-          console.error(`📊 Error creating status breakdown chart for ${branch}:`, error);
+          logger.error(`📊 Error creating status breakdown chart for ${branch}:`, error);
         }
       });
     };
@@ -538,9 +539,9 @@ const AdminAnalytics = () => {
               }
             }
           });
-          console.log('📊 Gender chart created successfully');
+          logger.log('📊 Gender chart created successfully');
         } catch (error) {
-          console.error('📊 Error creating gender chart:', error);
+          logger.error('📊 Error creating gender chart:', error);
         }
       }
     };
@@ -587,9 +588,9 @@ const AdminAnalytics = () => {
               }
             }
           });
-          console.log('📊 Age chart created successfully');
+          logger.log('📊 Age chart created successfully');
         } catch (error) {
-          console.error('📊 Error creating age chart:', error);
+          logger.error('📊 Error creating age chart:', error);
         }
       }
     };
@@ -608,31 +609,31 @@ const AdminAnalytics = () => {
 
   const fetchBranches = async () => {
     try {
-      console.log('🔍 Fetching branches...');
+      logger.log('🔍 Fetching branches...');
       
       const { data, error } = await supabase
         .from('appointments')
         .select('branch');
       
       if (error) {
-        console.error('❌ Error fetching branches:', error);
+        logger.error('❌ Error fetching branches:', error);
         setDebugInfo(prev => prev + `\nBranch Error: ${error.message}`);
         return;
       }
       
-      console.log('📊 Raw branch data:', data);
+      logger.log('📊 Raw branch data:', data);
       
       if (data && data.length > 0) {
         const uniqueBranches = [...new Set(data.map(item => item.branch).filter(Boolean))];
         setBranches(uniqueBranches);
-        console.log('✅ Unique branches found:', uniqueBranches);
+        logger.log('✅ Unique branches found:', uniqueBranches);
         setDebugInfo(prev => prev + `\nBranches: ${uniqueBranches.join(', ')}`);
       } else {
-        console.log('⚠️ No branch data found');
+        logger.log('⚠️ No branch data found');
         setDebugInfo(prev => prev + '\nNo branches found in database');
       }
     } catch (error) {
-      console.error('💥 Exception in fetchBranches:', error);
+      logger.error('💥 Exception in fetchBranches:', error);
       setDebugInfo(prev => prev + `\nBranch Exception: ${error.message}`);
     }
   };
@@ -706,7 +707,7 @@ const AdminAnalytics = () => {
 
   const fetchAnalytics = async () => {
     setLoading(true);
-    console.log('🚀 Starting admin analytics fetch...');
+    logger.log('🚀 Starting admin analytics fetch...');
     
     // Clear existing data to force re-render
     setRevenueByMonthByBranch({});
@@ -721,10 +722,10 @@ const AdminAnalytics = () => {
     let debugLog = `\n=== Analytics Fetch Started at ${new Date().toLocaleTimeString()} ===`;
     
     try {
-      console.log('🚀 Starting analytics fetch for all branches');
+      logger.log('🚀 Starting analytics fetch for all branches');
 
       const dateRange = getDateRange();
-      console.log('📅 Date range filter:', dateRange, 'timeFilter:', timeFilter);
+      logger.log('📅 Date range filter:', dateRange, 'timeFilter:', timeFilter);
 
       // 1. APPOINTMENTS DATA
       debugLog += '\n\n1. FETCHING APPOINTMENTS...';
@@ -745,7 +746,7 @@ const AdminAnalytics = () => {
       const { data: appointmentData, error: appointmentError } = await appointmentQuery;
       
       if (appointmentError) {
-        console.error('❌ Appointment fetch error:', appointmentError);
+        logger.error('❌ Appointment fetch error:', appointmentError);
         debugLog += `\nAppointment Error: ${appointmentError.message}`;
       } else {
         const branchesFound = [...new Set((appointmentData || []).map(a => a.branch).filter(Boolean))];
@@ -884,13 +885,13 @@ const AdminAnalytics = () => {
         
         setActiveDaysByBranch(activeDaysByBranchFormatted);
         setActiveTimesByBranch(activeTimesByBranchFormatted);
-        console.log('📊 Active days by branch:', activeDaysByBranchFormatted);
-        console.log('📊 Active times by branch:', activeTimesByBranchFormatted);
+        logger.log('📊 Active days by branch:', activeDaysByBranchFormatted);
+        logger.log('📊 Active times by branch:', activeTimesByBranchFormatted);
       }
       
       // NEW ANALYTICS: Overall Gender Distribution and Age Distribution (All Branches)
       // Fetch ALL patients (not just those with appointments in filtered period) for demographics
-      console.log('🔍 Fetching ALL patients for demographics...');
+      logger.log('🔍 Fetching ALL patients for demographics...');
       const { data: allPatientData, error: patientError } = await supabase
         .from('profiles')
         .select('id, gender, guardian_id, age, birthday')
@@ -898,9 +899,9 @@ const AdminAnalytics = () => {
         .neq('disabled', true);
       
       if (patientError) {
-        console.error('❌ Error fetching patients:', patientError);
+        logger.error('❌ Error fetching patients:', patientError);
       } else {
-        console.log('✅ Fetched', allPatientData?.length || 0, 'total patients');
+        logger.log('✅ Fetched', allPatientData?.length || 0, 'total patients');
         
         // Use Map to ensure each patient is counted only once
         const patientMap = new Map();
@@ -914,8 +915,8 @@ const AdminAnalytics = () => {
         }
         
         // Debug: Log all patient genders to see what we're working with
-        console.log('🔍 Total unique patients:', patientMap.size);
-        console.log('🔍 All patient genders:', Array.from(patientMap.values()).map(p => ({ 
+        logger.log('🔍 Total unique patients:', patientMap.size);
+        logger.log('🔍 All patient genders:', Array.from(patientMap.values()).map(p => ({ 
           id: p.id, 
           gender: p.gender, 
           age: p.age,
@@ -938,15 +939,15 @@ const AdminAnalytics = () => {
           const genderLower = gender.toLowerCase();
           if (genderLower.includes('male') && !genderLower.includes('female')) {
             genderCounts.male++;
-            console.log('✅ Counted as Male:', rawGender, 'for patient:', patient.id);
+            logger.log('✅ Counted as Male:', rawGender, 'for patient:', patient.id);
           } else if (genderLower.includes('female') || genderLower === 'f' || genderLower === 'fem') {
             genderCounts.female++;
-            console.log('✅ Counted as Female:', rawGender, 'for patient:', patient.id);
+            logger.log('✅ Counted as Female:', rawGender, 'for patient:', patient.id);
           } else if (gender) {
             // Log any unhandled gender values for debugging
-            console.log('⚠️ Unhandled gender value:', rawGender, '(normalized:', gender, ') for patient:', patient.id);
+            logger.log('⚠️ Unhandled gender value:', rawGender, '(normalized:', gender, ') for patient:', patient.id);
           } else {
-            console.log('⚠️ Empty/null gender for patient:', patient.id);
+            logger.log('⚠️ Empty/null gender for patient:', patient.id);
           }
           // Ignore any other gender values
           
@@ -969,10 +970,10 @@ const AdminAnalytics = () => {
           
           if (isMinor) {
             ageCounts.minors++;
-            console.log('✅ Counted as Minor - age:', patient.age, 'calculated:', calculatedAge, 'guardian_id:', patient.guardian_id, 'patient:', patient.id);
+            logger.log('✅ Counted as Minor - age:', patient.age, 'calculated:', calculatedAge, 'guardian_id:', patient.guardian_id, 'patient:', patient.id);
           } else {
             ageCounts.adults++;
-            console.log('✅ Counted as Adult - age:', patient.age, 'calculated:', calculatedAge, 'guardian_id:', patient.guardian_id, 'patient:', patient.id);
+            logger.log('✅ Counted as Adult - age:', patient.age, 'calculated:', calculatedAge, 'guardian_id:', patient.guardian_id, 'patient:', patient.id);
           }
         });
         
@@ -981,14 +982,14 @@ const AdminAnalytics = () => {
           { label: 'Female', count: genderCounts.female, color: '#ec4899' }
         ];
         setGenderDistribution(genderData);
-        console.log('📊 Overall gender distribution:', genderData);
+        logger.log('📊 Overall gender distribution:', genderData);
         
         const ageData = [
           { label: 'Minors', count: ageCounts.minors, color: '#f59e0b' },
           { label: 'Adults', count: ageCounts.adults, color: '#10b981' }
         ];
         setAgeDistribution(ageData);
-        console.log('📊 Overall age distribution:', ageData);
+        logger.log('📊 Overall age distribution:', ageData);
       }
 
       // 2. REVENUE DATA (map to branch)
@@ -1021,7 +1022,7 @@ const AdminAnalytics = () => {
       }
 
       if (paymentError) {
-        console.error('❌ Payment fetch error:', paymentError);
+        logger.error('❌ Payment fetch error:', paymentError);
         debugLog += `\nPayment Error: ${paymentError.message}`;
       } else {
         if (filteredPaymentData && filteredPaymentData.length > 0) {
@@ -1101,7 +1102,7 @@ const AdminAnalytics = () => {
         ? await appointmentServicesQuery 
         : { data: [], error: null };
       if (servicesError) {
-        console.error('❌ appointment_services fetch error:', servicesError);
+        logger.error('❌ appointment_services fetch error:', servicesError);
         debugLog += `\nServices Error: ${servicesError.message}`;
       } else if (appointmentServices && appointmentServices.length > 0) {
         const counts = {};
@@ -1119,13 +1120,13 @@ const AdminAnalytics = () => {
       }
 
     } catch (error) {
-      console.error('💥 Exception in fetchAnalytics:', error);
+      logger.error('💥 Exception in fetchAnalytics:', error);
       debugLog += `\nEXCEPTION: ${error.message}`;
     } finally {
       setLoading(false);
       debugLog += `\n\n=== Fetch completed at ${new Date().toLocaleTimeString()} ===`;
       setDebugInfo(debugLog);
-      console.log('🏁 Analytics fetch completed');
+      logger.log('🏁 Analytics fetch completed');
     }
   };
 

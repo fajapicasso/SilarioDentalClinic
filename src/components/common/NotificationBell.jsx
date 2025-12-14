@@ -18,6 +18,7 @@ import {
   FiWifiOff,
   FiRefreshCw
 } from 'react-icons/fi';
+import logger from '../../utils/logger';
 
 const NotificationBell = () => {
   const { user } = useAuth();
@@ -39,7 +40,7 @@ const NotificationBell = () => {
     notificationContext = useNotification();
     hasContext = true;
   } catch (err) {
-    console.warn('NotificationContext not available:', err);
+    logger.warn('NotificationContext not available:', err);
     hasContext = false;
   }
 
@@ -93,7 +94,7 @@ const NotificationBell = () => {
       setUnreadCount(unread);
       setConnectionStatus('connected');
     } catch (err) {
-      console.error('Error fetching notifications:', err);
+      logger.error('Error fetching notifications:', err);
       setError('Failed to load notifications');
       setConnectionStatus('error');
     } finally {
@@ -127,7 +128,7 @@ const NotificationBell = () => {
       );
       setUnreadCount(prev => Math.max(0, prev - 1));
     } catch (error) {
-      console.error('Error marking notification as read:', error);
+      logger.error('Error marking notification as read:', error);
     }
   };
 
@@ -156,7 +157,7 @@ const NotificationBell = () => {
         setUnreadCount(prev => Math.max(0, prev - 1));
       }
     } catch (error) {
-      console.error('Error deleting notification:', error);
+      logger.error('Error deleting notification:', error);
     }
   };
 
@@ -213,13 +214,13 @@ const NotificationBell = () => {
                   setUnreadCount(prev => prev + 1);
                 }
               } catch (err) {
-                console.error('Error handling real-time notification:', err);
+                logger.error('Error handling real-time notification:', err);
               }
             }
           )
           .subscribe();
       } catch (err) {
-        console.error('Error setting up real-time subscription:', err);
+        logger.error('Error setting up real-time subscription:', err);
       }
     };
 
@@ -299,7 +300,7 @@ const NotificationBell = () => {
       
       return date.toLocaleDateString();
     } catch (err) {
-      console.error('Error formatting date:', err);
+      logger.error('Error formatting date:', err);
       return 'Recently';
     }
   };
@@ -311,7 +312,7 @@ const NotificationBell = () => {
         await fallbackMarkAsRead(notification.id);
       }
     } catch (err) {
-      console.error('Error handling notification click:', err);
+      logger.error('Error handling notification click:', err);
     }
   };
 

@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { FiCalendar, FiChevronLeft, FiChevronRight, FiSearch, FiPlus, FiUser, FiCheckCircle, FiXCircle, FiClock, FiX, FiMapPin, FiEdit, FiEye, FiList } from 'react-icons/fi';
 import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
+import logger from '../../utils/logger';
 
 const AppointmentCalendar = () => {
   const { user } = useAuth();
@@ -65,7 +66,7 @@ const AppointmentCalendar = () => {
       const startDate = new Date(currentYear, currentMonth, 1);
       const endDate = new Date(currentYear, currentMonth + 1, 0);
       
-      console.log('Date range for query:', {
+      logger.log('Date range for query:', {
         startDate: startDate.toISOString().split('T')[0],
         endDate: endDate.toISOString().split('T')[0],
         currentMonth,
@@ -98,7 +99,7 @@ const AppointmentCalendar = () => {
 
       if (error) throw error;
 
-      console.log('Raw appointments data from database:', {
+      logger.log('Raw appointments data from database:', {
         count: data?.length || 0,
         appointments: data?.map(apt => ({
           id: apt.id,
@@ -119,7 +120,7 @@ const AppointmentCalendar = () => {
           .in('id', guardianIds);
         
         if (guardianError) {
-          console.error('Error fetching guardian profiles:', guardianError);
+          logger.error('Error fetching guardian profiles:', guardianError);
         } else if (guardianData) {
           guardianData.forEach(guardian => {
             guardianMap[guardian.id] = guardian;
@@ -142,7 +143,7 @@ const AppointmentCalendar = () => {
           .in('appointment_id', appointmentIds);
         
         if (servicesError) {
-          console.error('Error fetching appointment services:', servicesError);
+          logger.error('Error fetching appointment services:', servicesError);
         } else {
           appointmentServicesData = servicesData || [];
         }
@@ -156,7 +157,7 @@ const AppointmentCalendar = () => {
         
         const guardian = appointment.guardian_id ? guardianMap[appointment.guardian_id] : null;
         
-        console.log(`Appointment ${appointment.id} (${appointment.profiles?.full_name}):`, {
+        logger.log(`Appointment ${appointment.id} (${appointment.profiles?.full_name}):`, {
           appointmentServices,
           servicesCount: appointmentServices.length,
           guardian: guardian?.full_name || null
@@ -170,8 +171,8 @@ const AppointmentCalendar = () => {
         };
       }) || [];
 
-      console.log('All appointment services data:', appointmentServicesData);
-      console.log('Appointments with services:', appointmentsWithServices);
+      logger.log('All appointment services data:', appointmentServicesData);
+      logger.log('Appointments with services:', appointmentsWithServices);
 
       setAppointments(appointmentsWithServices);
       
@@ -184,7 +185,7 @@ const AppointmentCalendar = () => {
       ).length;
       const total = appointmentsWithServices.length;
       
-      console.log('Statistics calculation:', {
+      logger.log('Statistics calculation:', {
         totalAppointments: appointmentsWithServices.length,
         attended,
         missed,
@@ -198,7 +199,7 @@ const AppointmentCalendar = () => {
       
       setStats({ attended, missed, total });
     } catch (error) {
-      console.error('Error fetching appointments:', error);
+      logger.error('Error fetching appointments:', error);
       toast.error('Failed to load appointments');
     } finally {
       setIsLoading(false);

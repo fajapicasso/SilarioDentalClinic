@@ -79,18 +79,15 @@ const PatientAnalytics = () => {
     
     // Check for San Juan (case-insensitive, handles variations)
     if (lower.includes('san juan') || lower === 'sanjuan' || lower.startsWith('san juan')) {
-      logger.log(`getBranchColor: "${branchName}" -> San Juan -> Blue`);
       return '#3b82f6'; // Blue
     }
     
     // Check for Cabugao (case-insensitive, handles variations)
     if (lower.includes('cabugao') || lower.startsWith('cabugao')) {
-      logger.log(`getBranchColor: "${branchName}" -> Cabugao -> Green`);
       return '#10b981'; // Green
     }
     
     // Default to blue for unknown branches
-    logger.warn(`getBranchColor: "${branchName}" -> Unknown branch, defaulting to Blue`);
     return '#3b82f6';
   };
 
@@ -126,7 +123,7 @@ const PatientAnalytics = () => {
     if (user) {
       // Only auto-fetch if not custom date range (custom requires manual Apply)
       if (timeFilter !== 'custom') {
-        logger.log('Filter changed, fetching all analytics with filter:', timeFilter);
+        // Filter changed, fetching analytics
         fetchAllAnalytics();
       }
     }
@@ -181,7 +178,7 @@ const PatientAnalytics = () => {
   useEffect(() => {
     // Don't render charts while loading - wait for data to be ready
     if (loading) {
-      logger.log('Still loading, skipping chart rendering');
+      // Still loading, skipping chart rendering
       return;
     }
 
@@ -209,7 +206,7 @@ const PatientAnalytics = () => {
           });
 
           if (foundCount === canvasIds.length) {
-            logger.log(`✓ All ${canvasIds.length} canvas elements found on attempt ${attempt + 1}`);
+            // All canvas elements found
             return true;
           }
 
@@ -224,13 +221,13 @@ const PatientAnalytics = () => {
           const canvas = document.getElementById(id);
           if (canvas) {
             foundCount++;
-            logger.log(`✓ Found canvas: ${id}`);
+            // Canvas found
           } else {
             logger.warn(`✗ Canvas ${id} not found`);
           }
         });
 
-        logger.log(`Found ${foundCount} of ${canvasIds.length} canvas elements after ${maxAttempts} attempts`);
+        // Canvas elements found
         return foundCount > 0;
       };
 
@@ -240,11 +237,8 @@ const PatientAnalytics = () => {
       const hasBranchData = branchMetrics && (branchMetrics.branchTrend?.length > 0 || Object.keys(branchMetrics.visitsPerBranch || {}).length > 0);
 
       if (!hasAppointmentData && !hasTreatmentData && !hasBranchData) {
-        logger.log('No analytics data available yet, skipping chart rendering');
         return;
       }
-
-      logger.log('Starting chart rendering process...');
 
       // Wait for canvas elements to appear in DOM
       const canvasIds = [
@@ -274,7 +268,7 @@ const PatientAnalytics = () => {
               // Set minimum dimensions
               canvasParent.style.minWidth = '400px';
               canvasParent.style.minHeight = '300px';
-              logger.log(`Set min dimensions for ${id} parent`);
+              // Set min dimensions for chart parent
             }
           }
         }
@@ -284,7 +278,6 @@ const PatientAnalytics = () => {
       await new Promise(resolve => setTimeout(resolve, 300));
 
       // Render all charts
-      logger.log('Rendering all charts...');
       if (hasAppointmentData) {
         renderAppointmentCharts();
         await new Promise(resolve => setTimeout(resolve, 400));
@@ -302,7 +295,6 @@ const PatientAnalytics = () => {
 
       // Wait for charts to fully render
       await new Promise(resolve => setTimeout(resolve, 500));
-      logger.log('All charts rendered successfully!');
     };
 
     // Wait a bit longer to ensure DOM is fully ready
@@ -333,7 +325,7 @@ const PatientAnalytics = () => {
       case 'daily':
         // Today only - return single date for .eq() query
         const todayFormatted = formatDate(today);
-        logger.log('Daily filter - Today:', todayFormatted);
+        // Daily filter applied
         return {
           date: todayFormatted,
           isDaily: true // Flag to use .eq() instead of range
@@ -347,7 +339,7 @@ const PatientAnalytics = () => {
         weekEnd.setDate(weekStart.getDate() + 6); // 6 days later (Sunday to Saturday inclusive)
         const weekStartFormatted = formatDate(weekStart);
         const weekEndFormatted = formatDate(weekEnd);
-        logger.log('Weekly filter - Week:', weekStartFormatted, 'to', weekEndFormatted);
+        // Weekly filter applied
         return {
           start: weekStartFormatted,
           end: weekEndFormatted
@@ -358,7 +350,7 @@ const PatientAnalytics = () => {
         const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0); // Last day of current month (day 0 of next month)
         const monthStartFormatted = formatDate(monthStart);
         const monthEndFormatted = formatDate(monthEnd);
-        logger.log('Monthly filter - Month:', monthStartFormatted, 'to', monthEndFormatted);
+        // Monthly filter applied
         return {
           start: monthStartFormatted,
           end: monthEndFormatted
@@ -391,7 +383,7 @@ const PatientAnalytics = () => {
   const fetchAnalytics = async () => {
     setLoading(true);
     try {
-      logger.log('fetchAnalytics called for tab:', activeTab, 'with filter:', timeFilter);
+      // fetchAnalytics called
       if (activeTab === 'appointments') {
         await fetchAppointmentAnalytics();
       } else if (activeTab === 'treatments') {
@@ -410,7 +402,7 @@ const PatientAnalytics = () => {
   const fetchAllAnalytics = async () => {
     setLoading(true);
     try {
-      logger.log('Fetching all analytics data with filter:', timeFilter);
+      // Fetching all analytics data
       // Fetch all analytics data in parallel
       const [apptMetrics, treatMetrics, branchMetricsData] = await Promise.all([
         fetchAppointmentAnalytics().catch(e => { 
@@ -437,7 +429,7 @@ const PatientAnalytics = () => {
       setTreatmentMetrics(safeTreatMetrics);
       setBranchMetrics(safeBranchMetrics);
       
-      logger.log('All analytics data fetched successfully');
+      // All analytics data fetched - no logging in production
     } catch (error) {
       logger.error('Error fetching all analytics:', error);
     } finally {
@@ -448,7 +440,7 @@ const PatientAnalytics = () => {
   const fetchAppointmentAnalytics = async () => {
     try {
       const dateRange = getDateRange();
-      logger.log('Fetching appointment analytics with date range:', dateRange, 'timeFilter:', timeFilter);
+      // Fetching appointment analytics
       
       let query = supabase
         .from('appointments')
@@ -458,10 +450,10 @@ const PatientAnalytics = () => {
       if (dateRange) {
         if (dateRange.isDaily) {
           // For daily, use .eq() to match exactly today
-          logger.log('Appointment daily filter applied (exact match):', dateRange.date);
+          // Appointment daily filter applied
           query = query.eq('appointment_date', dateRange.date);
         } else if (dateRange.start && dateRange.end) {
-          logger.log('Appointment date range filter applied:', { start: dateRange.start, end: dateRange.end });
+          // Appointment date range filter applied
           query = query
             .gte('appointment_date', dateRange.start)
             .lte('appointment_date', dateRange.end); // Use lte to include end date
@@ -469,13 +461,13 @@ const PatientAnalytics = () => {
       }
 
       const { data, error } = await query;
-      logger.log('Appointment query executed. Records found:', data?.length || 0);
+      // Appointment query executed - no logging in production
       if (error) {
         logger.error('Appointment analytics query error:', error);
         throw error;
       }
       
-      logger.log('Appointment analytics data fetched:', data?.length || 0, 'records');
+      // Appointment analytics data fetched - no logging in production
 
       if (!data || data.length === 0) {
         const emptyMetrics = {
@@ -521,13 +513,7 @@ const PatientAnalytics = () => {
         avgTimeBetween = intervals.reduce((a, b) => a + b, 0) / intervals.length;
       }
 
-      logger.log('Appointment metrics calculated:', {
-        total,
-        completed,
-        cancelled,
-        trendLength: trend.length,
-        avgTimeBetween
-      });
+      // Metrics calculated - no logging in production
 
       const metrics = {
         total,
@@ -556,7 +542,7 @@ const PatientAnalytics = () => {
   const fetchTreatmentAnalytics = async () => {
     try {
       const dateRange = getDateRange();
-      logger.log('Fetching treatment analytics with date range:', dateRange, 'timeFilter:', timeFilter);
+      // Fetching treatment analytics
       
       let query = supabase
         .from('treatments')
@@ -566,10 +552,10 @@ const PatientAnalytics = () => {
       if (dateRange) {
         if (dateRange.isDaily) {
           // For daily, use .eq() to match exactly today
-          logger.log('Treatment daily filter applied (exact match):', dateRange.date);
+          // Treatment daily filter applied
           query = query.eq('treatment_date', dateRange.date);
         } else if (dateRange.start && dateRange.end) {
-          logger.log('Treatment date range filter:', dateRange);
+          // Treatment date range filter applied
           query = query
             .gte('treatment_date', dateRange.start)
             .lte('treatment_date', dateRange.end); // Use lte to include end date
@@ -577,13 +563,13 @@ const PatientAnalytics = () => {
       }
 
       const { data, error } = await query;
-      logger.log('Treatment query executed. Records found:', data?.length || 0);
+      // Treatment query executed - no logging in production
       if (error) {
         logger.error('Treatment analytics query error:', error);
         throw error;
       }
       
-      logger.log('Treatment analytics data fetched:', data?.length || 0, 'records');
+      // Treatment analytics data fetched - no logging in production
 
       if (!data || data.length === 0) {
         const emptyMetrics = {
@@ -636,11 +622,7 @@ const PatientAnalytics = () => {
         .map(([name, count]) => ({ name, count }))
         .sort((a, b) => b.count - a.count);
 
-      logger.log('Treatment metrics calculated:', {
-        mostCommon: mostCommon.length,
-        countByTimeframe: countByTimeframe.length,
-        dentistFrequency: dentistFrequency.length
-      });
+      // Treatment metrics calculated - no logging in production
 
       const metrics = {
         mostCommon,
@@ -665,7 +647,7 @@ const PatientAnalytics = () => {
   const fetchBranchAnalytics = async () => {
     try {
       const dateRange = getDateRange();
-      logger.log('Fetching branch analytics with date range:', dateRange, 'timeFilter:', timeFilter);
+      // Fetching branch analytics
       
       // Get all appointments (not just completed) for branch analytics
       let query = supabase
@@ -676,10 +658,10 @@ const PatientAnalytics = () => {
       if (dateRange) {
         if (dateRange.isDaily) {
           // For daily, use .eq() to match exactly today
-          logger.log('Branch appointment daily filter applied (exact match):', dateRange.date);
+          // Branch appointment daily filter applied
           query = query.eq('appointment_date', dateRange.date);
         } else if (dateRange.start && dateRange.end) {
-          logger.log('Branch appointment date range filter applied:', { start: dateRange.start, end: dateRange.end });
+          // Branch appointment date range filter applied
           query = query
             .gte('appointment_date', dateRange.start)
             .lte('appointment_date', dateRange.end); // Use lte to include end date
@@ -687,13 +669,13 @@ const PatientAnalytics = () => {
       }
 
       const { data, error } = await query;
-      logger.log('Branch query executed. Records found:', data?.length || 0);
+      // Branch query executed
       if (error) {
         logger.error('Branch analytics query error:', error);
         throw error;
       }
       
-      logger.log('Branch analytics data fetched:', data?.length || 0, 'records');
+      // Branch analytics data fetched - no logging in production
 
       if (!data || data.length === 0) {
         const emptyMetrics = {
@@ -728,10 +710,7 @@ const PatientAnalytics = () => {
       const branchTrend = Array.from(branchTrendMap.values())
         .sort((a, b) => a.date.localeCompare(b.date));
 
-      logger.log('Branch metrics calculated:', {
-        visitsPerBranch: Object.keys(visitsPerBranch).length,
-        branchTrendLength: branchTrend.length
-      });
+      // Branch metrics calculated - no logging in production
 
       const metrics = {
         visitsPerBranch,
@@ -1118,7 +1097,7 @@ const PatientAnalytics = () => {
       // Use consistent colors based on branch name
       const branchColors = branches.map(branch => {
         const color = getBranchColor(branch);
-        logger.log(`Branch Usage Chart - Branch: "${branch}", Color: ${color} (${color === '#3b82f6' ? 'Blue' : 'Green'})`);
+        // Branch color assigned for chart
         return color;
       });
 
@@ -1183,7 +1162,6 @@ const PatientAnalytics = () => {
 
       // Get unique branches from data
       const uniqueBranches = [...new Set(metrics.branchTrend.map(t => t.branch))];
-      logger.log('🔍 Raw branch names from data:', uniqueBranches);
       
       // Find the exact branch names (handle any case/spacing variations)
       let sanJuanBranch = null;
@@ -1199,7 +1177,7 @@ const PatientAnalytics = () => {
         }
       });
       
-      logger.log('📍 Identified branches - San Juan:', sanJuanBranch, 'Cabugao:', cabugaoBranch);
+      // Identified branches for chart rendering
       
       // Create datasets in EXPLICIT order: Cabugao first (GREEN), then San Juan (BLUE)
       const dates = [...new Set(metrics.branchTrend.map(t => t.date))].sort();
@@ -1225,7 +1203,7 @@ const PatientAnalytics = () => {
           pointRadius: 4,
           pointHoverRadius: 6
         });
-        logger.log(`✅ Added Cabugao dataset: "${cabugaoBranch}" with GREEN color (#10b981)`);
+        // Added Cabugao dataset with GREEN color
       }
       
       // 2. Add San Juan dataset SECOND with BLUE color
@@ -1248,7 +1226,7 @@ const PatientAnalytics = () => {
           pointRadius: 4,
           pointHoverRadius: 6
         });
-        logger.log(`✅ Added San Juan dataset: "${sanJuanBranch}" with BLUE color (#3b82f6)`);
+        // Added San Juan dataset with BLUE color
       }
       
       // 3. Add any other branches (shouldn't happen, but just in case)
@@ -1270,11 +1248,11 @@ const PatientAnalytics = () => {
             backgroundColor: '#f59e0b40',
             tension: 0.3
           });
-          logger.log(`⚠️ Added other branch dataset: "${branch}" with ORANGE color`);
+          // Added other branch dataset
         }
       });
       
-      logger.log('Final datasets for Branch Trend:', datasets.map(d => ({ label: d.label, borderColor: d.borderColor })));
+      // Final datasets prepared for Branch Trend chart
 
       // Use datasets directly - they're already in correct order (Cabugao GREEN first, San Juan BLUE second)
       // No need to sort since we're adding them in the correct order already

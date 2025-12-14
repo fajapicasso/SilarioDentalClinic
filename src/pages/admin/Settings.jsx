@@ -9,6 +9,7 @@ import { useUniversalAudit } from '../../hooks/useUniversalAudit';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import logger from '../../utils/logger';
 
 const Settings = () => {
   const { logSettingsView, logSettingsUpdate, logProfileUpdate, logProfilePictureUpdate } = useUniversalAudit();
@@ -111,7 +112,7 @@ const Settings = () => {
           .single();
         
         if (error) {
-          console.error('Error fetching profile:', error);
+          logger.error('Error fetching profile:', error);
           // If profile doesn't exist, create a basic one
           const { error: insertError } = await supabase
             .from('profiles')
@@ -126,7 +127,7 @@ const Settings = () => {
             });
           
           if (insertError) {
-            console.error('Error creating profile:', insertError);
+            logger.error('Error creating profile:', insertError);
           }
         }
         
@@ -154,7 +155,7 @@ const Settings = () => {
         
         setLoading(false);
       } catch (error) {
-        console.error('Error fetching user profile:', error);
+        logger.error('Error fetching user profile:', error);
         setLoading(false);
       }
     };
@@ -277,10 +278,10 @@ const Settings = () => {
     try {
       // Skip bucket checking and go directly to upload
       // The bucket exists (as shown in your screenshot), so we'll assume it's accessible
-      console.log('Skipping bucket initialization - proceeding with upload');
+      logger.log('Skipping bucket initialization - proceeding with upload');
       return true;
     } catch (error) {
-      console.error('Error in bucket initialization:', error);
+      logger.error('Error in bucket initialization:', error);
       // Even if there's an error, we'll try to proceed with upload
       return true;
     }
@@ -320,7 +321,7 @@ const Settings = () => {
         });
 
       if (uploadError) {
-        console.error('Upload error:', uploadError);
+        logger.error('Upload error:', uploadError);
         throw uploadError;
       }
 
@@ -350,7 +351,7 @@ const Settings = () => {
         .eq('id', authUser.id);
 
       if (updateError) {
-        console.error('Update error:', updateError);
+        logger.error('Update error:', updateError);
         throw updateError;
       }
 
@@ -364,7 +365,7 @@ const Settings = () => {
       toast.success('Certificate uploaded successfully!');
       
     } catch (error) {
-      console.error('Error uploading certificate:', error);
+      logger.error('Error uploading certificate:', error);
       toast.error(`Failed to upload certificate: ${error.message}`);
     } finally {
       setLoading(false);
@@ -389,10 +390,10 @@ const Settings = () => {
             .remove([fileName]);
           
           if (deleteError) {
-            console.warn('Could not delete certificate from storage:', deleteError.message);
+            logger.warn('Could not delete certificate from storage:', deleteError.message);
           }
         } catch (storageError) {
-          console.warn('Storage deletion error:', storageError.message);
+          logger.warn('Storage deletion error:', storageError.message);
         }
       }
 
@@ -413,7 +414,7 @@ const Settings = () => {
         .eq('id', authUser.id);
 
       if (updateError) {
-        console.error('Update error:', updateError);
+        logger.error('Update error:', updateError);
         throw updateError;
       }
 
@@ -427,7 +428,7 @@ const Settings = () => {
       toast.success('Certificate removed successfully!');
       
     } catch (error) {
-      console.error('Error removing certificate:', error);
+      logger.error('Error removing certificate:', error);
       toast.error(`Failed to remove certificate: ${error.message}`);
     }
   };
@@ -496,7 +497,7 @@ const Settings = () => {
         });
 
       if (uploadError) {
-        console.error('Upload error:', uploadError);
+        logger.error('Upload error:', uploadError);
         throw uploadError;
       }
 
@@ -526,7 +527,7 @@ const Settings = () => {
         .eq('id', authUser.id);
 
       if (updateError) {
-        console.error('Update error:', updateError);
+        logger.error('Update error:', updateError);
         throw updateError;
       }
 
@@ -540,14 +541,14 @@ const Settings = () => {
       try {
         await logProfilePictureUpdate(authUser, 'upload');
       } catch (auditError) {
-        console.error('Error logging profile picture upload:', auditError);
+        logger.error('Error logging profile picture upload:', auditError);
       }
 
       setProfilePictureFile(null);
       toast.success('Profile picture uploaded successfully!');
       
     } catch (error) {
-      console.error('Error uploading profile picture:', error);
+      logger.error('Error uploading profile picture:', error);
       toast.error(`Failed to upload profile picture: ${error.message}`);
     } finally {
       setIsUploadingProfilePicture(false);
@@ -571,10 +572,10 @@ const Settings = () => {
             .remove([fileName]);
           
           if (deleteError) {
-            console.warn('Could not delete profile picture from storage:', deleteError.message);
+            logger.warn('Could not delete profile picture from storage:', deleteError.message);
           }
         } catch (storageError) {
-          console.warn('Storage deletion error:', storageError.message);
+          logger.warn('Storage deletion error:', storageError.message);
         }
       }
 
@@ -595,7 +596,7 @@ const Settings = () => {
         .eq('id', authUser.id);
 
       if (updateError) {
-        console.error('Update error:', updateError);
+        logger.error('Update error:', updateError);
         throw updateError;
       }
 
@@ -609,14 +610,14 @@ const Settings = () => {
       try {
         await logProfilePictureUpdate(authUser, 'remove');
       } catch (auditError) {
-        console.error('Error logging profile picture removal:', auditError);
+        logger.error('Error logging profile picture removal:', auditError);
       }
 
       setProfilePictureFile(null);
       toast.success('Profile picture removed successfully!');
       
     } catch (error) {
-      console.error('Error removing profile picture:', error);
+      logger.error('Error removing profile picture:', error);
       toast.error(`Failed to remove profile picture: ${error.message}`);
     }
   };
@@ -792,7 +793,7 @@ const Settings = () => {
         try {
           await logProfileUpdate(authUser, {}, processedData);
         } catch (auditError) {
-          console.error('Error logging profile update audit event:', auditError);
+          logger.error('Error logging profile update audit event:', auditError);
           // Continue even if audit logging fails
         }
         
@@ -801,7 +802,7 @@ const Settings = () => {
         setSuccessMessage('Profile updated successfully!');
         setTimeout(() => setSuccessMessage(''), 3000);
       } catch (error) {
-        console.error('Error updating profile:', error);
+        logger.error('Error updating profile:', error);
         setLoading(false);
         toast.error('Failed to update profile: ' + error.message);
         setSuccessMessage('Failed to update profile. Please try again.');
@@ -834,14 +835,14 @@ const Settings = () => {
             await logout();
             navigate('/login');
           } catch (logoutError) {
-            console.error('Error during logout:', logoutError);
+            logger.error('Error during logout:', logoutError);
             // Force redirect anyway
             window.location.href = '/login';
         }
         }, 2000);
         
       } catch (error) {
-        console.error('Error updating password:', error);
+        logger.error('Error updating password:', error);
         toast.error('Failed to update password: ' + error.message);
         setSuccessMessage('Failed to update password: ' + error.message);
         setTimeout(() => setSuccessMessage(''), 3000);
@@ -874,7 +875,7 @@ const Settings = () => {
               services: clinicData.services
             });
           } catch (auditError) {
-            console.error('Error logging clinic update audit event:', auditError);
+            logger.error('Error logging clinic update audit event:', auditError);
             // Continue even if audit logging fails
           }
           
@@ -885,7 +886,7 @@ const Settings = () => {
           throw new Error('Failed to update clinic information');
         }
       } catch (error) {
-        console.error('Error updating clinic information:', error);
+        logger.error('Error updating clinic information:', error);
         setLoading(false);
         setSuccessMessage('Failed to update clinic information. Please try again.');
         setTimeout(() => setSuccessMessage(''), 3000);
@@ -899,7 +900,7 @@ const Settings = () => {
     setLoading(true);
     try {
       // In a real application, you would make an API call here
-      console.log('Saving system settings:', systemData);
+      logger.log('Saving system settings:', systemData);
       
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -916,7 +917,7 @@ const Settings = () => {
           language: systemData.language
         });
       } catch (auditError) {
-        console.error('Error logging system settings update audit event:', auditError);
+        logger.error('Error logging system settings update audit event:', auditError);
         // Continue even if audit logging fails
       }
       
@@ -924,7 +925,7 @@ const Settings = () => {
       setSuccessMessage('System settings updated successfully!');
       setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error) {
-      console.error('Error updating system settings:', error);
+      logger.error('Error updating system settings:', error);
       setLoading(false);
       setSuccessMessage('Failed to update system settings. Please try again.');
       setTimeout(() => setSuccessMessage(''), 3000);

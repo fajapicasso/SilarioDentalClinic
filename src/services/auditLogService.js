@@ -132,13 +132,15 @@ class AuditLogService {
         return { success: false, error: error.message };
       }
 
-      logger.log('Audit event logged:', {
-        id: data.id,
-        action,
-        module,
-        user: userInfo.userName,
-        resource: resourceName
-      });
+      // Only log audit event in development, and sanitize sensitive data
+      if (import.meta.env.DEV) {
+        logger.log('Audit event logged:', {
+          id: data.id,
+          action,
+          module,
+          resource: resourceName
+        });
+      }
 
       return { success: true, data };
     } catch (error) {

@@ -6,6 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { useUniversalAudit } from '../../hooks/useUniversalAudit';
+import logger from '../../utils/logger';
 
 const PROFILE_PICTURES_BUCKET = 'profile-pictures';
 
@@ -124,7 +125,7 @@ const Settings = () => {
       await initializeProfilePicturesBucket();
       
       } catch (error) {
-      console.error('Error fetching staff data:', error);
+      logger.error('Error fetching staff data:', error);
       toast.error('Failed to load staff data');
       } finally {
         setIsLoading(false);
@@ -176,10 +177,10 @@ const Settings = () => {
     try {
       // Skip bucket checking and go directly to upload
       // The bucket exists (as shown in your screenshot), so we'll assume it's accessible
-      console.log('Skipping bucket initialization - proceeding with upload');
+      logger.log('Skipping bucket initialization - proceeding with upload');
       return true;
     } catch (error) {
-      console.error('Error in bucket initialization:', error);
+      logger.error('Error in bucket initialization:', error);
       // Even if there's an error, we'll try to proceed with upload
       return true;
     }
@@ -219,7 +220,7 @@ const Settings = () => {
         });
 
       if (uploadError) {
-        console.error('Upload error:', uploadError);
+        logger.error('Upload error:', uploadError);
         throw uploadError;
       }
 
@@ -242,7 +243,7 @@ const Settings = () => {
         .eq('id', user.id);
 
       if (updateError) {
-        console.error('Update error:', updateError);
+        logger.error('Update error:', updateError);
         throw updateError;
       }
 
@@ -259,7 +260,7 @@ const Settings = () => {
       fetchStaffData();
       
     } catch (error) {
-      console.error('Error uploading certificate:', error);
+      logger.error('Error uploading certificate:', error);
       toast.error(`Failed to upload certificate: ${error.message}`);
     } finally {
       setIsSaving(false);
@@ -284,10 +285,10 @@ const Settings = () => {
             .remove([fileName]);
           
           if (deleteError) {
-            console.warn('Could not delete certificate from storage:', deleteError.message);
+            logger.warn('Could not delete certificate from storage:', deleteError.message);
           }
         } catch (storageError) {
-          console.warn('Storage deletion error:', storageError.message);
+          logger.warn('Storage deletion error:', storageError.message);
         }
       }
 
@@ -301,7 +302,7 @@ const Settings = () => {
         .eq('id', user.id);
 
       if (updateError) {
-        console.error('Update error:', updateError);
+        logger.error('Update error:', updateError);
         throw updateError;
       }
 
@@ -318,7 +319,7 @@ const Settings = () => {
       fetchStaffData();
       
     } catch (error) {
-      console.error('Error removing certificate:', error);
+      logger.error('Error removing certificate:', error);
       toast.error(`Failed to remove certificate: ${error.message}`);
     }
   };
@@ -329,7 +330,7 @@ const Settings = () => {
       const { data: buckets, error: listError } = await supabase.storage.listBuckets();
       
       if (listError) {
-        console.warn('Could not list buckets:', listError.message);
+        logger.warn('Could not list buckets:', listError.message);
         // Try to create the bucket anyway
         const { error: createError } = await supabase.storage.createBucket(PROFILE_PICTURES_BUCKET, {
           public: false,
@@ -338,7 +339,7 @@ const Settings = () => {
         });
         
         if (createError) {
-          console.warn('Could not create profile pictures bucket:', createError.message);
+          logger.warn('Could not create profile pictures bucket:', createError.message);
           return false;
         }
       } else {
@@ -353,7 +354,7 @@ const Settings = () => {
           });
           
           if (createError) {
-            console.warn('Could not create profile pictures bucket:', createError.message);
+            logger.warn('Could not create profile pictures bucket:', createError.message);
             return false;
           }
         }
@@ -361,7 +362,7 @@ const Settings = () => {
       
       return true;
     } catch (error) {
-      console.warn('Profile pictures bucket initialization error:', error.message);
+      logger.warn('Profile pictures bucket initialization error:', error.message);
       return false;
     }
   };
@@ -436,7 +437,7 @@ const Settings = () => {
       }, 1000);
       
     } catch (error) {
-      console.error('Error uploading profile picture:', error);
+      logger.error('Error uploading profile picture:', error);
       toast.error('Failed to upload profile picture: ' + error.message);
     } finally {
       setIsUploadingProfilePicture(false);
@@ -498,7 +499,7 @@ const Settings = () => {
       }, 1000);
       
     } catch (error) {
-      console.error('Error removing profile picture:', error);
+      logger.error('Error removing profile picture:', error);
       toast.error('Failed to remove profile picture: ' + error.message);
     }
   };
@@ -559,7 +560,7 @@ const Settings = () => {
       toast.success('Profile updated successfully!');
       setIsEditing(false);
     } catch (error) {
-      console.error('Error updating profile:', error);
+      logger.error('Error updating profile:', error);
       toast.error('Failed to update profile: ' + error.message);
     } finally {
       setIsSaving(false);
@@ -667,14 +668,14 @@ const Settings = () => {
           await logout();
           navigate('/login');
         } catch (logoutError) {
-          console.error('Error during logout:', logoutError);
+          logger.error('Error during logout:', logoutError);
           // Force redirect anyway
           window.location.href = '/login';
         }
       }, 2000);
       
     } catch (error) {
-      console.error('Error changing password:', error);
+      logger.error('Error changing password:', error);
       toast.error('Failed to change password: ' + error.message);
       setIsPasswordLoading(false);
     }
@@ -687,7 +688,7 @@ const Settings = () => {
       if (error) throw error;
       toast.success('Session refreshed successfully!');
     } catch (error) {
-      console.error('Error refreshing session:', error);
+      logger.error('Error refreshing session:', error);
       toast.error('Failed to refresh session');
     }
   };

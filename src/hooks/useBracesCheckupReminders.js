@@ -1,6 +1,7 @@
 // src/hooks/useBracesCheckupReminders.js
 import { useEffect, useRef } from 'react';
 import notificationService from '../services/notificationService';
+import logger from '../utils/logger';
 
 /**
  * Hook to check for upcoming braces checkups and send reminder notifications
@@ -14,19 +15,19 @@ export const useBracesCheckupReminders = () => {
     // Run immediately on mount
     const checkReminders = async () => {
       try {
-        console.log('[useBracesCheckupReminders] Checking for braces checkup reminders...');
+        logger.log('[useBracesCheckupReminders] Checking for braces checkup reminders...');
         const result = await notificationService.checkAndNotifyBracesCheckups();
         if (result.success) {
           if (result.count > 0) {
-            console.log(`[useBracesCheckupReminders] ✓ Successfully processed ${result.count} reminder(s)`);
+            logger.log(`[useBracesCheckupReminders] ✓ Successfully processed ${result.count} reminder(s)`);
           } else {
-            console.log('[useBracesCheckupReminders] No reminders needed at this time');
+            logger.log('[useBracesCheckupReminders] No reminders needed at this time');
           }
         } else {
-          console.error('[useBracesCheckupReminders] ✗ Error processing reminders:', result.error);
+          logger.error('[useBracesCheckupReminders] ✗ Error processing reminders:', result.error);
         }
       } catch (error) {
-        console.error('[useBracesCheckupReminders] ✗ Exception in reminder check:', error);
+        logger.error('[useBracesCheckupReminders] ✗ Exception in reminder check:', error);
       }
     };
 

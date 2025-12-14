@@ -9,6 +9,7 @@ import LoadingSpinner from '../../components/common/LoadingSpinner';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { useUniversalAudit } from '../../hooks/useUniversalAudit';
+import logger from '../../utils/logger';
 
         const PROFILE_PICTURES_BUCKET = 'profile-pictures';
         const DOCTOR_GCASH_QR_BUCKET = 'doctor-gcash-qr';
@@ -148,29 +149,29 @@ import { useUniversalAudit } from '../../hooks/useUniversalAudit';
               if (!profileError && profileData) {
                 const validatedSchedule = ensureScheduleStructure(profileData.schedule);
                 setSchedule(validatedSchedule);
-                console.log('Loaded and validated schedule from database:', validatedSchedule);
+                logger.log('Loaded and validated schedule from database:', validatedSchedule);
                 if (profileData.unavailable_dates) {
                   setUnavailableDates(profileData.unavailable_dates);
-                  console.log('Loaded unavailable dates from database:', profileData.unavailable_dates);
+                  logger.log('Loaded unavailable dates from database:', profileData.unavailable_dates);
                 }
                 return; // Successfully loaded from database
               }
               
               // If database loading failed, try localStorage
-              console.warn('Database schedule loading failed, trying localStorage:', profileError?.message);
+              logger.warn('Database schedule loading failed, trying localStorage:', profileError?.message);
               const stored = localStorage.getItem(`doctor_schedule_${user.id}`);
               if (stored) {
                 const data = JSON.parse(stored);
                 const validatedSchedule = ensureScheduleStructure(data.schedule);
                 setSchedule(validatedSchedule);
-                console.log('Loaded and validated schedule from localStorage:', validatedSchedule);
+                logger.log('Loaded and validated schedule from localStorage:', validatedSchedule);
                 if (data.unavailable_dates) {
                   setUnavailableDates(data.unavailable_dates);
                 }
-                console.log('Loaded data from localStorage:', data);
+                logger.log('Loaded data from localStorage:', data);
               }
             } catch (error) {
-              console.warn('Error loading schedule data:', error);
+              logger.warn('Error loading schedule data:', error);
             }
           };
 
@@ -189,7 +190,7 @@ import { useUniversalAudit } from '../../hooks/useUniversalAudit';
               });
               
               if (error) {
-                console.error('Error fetching certificates:', error);
+                logger.error('Error fetching certificates:', error);
                 return;
               }
               
@@ -199,7 +200,7 @@ import { useUniversalAudit } from '../../hooks/useUniversalAudit';
               // For now, it will just return an empty array or null.
               // setCertificates(data || []); // This line is removed as 'certificates' state is gone
             } catch (error) {
-              console.error('Error fetching certificates:', error);
+              logger.error('Error fetching certificates:', error);
             }
           };
 
@@ -257,7 +258,7 @@ import { useUniversalAudit } from '../../hooks/useUniversalAudit';
               await fetchUserCertificates();
               
             } catch (error) {
-              console.error('Error fetching doctor data:', error);
+              logger.error('Error fetching doctor data:', error);
               toast.error('Failed to load profile data');
             } finally {
               setIsLoading(false);
@@ -326,7 +327,7 @@ import { useUniversalAudit } from '../../hooks/useUniversalAudit';
               setQrFile(null);
               toast.success('QR uploaded');
             } catch (err) {
-              console.error('Error uploading doctor QR:', err);
+              logger.error('Error uploading doctor QR:', err);
               toast.error(`Failed to upload QR: ${err.message || 'Unknown error'}`);
             } finally {
               setIsUploadingQr(false);
@@ -343,7 +344,7 @@ import { useUniversalAudit } from '../../hooks/useUniversalAudit';
               setProfile(prev => ({ ...prev, gcash_qr_default_index: index }));
               toast.success('Default QR updated');
             } catch (err) {
-              console.error('Error setting default QR:', err);
+              logger.error('Error setting default QR:', err);
               toast.error('Failed to set default QR');
             }
           };
@@ -364,7 +365,7 @@ import { useUniversalAudit } from '../../hooks/useUniversalAudit';
                   await supabase.storage.from(DOCTOR_GCASH_QR_BUCKET).remove([storagePath]);
                 }
               } catch (e) {
-                console.warn('Could not remove storage object:', e.message);
+                logger.warn('Could not remove storage object:', e.message);
               }
 
               const { error } = await supabase
@@ -376,7 +377,7 @@ import { useUniversalAudit } from '../../hooks/useUniversalAudit';
               setProfile(prev => ({ ...prev, gcash_qr_urls: nextUrls, gcash_qr_default_index: nextDefault }));
               toast.success('QR removed');
             } catch (err) {
-              console.error('Error removing QR:', err);
+              logger.error('Error removing QR:', err);
               toast.error('Failed to remove QR');
             }
           };
@@ -426,10 +427,10 @@ import { useUniversalAudit } from '../../hooks/useUniversalAudit';
             try {
               // Skip bucket checking and go directly to upload
               // The bucket exists (as shown in your screenshot), so we'll assume it's accessible
-              console.log('Skipping bucket initialization - proceeding with upload');
+              logger.log('Skipping bucket initialization - proceeding with upload');
               return true;
             } catch (error) {
-              console.error('Error in bucket initialization:', error);
+              logger.error('Error in bucket initialization:', error);
               // Even if there's an error, we'll try to proceed with upload
               return true;
             }
@@ -469,7 +470,7 @@ import { useUniversalAudit } from '../../hooks/useUniversalAudit';
                 });
 
               if (uploadError) {
-                console.error('Upload error:', uploadError);
+                logger.error('Upload error:', uploadError);
                 throw uploadError;
               }
 
@@ -492,7 +493,7 @@ import { useUniversalAudit } from '../../hooks/useUniversalAudit';
                 .eq('id', user.id);
 
               if (updateError) {
-                console.error('Update error:', updateError);
+                logger.error('Update error:', updateError);
                 throw updateError;
               }
 
@@ -509,7 +510,7 @@ import { useUniversalAudit } from '../../hooks/useUniversalAudit';
               fetchDoctorData();
               
             } catch (error) {
-              console.error('Error uploading certificate:', error);
+              logger.error('Error uploading certificate:', error);
               toast.error(`Failed to upload certificate: ${error.message}`);
             } finally {
               setIsUploadingCertificate(false);
@@ -534,10 +535,10 @@ import { useUniversalAudit } from '../../hooks/useUniversalAudit';
                     .remove([fileName]);
                   
                   if (deleteError) {
-                    console.warn('Could not delete certificate from storage:', deleteError.message);
+                    logger.warn('Could not delete certificate from storage:', deleteError.message);
                   }
                 } catch (storageError) {
-                  console.warn('Storage deletion error:', storageError.message);
+                  logger.warn('Storage deletion error:', storageError.message);
                 }
               }
 
@@ -551,7 +552,7 @@ import { useUniversalAudit } from '../../hooks/useUniversalAudit';
                 .eq('id', user.id);
 
               if (updateError) {
-                console.error('Update error:', updateError);
+                logger.error('Update error:', updateError);
                 throw updateError;
               }
 
@@ -568,7 +569,7 @@ import { useUniversalAudit } from '../../hooks/useUniversalAudit';
               fetchDoctorData();
               
             } catch (error) {
-              console.error('Error removing certificate:', error);
+              logger.error('Error removing certificate:', error);
               toast.error(`Failed to remove certificate: ${error.message}`);
             }
           };
@@ -706,7 +707,7 @@ import { useUniversalAudit } from '../../hooks/useUniversalAudit';
               try {
                 await logProfilePictureUpdate(user, 'upload');
               } catch (auditError) {
-                console.error('Error logging profile picture upload:', auditError);
+                logger.error('Error logging profile picture upload:', auditError);
               }
               
               setProfilePictureFile(null);
@@ -718,7 +719,7 @@ import { useUniversalAudit } from '../../hooks/useUniversalAudit';
               }, 1500);
               
             } catch (error) {
-              console.error('Error uploading profile picture:', error);
+              logger.error('Error uploading profile picture:', error);
               toast.error(`Failed to upload profile picture: ${error.message}`);
             } finally {
               setIsUploadingProfilePicture(false);
@@ -768,13 +769,13 @@ import { useUniversalAudit } from '../../hooks/useUniversalAudit';
               try {
                 await logProfilePictureUpdate(user, 'remove');
               } catch (auditError) {
-                console.error('Error logging profile picture removal:', auditError);
+                logger.error('Error logging profile picture removal:', auditError);
               }
               
               toast.success('Profile picture removed successfully!');
               window.location.reload();
             } catch (error) {
-              console.error('Error removing profile picture:', error);
+              logger.error('Error removing profile picture:', error);
               toast.error('Failed to remove profile picture');
             }
           };
@@ -905,13 +906,13 @@ import { useUniversalAudit } from '../../hooks/useUniversalAudit';
       try {
         await logProfileUpdate(user, {}, processedData);
       } catch (auditError) {
-        console.error('Error logging profile update audit event:', auditError);
+        logger.error('Error logging profile update audit event:', auditError);
       }
       
       toast.success('Profile updated successfully!');
       setIsEditing(false);
             } catch (error) {
-              console.error('Error updating profile:', error);
+              logger.error('Error updating profile:', error);
               toast.error('Failed to update profile: ' + error.message);
             } finally {
               setIsSaving(false);
@@ -1010,7 +1011,7 @@ import { useUniversalAudit } from '../../hooks/useUniversalAudit';
               try {
                 await logPasswordChange(user);
               } catch (auditError) {
-                console.error('Error logging password change:', auditError);
+                logger.error('Error logging password change:', auditError);
               }
               
               // Reset loading state immediately
@@ -1025,14 +1026,14 @@ import { useUniversalAudit } from '../../hooks/useUniversalAudit';
                   await logout();
                   navigate('/login');
                 } catch (logoutError) {
-                  console.error('Error during logout:', logoutError);
+                  logger.error('Error during logout:', logoutError);
                   // Force redirect anyway
                   window.location.href = '/login';
                 }
               }, 2000);
               
             } catch (error) {
-              console.error('Error changing password:', error);
+              logger.error('Error changing password:', error);
               toast.error('Failed to change password');
               setIsPasswordLoading(false);
             }
@@ -1061,13 +1062,13 @@ import { useUniversalAudit } from '../../hooks/useUniversalAudit';
                   doctor_id: user.id
                 });
               } catch (auditError) {
-                console.error('Error logging specialization update audit event:', auditError);
+                logger.error('Error logging specialization update audit event:', auditError);
                 // Continue even if audit logging fails
               }
               
               toast.success('Specialization updated successfully!');
             } catch (error) {
-              console.error('Error updating specialization:', error);
+              logger.error('Error updating specialization:', error);
               toast.error('Failed to update specialization');
             }
           };
@@ -1199,7 +1200,7 @@ import { useUniversalAudit } from '../../hooks/useUniversalAudit';
         .limit(1);
       
       if (checkError) {
-        console.warn('Schedule columns may not exist, using fallback storage:', checkError);
+        logger.warn('Schedule columns may not exist, using fallback storage:', checkError);
         
         // Fallback: Store in a separate table or use JSON in existing column
         const { error: fallbackError } = await supabase
@@ -1237,7 +1238,7 @@ import { useUniversalAudit } from '../../hooks/useUniversalAudit';
       
       if (error) {
         // If update fails, might be due to column types, try storing as text
-        console.warn('Direct JSON storage failed, trying text storage:', error);
+        logger.warn('Direct JSON storage failed, trying text storage:', error);
         
         const { error: textError } = await supabase
           .from('profiles')
@@ -1259,7 +1260,7 @@ import { useUniversalAudit } from '../../hooks/useUniversalAudit';
           doctor_id: user.id
         });
       } catch (auditError) {
-        console.error('Error logging schedule update audit event:', auditError);
+        logger.error('Error logging schedule update audit event:', auditError);
         // Continue even if audit logging fails
       }
       
@@ -1267,7 +1268,7 @@ import { useUniversalAudit } from '../../hooks/useUniversalAudit';
       setTimeout(() => setSuccessMessage(''), 3000);
       
     } catch (error) {
-      console.error('Error saving schedule:', error);
+      logger.error('Error saving schedule:', error);
       
       // Final fallback: Store locally and show helpful message
       try {
@@ -1293,7 +1294,7 @@ import { useUniversalAudit } from '../../hooks/useUniversalAudit';
               await supabase.auth.refreshSession();
               toast.success('Session refreshed successfully');
             } catch (error) {
-              console.error('Error refreshing session:', error);
+              logger.error('Error refreshing session:', error);
               toast.error('Failed to refresh session');
             }
           };
@@ -1359,7 +1360,7 @@ import { useUniversalAudit } from '../../hooks/useUniversalAudit';
                         
                         <button 
                           onClick={() => {
-                            console.log('Schedule tab clicked');
+                            logger.log('Schedule tab clicked');
                             setActiveTab('schedule');
                           }}
                           className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${

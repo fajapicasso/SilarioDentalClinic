@@ -18,6 +18,7 @@ import { Swiper, SwiperSlide } from 'swiper/react';
 import { Autoplay, Pagination } from 'swiper/modules';
 import 'swiper/css';
 import 'swiper/css/pagination';
+import logger from '../../utils/logger';
 
 const LoginSchema = Yup.object().shape({
   email: Yup.string()
@@ -63,7 +64,7 @@ const Login = () => {
       }
     } catch (error) {
       toast.error('An unexpected error occurred. Please try again.');
-      console.error('Login error:', error);
+      logger.error('Login error:', error);
     } finally {
       setSubmitting(false);
       setIsLoading(false);

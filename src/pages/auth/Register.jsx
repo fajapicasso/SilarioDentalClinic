@@ -21,6 +21,7 @@ import { Autoplay, Pagination } from 'swiper/modules';
 import 'swiper/css';
 import 'swiper/css/pagination';
 import PhilippineAddressService from '../../services/philippineAddressService';
+import logger from '../../utils/logger';
 
 const phoneRegExp = /^[+]?[(]?[0-9]{3}[)]?[-\s.]?[0-9]{3}[-\s.]?[0-9]{4,6}$/;
 const passwordRegExp = /^(?=.*[!@#$%^&*])(?=.*[a-zA-Z0-9]).{8,}$/;
@@ -154,7 +155,7 @@ const Register = () => {
         const provincesList = await PhilippineAddressService.getProvinces();
         setProvinces(provincesList);
       } catch (error) {
-        console.error('Error loading provinces:', error);
+        logger.error('Error loading provinces:', error);
         // Set fallback provinces
         setProvinces(['Ilocos Sur', 'La Union', 'Benguet']);
       }
@@ -179,7 +180,7 @@ const Register = () => {
         const municipalityList = await PhilippineAddressService.getMunicipalities(province);
         setMunicipalities(municipalityList);
       } catch (error) {
-        console.error('Error loading municipalities:', error);
+        logger.error('Error loading municipalities:', error);
       }
     }
   };
@@ -198,7 +199,7 @@ const Register = () => {
         const barangayList = await PhilippineAddressService.getBarangays(selectedProvince, municipality);
         setBarangays(barangayList);
       } catch (error) {
-        console.error('Error loading barangays:', error);
+        logger.error('Error loading barangays:', error);
       }
     }
   };
@@ -325,7 +326,7 @@ const Register = () => {
         toast.error(error || 'Registration failed. Please try again.');
       }
     } catch (error) {
-      console.error('Registration error:', error);
+      logger.error('Registration error:', error);
       
       // Check for the specific RLS error message pattern
       const errorMessage = error.message || error.toString();

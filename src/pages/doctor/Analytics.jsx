@@ -6,6 +6,7 @@ import { Chart, registerables } from 'chart.js';
 import { useUniversalAudit } from '../../hooks/useUniversalAudit';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
+import logger from '../../utils/logger';
 Chart.register(...registerables);
 
 const DoctorAnalytics = () => {
@@ -45,7 +46,7 @@ const DoctorAnalytics = () => {
       fetchDoctorName();
       fetchAnalytics();
     } else {
-      console.log('⚠️ User not available yet');
+      logger.log('⚠️ User not available yet');
       setLoading(false);
     }
   }, [user, logPageView]);
@@ -63,7 +64,7 @@ const DoctorAnalytics = () => {
       if (error) throw error;
       setDoctorName(data?.full_name || '');
     } catch (error) {
-      console.error('Error fetching doctor name:', error);
+      logger.error('Error fetching doctor name:', error);
       setDoctorName('');
     }
   };
@@ -85,7 +86,7 @@ const DoctorAnalytics = () => {
   }, [user, timeFilter]);
 
   useEffect(() => {
-    console.log('📊 Doctor Line Chart useEffect triggered:', { 
+    logger.log('📊 Doctor Line Chart useEffect triggered:', { 
       patientsPerDayLength: patientsPerDay.length,
       chartRefCurrent: !!chartRef.current,
       loading 
@@ -93,12 +94,12 @@ const DoctorAnalytics = () => {
     
     const renderLineChart = () => {
       if (patientsPerDay.length > 0 && chartRef.current) {
-        console.log('📊 Rendering line chart with data:', patientsPerDay);
+        logger.log('📊 Rendering line chart with data:', patientsPerDay);
         
         try {
           const ctx = chartRef.current.getContext('2d');
           if (window.doctorLineChart) {
-            console.log('📊 Destroying existing line chart');
+            logger.log('📊 Destroying existing line chart');
             window.doctorLineChart.destroy();
           }
           
@@ -137,12 +138,12 @@ const DoctorAnalytics = () => {
               }
             }
           });
-          console.log('📊 Line chart created successfully');
+          logger.log('📊 Line chart created successfully');
         } catch (error) {
-          console.error('📊 Error creating line chart:', error);
+          logger.error('📊 Error creating line chart:', error);
         }
       } else {
-        console.log('📊 Line chart conditions not met:', { 
+        logger.log('📊 Line chart conditions not met:', { 
           hasData: patientsPerDay.length > 0, 
           hasCanvas: !!chartRef.current 
         });
@@ -152,7 +153,7 @@ const DoctorAnalytics = () => {
     // Add delay to ensure DOM is ready
     if (patientsPerDay.length > 0) {
       const timeoutId = setTimeout(() => {
-        console.log('📊 Attempting to render line chart after timeout');
+        logger.log('📊 Attempting to render line chart after timeout');
         renderLineChart();
       }, 300);
       return () => clearTimeout(timeoutId);
@@ -162,7 +163,7 @@ const DoctorAnalytics = () => {
   }, [patientsPerDay, loading]);
 
   useEffect(() => {
-    console.log('📊 Doctor Pie Chart useEffect triggered:', { 
+    logger.log('📊 Doctor Pie Chart useEffect triggered:', { 
       procedureBreakdownLength: procedureBreakdown.length,
       pieRefCurrent: !!pieRef.current,
       loading 
@@ -170,12 +171,12 @@ const DoctorAnalytics = () => {
     
     const renderPieChart = () => {
       if (procedureBreakdown.length > 0 && pieRef.current) {
-        console.log('📊 Rendering pie chart with data:', procedureBreakdown);
+        logger.log('📊 Rendering pie chart with data:', procedureBreakdown);
         
         try {
           const ctx = pieRef.current.getContext('2d');
           if (window.doctorPieChart) {
-            console.log('📊 Destroying existing pie chart');
+            logger.log('📊 Destroying existing pie chart');
             window.doctorPieChart.destroy();
           }
           
@@ -205,12 +206,12 @@ const DoctorAnalytics = () => {
               }
             }
           });
-          console.log('📊 Pie chart created successfully');
+          logger.log('📊 Pie chart created successfully');
         } catch (error) {
-          console.error('📊 Error creating pie chart:', error);
+          logger.error('📊 Error creating pie chart:', error);
         }
       } else {
-        console.log('📊 Pie chart conditions not met:', { 
+        logger.log('📊 Pie chart conditions not met:', { 
           hasData: procedureBreakdown.length > 0, 
           hasCanvas: !!pieRef.current 
         });
@@ -220,7 +221,7 @@ const DoctorAnalytics = () => {
     // Add delay to ensure DOM is ready
     if (procedureBreakdown.length > 0) {
       const timeoutId = setTimeout(() => {
-        console.log('📊 Attempting to render pie chart after timeout');
+        logger.log('📊 Attempting to render pie chart after timeout');
         renderPieChart();
       }, 300);
       return () => clearTimeout(timeoutId);
@@ -292,9 +293,9 @@ const DoctorAnalytics = () => {
               }
             }
           });
-          console.log('📊 Day chart created successfully');
+          logger.log('📊 Day chart created successfully');
         } catch (error) {
-          console.error('📊 Error creating day chart:', error);
+          logger.error('📊 Error creating day chart:', error);
         }
       }
     };
@@ -358,9 +359,9 @@ const DoctorAnalytics = () => {
               }
             }
           });
-          console.log('📊 Time chart created successfully');
+          logger.log('📊 Time chart created successfully');
         } catch (error) {
-          console.error('📊 Error creating time chart:', error);
+          logger.error('📊 Error creating time chart:', error);
         }
       }
     };
@@ -407,9 +408,9 @@ const DoctorAnalytics = () => {
               }
             }
           });
-          console.log('📊 Status chart created successfully');
+          logger.log('📊 Status chart created successfully');
         } catch (error) {
-          console.error('📊 Error creating status chart:', error);
+          logger.error('📊 Error creating status chart:', error);
         }
       }
     };
@@ -493,7 +494,7 @@ const DoctorAnalytics = () => {
 
   const fetchAnalytics = async () => {
     setLoading(true);
-    console.log('🚀 Starting doctor analytics fetch...');
+    logger.log('🚀 Starting doctor analytics fetch...');
     
     // Clear existing data to force re-render
     setPatientsPerDay([]);
@@ -511,14 +512,14 @@ const DoctorAnalytics = () => {
         return;
       }
 
-      console.log('🚀 Fetching doctor analytics for user:', user.id);
+      logger.log('🚀 Fetching doctor analytics for user:', user.id);
 
       // 1. APPOINTMENTS FOR THIS DOCTOR
       debugLog += '\n\n1. FETCHING DOCTOR APPOINTMENTS...';
-      console.log('📅 Fetching appointments for doctor:', user.id);
+      logger.log('📅 Fetching appointments for doctor:', user.id);
       
       const dateRange = getDateRange();
-      console.log('📅 Date range filter:', dateRange, 'timeFilter:', timeFilter);
+      logger.log('📅 Date range filter:', dateRange, 'timeFilter:', timeFilter);
       
       let appointmentQuery = supabase
         .from('appointments')
@@ -546,11 +547,11 @@ const DoctorAnalytics = () => {
       const { data: appointments, error: appointmentError } = await appointmentQuery;
 
       if (appointmentError) {
-        console.error('❌ Appointment fetch error:', appointmentError);
+        logger.error('❌ Appointment fetch error:', appointmentError);
         debugLog += `\nAppointment Error: ${appointmentError.message}`;
       } else {
-        console.log(`✅ Found ${appointments?.length || 0} appointments for doctor`);
-        console.log('📅 Sample appointment data:', appointments?.slice(0, 2));
+        logger.log(`✅ Found ${appointments?.length || 0} appointments for doctor`);
+        logger.log('📅 Sample appointment data:', appointments?.slice(0, 2));
         debugLog += `\nDoctor appointments found: ${appointments?.length || 0}`;
 
         if (appointments && appointments.length > 0) {
@@ -558,18 +559,18 @@ const DoctorAnalytics = () => {
           const uniquePatients = new Set(appointments.map(a => a.patient_id));
           const totalPatientsCount = uniquePatients.size;
           setTotalPatients(totalPatientsCount);
-          console.log('👥 Total unique patients seen:', totalPatientsCount);
+          logger.log('👥 Total unique patients seen:', totalPatientsCount);
           debugLog += `\nUnique patients: ${totalPatientsCount}`;
 
           // Today's date calculation
           const today = new Date();
           const todayStr = today.toISOString().split('T')[0];
-          console.log('📅 Today is:', todayStr);
+          logger.log('📅 Today is:', todayStr);
           
           // Week calculation (last 7 days)
           const weekAgo = new Date(today.getTime() - 6 * 24 * 60 * 60 * 1000);
           const weekStr = weekAgo.toISOString().split('T')[0];
-          console.log('📅 Week ago:', weekStr);
+          logger.log('📅 Week ago:', weekStr);
 
           // Filter appointments for today and this week
           const todayAppointments = appointments.filter(a => a.appointment_date === todayStr);
@@ -578,14 +579,14 @@ const DoctorAnalytics = () => {
           setAppointmentsToday(todayAppointments.length);
           setAppointmentsWeek(weekAppointments.length);
           
-          console.log(`📊 Today: ${todayAppointments.length}, This week: ${weekAppointments.length}`);
+          logger.log(`📊 Today: ${todayAppointments.length}, This week: ${weekAppointments.length}`);
           debugLog += `\nToday: ${todayAppointments.length}, Week: ${weekAppointments.length}`;
 
           // Efficiency calculation
           const completed = appointments.filter(a => a.status === 'completed');
           const efficiencyRate = appointments.length > 0 ? Math.round((completed.length / appointments.length) * 100) : 0;
           setEfficiency(efficiencyRate);
-          console.log(`📈 Efficiency: ${efficiencyRate}% (${completed.length}/${appointments.length})`);
+          logger.log(`📈 Efficiency: ${efficiencyRate}% (${completed.length}/${appointments.length})`);
           debugLog += `\nEfficiency: ${efficiencyRate}% (${completed.length}/${appointments.length})`;
 
           // Patients per day (last 7 days)
@@ -607,7 +608,7 @@ const DoctorAnalytics = () => {
             .slice(-7); // Last 7 entries
 
           setPatientsPerDay(sortedDays);
-          console.log('📊 Patients per day:', sortedDays);
+          logger.log('📊 Patients per day:', sortedDays);
           debugLog += `\nPatients per day data points: ${sortedDays.length}`;
 
           // NEW ANALYTICS: Most Active Day of Week
@@ -629,7 +630,7 @@ const DoctorAnalytics = () => {
               return dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day);
             });
           setActiveDays(activeDaysData);
-          console.log('📊 Active days:', activeDaysData);
+          logger.log('📊 Active days:', activeDaysData);
           debugLog += `\nActive days data points: ${activeDaysData.length}`;
 
           // NEW ANALYTICS: Most Active Time Slots (Hourly from 8AM to 5PM)
@@ -672,7 +673,7 @@ const DoctorAnalytics = () => {
             .map(({ time, count }) => ({ time, count }));
           
           setActiveTimes(activeTimesData);
-          console.log('📊 Active times:', activeTimesData);
+          logger.log('📊 Active times:', activeTimesData);
           debugLog += `\nActive times data points: ${activeTimesData.length}`;
 
 
@@ -699,7 +700,7 @@ const DoctorAnalytics = () => {
             { label: 'Rejected', count: statusCounts.rejected, color: '#ef4444' }
           ];
           setStatusBreakdown(statusData);
-          console.log('📊 Status breakdown:', statusData);
+          logger.log('📊 Status breakdown:', statusData);
           debugLog += `\nStatus: Completed=${statusCounts.completed}, Upcoming=${statusCounts.confirmed}, Cancelled=${statusCounts.cancelled}, Rejected=${statusCounts.rejected}`;
         } else {
           // No appointments found for this doctor
@@ -711,7 +712,7 @@ const DoctorAnalytics = () => {
           setActiveDays([]);
           setActiveTimes([]);
           setStatusBreakdown([]);
-          console.log('⚠️ No appointments found for this doctor');
+          logger.log('⚠️ No appointments found for this doctor');
           debugLog += '\nNo appointments found for this doctor';
         }
       }
@@ -731,7 +732,7 @@ const DoctorAnalytics = () => {
           .in('appointment_id', appointmentIds);
 
         if (servicesError) {
-          console.error('❌ appointment_services fetch error:', servicesError);
+          logger.error('❌ appointment_services fetch error:', servicesError);
           debugLog += `\nServices Error: ${servicesError.message}`;
         } else if (appServices && appServices.length > 0) {
           const serviceCounts = {};
@@ -762,7 +763,7 @@ const DoctorAnalytics = () => {
             .sort((a, b) => b.count - a.count)
             .slice(0, 5);
           setProcedureBreakdown(breakdown);
-          console.log('📊 Service breakdown:', breakdown);
+          logger.log('📊 Service breakdown:', breakdown);
           debugLog += `\nService breakdown items: ${breakdown.length}`;
         } else {
           setMostCommonProcedure('No procedures yet');
@@ -776,13 +777,13 @@ const DoctorAnalytics = () => {
       }
 
     } catch (error) {
-      console.error('💥 Exception in fetchAnalytics:', error);
+      logger.error('💥 Exception in fetchAnalytics:', error);
       debugLog += `\nEXCEPTION: ${error.message}`;
     } finally {
       setLoading(false);
       debugLog += `\n\n=== Doctor Fetch completed at ${new Date().toLocaleTimeString()} ===`;
       setDebugInfo(debugLog);
-      console.log('🏁 Doctor analytics fetch completed');
+      logger.log('🏁 Doctor analytics fetch completed');
     }
   };
 
