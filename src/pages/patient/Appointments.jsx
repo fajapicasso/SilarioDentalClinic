@@ -26,13 +26,7 @@ import logger from '../../utils/logger';
 // Debug: Make ScheduleService available in window for debugging (development only)
 if (typeof window !== 'undefined' && import.meta.env.DEV) {
   window.ScheduleService = ScheduleService;
-  logger.log('✅ ScheduleService loaded and available in window.ScheduleService');
-  logger.log('🔧 Debug methods available:');
-  logger.log('  - window.ScheduleService.debugScheduleIssue(branch, date)');
-  logger.log('  - window.ScheduleService.debugMultiDoctorAvailability(branch, date, time)');
-  logger.log('📝 Examples:');
-  logger.log('  - window.ScheduleService.debugScheduleIssue("Cabugao", "2024-12-15")');
-  logger.log('  - window.ScheduleService.debugMultiDoctorAvailability("Cabugao", "2024-12-15", "10:00")');
+  // ScheduleService loaded - no logging in production
 }
 import { useAppointmentNotifications } from '../../hooks/useNotificationIntegration';
 import { useUniversalAudit } from '../../hooks/useUniversalAudit';
@@ -802,7 +796,7 @@ const PatientAppointments = () => {
     if (!showTimeSlots || !selectedDate || !selectedBranch) return;
 
     const interval = setInterval(async () => {
-      logger.log('🔄 Auto-refreshing time slots...');
+      // Auto-refreshing time slots - no logging in production
       await fetchAvailableTimeSlots(selectedDate, selectedBranch, estimatedDuration);
     }, 30000); // 30 seconds
 
@@ -852,14 +846,12 @@ const PatientAppointments = () => {
     localStorage.setItem('temp_selected_date', formattedDate);
     
     try {
-      logger.log('📞 Calling ScheduleService methods...');
+      // Calling ScheduleService methods - no logging in production
       
       // Check if ScheduleService is available
       if (!ScheduleService) {
         throw new Error('ScheduleService is not available');
       }
-      
-      logger.log('✅ ScheduleService is available, making calls...');
       
       // Get branch hours and available providers
       const [hoursResult, providersResult, slotsResult] = await Promise.all([
@@ -868,18 +860,12 @@ const PatientAppointments = () => {
         ScheduleService.getAvailableTimeSlots(branch, formattedDate, durationMinutes, null) // null = show all doctors and all appointments
       ]);
       
-      logger.log('📊 ScheduleService results:', {
-        hoursResult,
-        providersCount: providersResult?.length || 0,
-        slotsCount: slotsResult?.availableSlots?.length || 0,
-        slotsMessage: slotsResult?.message
-      });
+      // ScheduleService results - no logging in production
       
       setBranchHours(hoursResult);
       setAvailableProviders(providersResult);
       
       if (slotsResult.message) {
-        logger.log('ℹ️ Schedule service message:', slotsResult.message);
         toast.info(slotsResult.message);
       }
       
@@ -887,13 +873,7 @@ const PatientAppointments = () => {
       setAvailableTimeSlots(slotsResult.availableSlots);
       setFormattedTimeSlots(slotsResult.formattedSlots);
       
-      logger.log('✅ Time slots updated successfully');
-      
-      // Show appropriate message if no slots available
-      if (slotsResult.availableSlots.length === 0 && slotsResult.message) {
-        // The message from schedule service explains why no slots are available
-        logger.log('No appointment slots available:', slotsResult.message);
-      }
+      // Time slots updated - no logging in production
       
     } catch (error) {
       logger.error('❌ Error fetching available time slots:', error);
@@ -963,7 +943,7 @@ const PatientAppointments = () => {
    */
   const findNextAvailableTimeSlot = async (date, branch, requestedTime, durationMinutes = 30, excludeAppointmentId = null) => {
     try {
-      logger.log('🔍 Finding next available time slot...', { date, branch, requestedTime, durationMinutes });
+      // Finding next available time slot - no logging in production
       
       // First, try to find next available slot on the same date
       const slotsResult = await ScheduleService.getAvailableTimeSlots(branch, date, durationMinutes, null);
@@ -1264,7 +1244,7 @@ const PatientAppointments = () => {
         
         // If conflict detected, automatically reschedule to next available time
         if (conflictingAppointments && conflictingAppointments.length > 0) {
-          logger.log('⚠️ Time slot conflict detected, finding next available slot...');
+          // Time slot conflict detected - no logging in production
           
           const nextSlotResult = await findNextAvailableTimeSlot(
             appointmentData.appointment_date,
@@ -1284,7 +1264,7 @@ const PatientAppointments = () => {
               { autoClose: 6000 }
             );
             
-            logger.log('✅ Auto-rescheduled to:', nextSlotResult.nextDate, nextSlotResult.nextTime);
+            // Auto-rescheduled - no logging in production
           } else {
             // No available slots found
             toast.error('The requested time slot is already taken, and no available slots were found in the next 7 days. Please try selecting a different time manually.');
@@ -1298,7 +1278,7 @@ const PatientAppointments = () => {
         let assignmentMessage = '';
         
         try {
-          logger.log('🤖 Starting automatic doctor assignment...');
+          // Starting automatic doctor assignment - no logging in production
           const AutoDoctorAssignmentService = (await import('../../services/autoDoctorAssignmentService.js')).default;
           
           const assignmentData = {
@@ -1309,18 +1289,18 @@ const PatientAppointments = () => {
             duration_minutes: duration
           };
           
-          logger.log('📋 Assignment data:', assignmentData);
+          // Assignment data prepared - no logging in production
           
           const assignmentResult = await AutoDoctorAssignmentService.assignDoctorAutomatically(assignmentData);
           
-          logger.log('📊 Assignment result:', assignmentResult);
+          // Assignment result received - no logging in production
           
           if (assignmentResult.success) {
             assignedDoctorId = assignmentResult.doctor_id;
             assignmentMessage = assignmentResult.message;
-            logger.log('✅ Automatic doctor assignment successful:', assignmentMessage);
+            // Automatic doctor assignment successful - no logging in production
           } else {
-            logger.log('⚠️ Automatic doctor assignment failed:', assignmentResult.message);
+            // Automatic doctor assignment failed - no logging in production
           }
         } catch (assignmentError) {
           logger.error('❌ Error in automatic doctor assignment:', assignmentError);
@@ -1427,7 +1407,7 @@ const PatientAppointments = () => {
 
       // Refresh time slots after successful booking to show updated availability
       if (!editingAppointment && selectedDate && selectedBranch) {
-        logger.log('🔄 Refreshing time slots after booking...');
+        // Refreshing time slots after booking - no logging in production
         await fetchAvailableTimeSlots(selectedDate, selectedBranch, estimatedDuration);
       }
 
@@ -1663,7 +1643,7 @@ const PatientAppointments = () => {
 
   // Unified cancel/reschedule modal
   const openActionModal = (appointment, type) => {
-    logger.log('Opening action modal:', { appointment, type });
+    // Opening action modal - no logging in production
     setSelectedAppointmentForAction(appointment);
     setActionType(type);
     setShowActionModal(true);
@@ -1723,7 +1703,7 @@ const PatientAppointments = () => {
         setActionType('');
       } else if (actionType === 'reschedule') {
         // Start reschedule process with proper modal
-        logger.log('Starting reschedule process for appointment:', selectedAppointmentForAction);
+        // Starting reschedule process - no logging in production
         
         // Reset all reschedule states first
         setRescheduleDate(null);
@@ -1741,7 +1721,7 @@ const PatientAppointments = () => {
         
         // Fetch available time slots for the current date and branch
         const duration = selectedAppointmentForAction.duration || 30;
-        logger.log('Fetching time slots for reschedule:', {
+        // Fetching time slots for reschedule - no logging in production
           date: selectedAppointmentForAction.appointment_date,
           branch: initialBranch,
           duration: duration
@@ -1776,7 +1756,7 @@ const PatientAppointments = () => {
     if (!date || !branch) return;
     
     try {
-      logger.log('Fetching reschedule time slots for:', { date, branch, duration });
+      // Fetching reschedule time slots - no logging in production
       
       // Normalize date to avoid timezone issues
       const dateObj = date instanceof Date ? date : new Date(date);

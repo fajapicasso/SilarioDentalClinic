@@ -1,6 +1,7 @@
 // src/services/autoDoctorAssignmentService.js - Automatic Doctor Assignment Service
 import supabase from '../config/supabaseClient';
 import { ScheduleUtils } from '../services/scheduleUtils';
+import logger from '../utils/logger';
 
 export class AutoDoctorAssignmentService {
   /**
@@ -155,7 +156,7 @@ export class AutoDoctorAssignmentService {
             ).length;
           }
 
-          console.log(`✅ Doctor ${doctor.full_name} is available at ${time}`);
+          // Doctor is available - no logging in production
 
           return {
             id: doctor.id,
@@ -166,7 +167,7 @@ export class AutoDoctorAssignmentService {
             validation
           };
         } catch (error) {
-          console.error(`Error checking availability for doctor ${doctor.full_name}:`, error);
+          logger.error('Error checking availability for doctor:', error);
           return null;
         }
       });

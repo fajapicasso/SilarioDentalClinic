@@ -1,5 +1,6 @@
 // src/services/scheduleService.js - Schedule and Availability Service
 import supabase from '../config/supabaseClient';
+import logger from '../utils/logger';
 
 export class ScheduleService {
   /**
@@ -7,7 +8,7 @@ export class ScheduleService {
    */
   static async debugMultiDoctorAvailability(branch, date, time) {
     try {
-      console.log(`🔍 Debugging multi-doctor availability for ${branch} on ${date} at ${time}`);
+      logger.log(`🔍 Debugging multi-doctor availability for ${branch} on ${date} at ${time}`);
       
       const dayOfWeek = new Date(date).toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
       const branchKey = branch.toLowerCase().replace(' ', '');
@@ -20,7 +21,7 @@ export class ScheduleService {
       
       if (error) throw error;
       
-      console.log(`👥 Found ${doctors.length} doctors to check`);
+      logger.log(`👥 Found ${doctors.length} doctors to check`);
       
       const results = [];
       
@@ -54,13 +55,13 @@ export class ScheduleService {
         });
       }
       
-      console.log('📊 Multi-doctor availability results:', results);
+      logger.log('📊 Multi-doctor availability results:', results);
       
       const availableDoctors = results.filter(r => r.isAvailable);
       const unavailableDoctors = results.filter(r => !r.isAvailable);
       
-      console.log(`✅ Available doctors (${availableDoctors.length}):`, availableDoctors.map(d => d.doctor));
-      console.log(`❌ Unavailable doctors (${unavailableDoctors.length}):`, unavailableDoctors.map(d => `${d.doctor} - ${d.schedule}`));
+      logger.log(`✅ Available doctors (${availableDoctors.length}):`, availableDoctors.map(d => d.doctor));
+      logger.log(`❌ Unavailable doctors (${unavailableDoctors.length}):`, unavailableDoctors.map(d => `${d.doctor} - ${d.schedule}`));
       
       return {
         timeSlot: `${time} on ${date} at ${branch}`,
@@ -71,7 +72,7 @@ export class ScheduleService {
       };
       
     } catch (error) {
-      console.error('Debug error:', error);
+      logger.error('Debug error:', error);
       return { error: error.message };
     }
   }
@@ -80,12 +81,12 @@ export class ScheduleService {
    * Debug method to help troubleshoot schedule issues
    */
   static async debugScheduleIssue(branch, date) {
-    console.log(`🔍 DEBUG: Checking schedule issue for ${branch} on ${date}`);
+    logger.log(`🔍 DEBUG: Checking schedule issue for ${branch} on ${date}`);
     const dayOfWeek = new Date(date).toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
     const branchKey = branch.toLowerCase().replace(' ', '');
     
-    console.log(`📅 Day of week: ${dayOfWeek}`);
-    console.log(`🏢 Branch key: "${branchKey}"`);
+    logger.log(`📅 Day of week: ${dayOfWeek}`);
+    logger.log(`🏢 Branch key: "${branchKey}"`);
     
     try {
       // Get all doctors
@@ -95,60 +96,16 @@ export class ScheduleService {
         .eq('role', 'doctor');
         
       if (error) {
-        console.error('Error fetching doctors:', error);
+        logger.error('Error fetching doctors:', error);
         return;
       }
       
-      console.log(`👨‍⚕️ Found ${doctors?.length || 0} doctors`);
+      // Found doctors - no logging in production
       
-      doctors?.forEach(doctor => {
-        console.log(`\n=== Doctor: ${doctor.full_name} ===`);
-        console.log('Has schedule:', !!doctor.schedule);
-        
-        if (doctor.schedule) {
-          console.log('Schedule branches:', Object.keys(doctor.schedule));
-          
-          // Check if doctor has schedule for this branch
-          if (doctor.schedule[branchKey]) {
-            console.log(`✅ Has schedule for ${branchKey}`);
-            console.log('Available days:', Object.keys(doctor.schedule[branchKey]));
-            
-            if (doctor.schedule[branchKey][dayOfWeek]) {
-              const daySchedule = doctor.schedule[branchKey][dayOfWeek];
-              console.log(`${dayOfWeek} schedule:`, {
-                enabled: daySchedule.enabled,
-                start: daySchedule.start,
-                end: daySchedule.end
-              });
-            } else {
-              console.log(`❌ No schedule for ${dayOfWeek}`);
-            }
-          } else {
-            console.log(`❌ No schedule for ${branchKey}`);
-          }
-        }
-        
-        // Check unavailable dates
-        const unavailableDates = doctor.unavailable_dates || [];
-        console.log('Unavailable dates:', unavailableDates.length);
-        
-        unavailableDates.forEach(entry => {
-          console.log(`  Date: ${entry.date}, Branch: "${entry.branch}", Type: ${entry.type}, TimeSlots: ${entry.timeSlots}`);
-          
-          if (entry.date === date) {
-            const entryBranchKey = entry.branch.toLowerCase().replace(' ', '');
-            console.log(`    🔍 Checking if "${entryBranchKey}" matches "${branchKey}"`);
-            if (entryBranchKey === branchKey) {
-              console.log(`    ❌ MATCH FOUND - This entry affects ${branch}`);
-            } else {
-              console.log(`    ✅ No match - This entry doesn't affect ${branch}`);
-            }
-          }
-        });
-      });
+      // Debug information removed in production
       
     } catch (error) {
-      console.error('Debug error:', error);
+      logger.error('Debug error:', error);
     }
   }
   /**
@@ -157,7 +114,7 @@ export class ScheduleService {
    */
   static async getProvidersWithScheduleForBranch(branch, date, currentDoctorId = null) {
     try {
-      console.log(`🔍 Getting providers with schedules for ${branch} on ${date}`);
+      logger.log(`🔍 Getting providers with schedules for ${branch} on ${date}`);
       const dayOfWeek = new Date(date).toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
       const branchKey = branch.toLowerCase().replace(' ', '');
       
@@ -174,7 +131,7 @@ export class ScheduleService {
       let { data: doctors, error: doctorError } = await query;
       
       if (doctorError && (doctorError.code === '42703' || doctorError.message?.includes('column'))) {
-        console.warn('Schedule columns not found, using fallback data');
+        logger.warn('Schedule columns not found, using fallback data');
         const { data: doctorsBasic, error: basicError } = await supabase
           .from('profiles')
           .select('id, full_name, role')
@@ -210,14 +167,14 @@ export class ScheduleService {
           .in('staff_id', staffIds);
           
         if (scheduleError && (scheduleError.code === 'PGRST116' || scheduleError.message?.includes('does not exist'))) {
-          console.warn('staff_schedules table not found, using localStorage fallback');
+          logger.warn('staff_schedules table not found, using localStorage fallback');
           staffSchedules = staffIds.map(staffId => ({
             staff_id: staffId,
             schedule: this.getLocalSchedule(staffId, 'staff'),
             unavailable_dates: this.getLocalUnavailableDates(staffId, 'staff')
           }));
         } else if (scheduleError) {
-          console.warn('Error fetching staff schedules:', scheduleError);
+          logger.warn('Error fetching staff schedules:', scheduleError);
           staffSchedules = [];
         } else {
           staffSchedules = scheduleData || [];
@@ -232,7 +189,7 @@ export class ScheduleService {
       })) || [];
       
       const allProviders = [...(doctors || []), ...staffWithSchedules];
-      console.log(`👥 Total providers to check: ${allProviders.length}`);
+      // Total providers to check - no logging in production
       
       // Filter providers who have schedules for this branch and day
       const providersWithSchedule = allProviders.filter(provider => {
@@ -258,18 +215,16 @@ export class ScheduleService {
         );
         
         if (isEntireDayUnavailable) {
-          console.log(`   ❌ Provider ${provider.full_name} has entire day ${date} marked unavailable at ${branch}`);
           return false;
         }
         
-        console.log(`   ✅ Provider ${provider.full_name} has schedule for ${dayOfWeek} at ${branch}`);
         return true;
       });
       
-      console.log(`✅ Providers with schedules for ${branch}: ${providersWithSchedule.length}`);
+      // Providers with schedules found - no logging in production
       return providersWithSchedule;
     } catch (error) {
-      console.error('❌ Error getting providers with schedules:', error);
+      logger.error('❌ Error getting providers with schedules:', error);
       return [];
     }
   }
@@ -279,46 +234,20 @@ export class ScheduleService {
    */
   static async getAvailableProviders(branch, date, time) {
     try {
-      console.log(`🔍 Getting available providers for ${branch} on ${date} at ${time}`);
+      // Getting available providers - no logging in production
       const dayOfWeek = new Date(date).toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-      console.log(`📅 Day of week: ${dayOfWeek}`);
       
       // Get all doctors and staff with their schedules
-      console.log('📊 Fetching doctors from database...');
       let { data: doctors, error: doctorError } = await supabase
         .from('profiles')
         .select('id, full_name, role, schedule, unavailable_dates')
         .eq('role', 'doctor');
       
-      console.log('🔍 Database query result:', { 
-        doctors: doctors?.length || 0, 
-        error: doctorError ? {
-          message: doctorError.message,
-          code: doctorError.code,
-          details: doctorError.details,
-          hint: doctorError.hint
-        } : null 
-      });
-      
-      console.log('👨‍⚕️ Doctors found:', doctors?.length || 0);
-      if (doctors && doctors.length > 0) {
-        doctors.forEach(doctor => {
-          console.log(`   Doctor: ${doctor.full_name} (ID: ${doctor.id})`);
-          console.log(`   Has schedule:`, !!doctor.schedule);
-          if (doctor.schedule) {
-            console.log(`   Schedule branches:`, Object.keys(doctor.schedule));
-            console.log(`   Full schedule data:`, JSON.stringify(doctor.schedule, null, 2));
-          } else {
-            console.log(`   ⚠️ No schedule data for this doctor`);
-          }
-        });
-      } else {
-        console.log('   ⚠️ No doctors found in database');
-      }
+      // Database query executed - no logging in production
         
       // If schedule columns don't exist, try without them and load from localStorage
       if (doctorError && (doctorError.code === '42703' || doctorError.message?.includes('column'))) {
-        console.warn('Schedule columns not found, using fallback data');
+        logger.warn('Schedule columns not found, using fallback data');
         const { data: doctorsBasic, error: basicError } = await supabase
           .from('profiles')
           .select('id, full_name, role')
@@ -355,7 +284,7 @@ export class ScheduleService {
           .in('staff_id', staffIds);
           
         if (scheduleError && (scheduleError.code === 'PGRST116' || scheduleError.message?.includes('does not exist'))) {
-          console.warn('staff_schedules table not found, using localStorage fallback');
+          logger.warn('staff_schedules table not found, using localStorage fallback');
           // Create mock data from localStorage for each staff member
           staffSchedules = staffIds.map(staffId => ({
             staff_id: staffId,
@@ -363,7 +292,7 @@ export class ScheduleService {
             unavailable_dates: this.getLocalUnavailableDates(staffId, 'staff')
           }));
         } else if (scheduleError) {
-          console.warn('Error fetching staff schedules:', scheduleError);
+          logger.warn('Error fetching staff schedules:', scheduleError);
           staffSchedules = [];
         } else {
           staffSchedules = scheduleData || [];
@@ -378,31 +307,23 @@ export class ScheduleService {
       })) || [];
       
       const allProviders = [...(doctors || []), ...staffWithSchedules];
-      console.log(`👥 Total providers to check: ${allProviders.length}`);
+      // Total providers to check - no logging in production
       
       const availableProviders = [];
       
       for (const provider of allProviders) {
-        console.log(`🔍 Checking availability for ${provider.full_name}...`);
+        // Checking availability - no logging in production
         const isAvailable = await this.isProviderAvailable(provider, branch, date, time, dayOfWeek);
-        console.log(`   Result: ${isAvailable ? '✅ Available' : '❌ Not available'}`);
         
         if (isAvailable) {
           availableProviders.push(provider);
         }
       }
       
-      console.log(`✅ Available providers: ${availableProviders.length}`);
+      // Available providers found - no logging in production
       return availableProviders;
     } catch (error) {
-      console.error('❌ Error getting available providers:', error);
-      console.error('Full error details:', {
-        message: error.message,
-        code: error.code,
-        details: error.details,
-        hint: error.hint,
-        stack: error.stack
-      });
+      logger.error('Error getting available providers:', error);
       return [];
     }
   }
@@ -412,49 +333,33 @@ export class ScheduleService {
    */
   static async isProviderAvailable(provider, branch, date, time, dayOfWeek) {
     try {
-      console.log(`🔍 Checking availability for ${provider.full_name}...`);
-      console.log(`   Parameters: branch=${branch}, date=${date}, time=${time}, dayOfWeek=${dayOfWeek}`);
+      // Checking availability - no logging in production
       
       const branchKey = branch.toLowerCase().replace(' ', '');
-      console.log(`   Converted branch key: ${branchKey}`);
       
       const schedule = provider.schedule;
-      console.log(`   Provider has schedule:`, !!schedule);
       
       // Check if provider has schedule configured at all
       if (!schedule) {
-        console.log(`   ❌ Provider ${provider.full_name} has no schedule configured`);
         return false;
       }
-      
-      console.log(`   Available branches in schedule:`, Object.keys(schedule));
       
       // Check if provider has schedule for this branch
       if (!schedule[branchKey]) {
-        console.log(`   ❌ Provider ${provider.full_name} has no schedule for ${branch} branch (key: ${branchKey})`);
-        console.log(`   Available branch keys:`, Object.keys(schedule));
         return false;
       }
       
-      console.log(`   Available days for ${branchKey}:`, Object.keys(schedule[branchKey]));
-      
       // Check if provider has schedule for this day
       if (!schedule[branchKey][dayOfWeek]) {
-        console.log(`   ❌ Provider ${provider.full_name} has no schedule for ${dayOfWeek} at ${branch}`);
-        console.log(`   Available days:`, Object.keys(schedule[branchKey]));
         return false;
       }
       
       const daySchedule = schedule[branchKey][dayOfWeek];
-      console.log(`   Day schedule for ${dayOfWeek}:`, daySchedule);
       
       // Check if provider works on this day (must be explicitly enabled)
       if (!daySchedule.enabled) {
-        console.log(`   ❌ Provider ${provider.full_name} is not available on ${dayOfWeek} at ${branch} (not enabled)`);
         return false;
       }
-      
-      console.log(`   ✅ Day is enabled: ${daySchedule.start} - ${daySchedule.end}`);
       
       // Check if time falls within working hours
       const [requestHour, requestMinute] = time.split(':').map(Number);
@@ -467,7 +372,6 @@ export class ScheduleService {
       const endTimeMinutes = endHour * 60 + endMinute;
       
       if (requestTimeMinutes < startTimeMinutes || requestTimeMinutes >= endTimeMinutes) {
-        console.log(`   ❌ Time ${time} outside working hours ${daySchedule.start}-${daySchedule.end}`);
         return false;
       }
       
@@ -482,7 +386,7 @@ export class ScheduleService {
       );
       
       if (specificDateSchedule) {
-        console.log(`   📅 Found specific date schedule for ${date} at ${branch}: ${specificDateSchedule.startTime} - ${specificDateSchedule.endTime}`);
+        // Found specific date schedule - no logging in production
         
         // Check if time falls within specific date schedule
         const [requestHour, requestMinute] = time.split(':').map(Number);
@@ -495,7 +399,7 @@ export class ScheduleService {
         const endTimeMinutes = endHour * 60 + endMinute;
         
         if (requestTimeMinutes >= startTimeMinutes && requestTimeMinutes < endTimeMinutes) {
-          console.log(`   ✅ Time ${time} is within specific date schedule`);
+          // Time is within specific date schedule - no logging in production
           // Still need to check for unavailable times within this specific schedule
           const isUnavailableInSpecificSchedule = unavailableDates.some(entry => 
             entry.date === date && 
@@ -508,13 +412,11 @@ export class ScheduleService {
           );
           
           if (isUnavailableInSpecificSchedule) {
-            console.log(`   ❌ Time ${time} is marked unavailable within specific date schedule`);
             return false;
           }
           
           return true;
         } else {
-          console.log(`   ❌ Time ${time} is outside specific date schedule hours`);
           return false;
         }
       }
@@ -532,13 +434,11 @@ export class ScheduleService {
         
         // If timeSlots is null, entire day is unavailable
         if (entry.timeSlots === null) {
-          console.log(`   ❌ Entire day ${date} is marked unavailable at ${branch}`);
           return true;
         }
         
         // If timeSlots is an array, check if this specific time is unavailable
         if (Array.isArray(entry.timeSlots) && entry.timeSlots.includes(time)) {
-          console.log(`   ❌ Time ${time} on ${date} is marked unavailable at ${branch}`);
           return true;
         }
         
@@ -549,10 +449,10 @@ export class ScheduleService {
         return false;
       }
       
-      console.log(`   ✅ Provider ${provider.full_name} is available at ${time} on ${date} at ${branch}`);
+      // Provider is available - no logging in production
       return true;
     } catch (error) {
-      console.error('Error checking provider availability:', error);
+      logger.error('Error checking provider availability:', error);
       return false;
     }
   }
@@ -562,16 +462,16 @@ export class ScheduleService {
    */
   static async getAvailableTimeSlots(branch, date, durationMinutes = 30, currentDoctorId = null) {
     try {
-      console.log(`🕐 Getting available time slots for ${branch} on ${date} (duration: ${durationMinutes}min)`);
+      // Getting available time slots - no logging in production
       const dayOfWeek = new Date(date).toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
       const branchKey = branch.toLowerCase().replace(' ', '');
       
       // Get all providers who have schedules for this branch (not just available at 8:00)
       const allProviders = await this.getProvidersWithScheduleForBranch(branch, date, currentDoctorId);
-      console.log(`📋 Found ${allProviders.length} total providers with schedules for ${branch}`);
+      // Found providers - no logging in production
       
       if (allProviders.length === 0) {
-        console.log('❌ No providers available - checking if any providers exist at all');
+        // No providers available - no logging in production
         
         // Check if any providers exist but just have no schedule configured
         const { data: allDoctors } = await supabase
@@ -637,7 +537,7 @@ export class ScheduleService {
             specificSchedule: specificDateSchedule
           });
           
-          console.log(`📅 Using specific schedule for ${provider.full_name}: ${specificDateSchedule.startTime} - ${specificDateSchedule.endTime}`);
+          // Using specific schedule - no logging in production
         } else if (schedule && schedule[branchKey] && schedule[branchKey][dayOfWeek] && schedule[branchKey][dayOfWeek].enabled) {
           // Use regular schedule
           const daySchedule = schedule[branchKey][dayOfWeek];
@@ -660,7 +560,7 @@ export class ScheduleService {
         }
       });
       
-      console.log(`⏰ Overall operating hours: ${Math.floor(earliestStart/60).toString().padStart(2,'0')}:${(earliestStart%60).toString().padStart(2,'0')} - ${Math.floor(latestEnd/60).toString().padStart(2,'0')}:${(latestEnd%60).toString().padStart(2,'0')}`);
+      logger.log(`⏰ Overall operating hours: ${Math.floor(earliestStart/60).toString().padStart(2,'0')}:${(earliestStart%60).toString().padStart(2,'0')} - ${Math.floor(latestEnd/60).toString().padStart(2,'0')}:${(latestEnd%60).toString().padStart(2,'0')}`);
       
       if (earliestStart >= latestEnd) {
         return {
@@ -691,22 +591,13 @@ export class ScheduleService {
       
       if (error) throw error;
       
-      console.log('🔍 Found booked appointments:', bookedAppointments);
-      console.log('📅 Date being checked:', date);
-      console.log('🏢 Branch being checked:', branch);
+      // Found booked appointments - no logging in production
       
       // Debug: Show appointment details
       if (bookedAppointments && bookedAppointments.length > 0) {
-        bookedAppointments.forEach(apt => {
-          console.log('📋 Appointment details:', {
-            time: apt.appointment_time,
-            doctor_id: apt.doctor_id,
-            duration: apt.appointment_durations?.[0]?.duration_minutes || 'not set',
-            rawData: apt
-          });
-        });
+        // Appointment details found - no logging in production
       } else {
-        console.log('⚠️ No appointments found for this date/branch');
+        // No appointments found - no logging in production
       }
       
       // Generate time slots with enhanced availability checking
@@ -714,7 +605,7 @@ export class ScheduleService {
       const formattedSlots = [];
       const interval = 30; // 30-minute intervals
       
-      console.log(`🔄 Generating time slots from ${Math.floor(earliestStart/60)}:${(earliestStart%60).toString().padStart(2,'0')} to ${Math.floor(latestEnd/60)}:${(latestEnd%60).toString().padStart(2,'0')}`);
+      // Generating time slots - no logging in production
       
       for (let timeMinutes = earliestStart; timeMinutes < latestEnd; timeMinutes += interval) {
         const hour = Math.floor(timeMinutes / 60);
@@ -740,12 +631,7 @@ export class ScheduleService {
           const hasOverlap = (newStart < existingEnd && newEnd > existingStart);
           
           if (hasOverlap) {
-            console.log(`❌ Time slot ${timeString} is booked by doctor ${apt.doctor_id}:`, {
-              existingAppointment: `${apt.appointment_time} (${appointmentDuration}min)`,
-              existingRange: `${existingStart}-${existingEnd}`,
-              newRange: `${newStart}-${newEnd}`,
-              hasOverlap
-            });
+            // Time slot is booked - no logging in production
           }
           
           return hasOverlap;
@@ -765,20 +651,20 @@ export class ScheduleService {
               const providerHours = providersWorkingHours.get(provider.id);
               if (providerHours && appointmentEndMinutes <= providerHours.end) {
                 providersAvailableAtTime.push(provider);
-                console.log(`   ✅ Doctor ${provider.full_name} is available at ${timeString}`);
+                // Doctor is available - no logging in production
               } else {
                 providersUnavailableAtTime.push({
                   provider: provider.full_name,
                   reason: 'Appointment duration exceeds working hours'
                 });
-                console.log(`   ❌ Doctor ${provider.full_name} unavailable at ${timeString}: Appointment duration exceeds working hours`);
+                // Doctor unavailable - no logging in production
               }
             } else {
               providersUnavailableAtTime.push({
                 provider: provider.full_name,
                 reason: 'Schedule not available or marked unavailable'
               });
-              console.log(`   ❌ Doctor ${provider.full_name} unavailable at ${timeString}: Schedule not available or marked unavailable`);
+              // Doctor unavailable - no logging in production
             }
           }
         }
@@ -797,26 +683,7 @@ export class ScheduleService {
           availableSlots.push(timeString);
         }
         
-        // Add debugging information for unavailable slots
-        const debugInfo = {
-          time: timeString,
-          providersChecked: allProviders.length,
-          providersAvailable: providersAvailableAtTime.length,
-          providersUnavailable: providersUnavailableAtTime.length,
-          availableDoctors: providersAvailableAtTime.map(p => p.full_name),
-          unavailableDoctors: providersUnavailableAtTime.map(p => `${p.provider} (${p.reason})`),
-          isAvailable: finalAvailable,
-          reason: finalAvailable ? 'Available' : 'No providers available or time marked unavailable'
-        };
-        
-        if (!finalAvailable && allProviders.length > 0) {
-          console.log(`❌ Time slot ${timeString} unavailable:`, debugInfo);
-        } else if (finalAvailable) {
-          console.log(`✅ Time slot ${timeString} available:`, {
-            availableDoctors: debugInfo.availableDoctors,
-            unavailableDoctors: debugInfo.unavailableDoctors
-          });
-        }
+        // Debug info removed in production - no logging
         
         formattedSlots.push({
           time: timeString,
@@ -828,8 +695,7 @@ export class ScheduleService {
             id: p.id,
             name: p.full_name,
             role: p.role
-          })),
-          debugInfo: debugInfo
+          }))
         });
       }
       
@@ -839,8 +705,8 @@ export class ScheduleService {
         message: availableSlots.length > 0 ? null : 'All time slots are booked for this date.'
       };
     } catch (error) {
-      console.error('❌ Error getting available time slots:', error);
-      console.error('Full error details:', {
+      logger.error('Error getting available time slots:', error);
+      logger.error('Full error details:', {
         message: error.message,
         code: error.code,
         details: error.details,
@@ -903,8 +769,8 @@ export class ScheduleService {
         } : null
       };
     } catch (error) {
-      console.error('❌ Error getting branch hours:', error);
-      console.error('Full error details:', {
+      logger.error('❌ Error getting branch hours:', error);
+      logger.error('Full error details:', {
         message: error.message,
         code: error.code,
         details: error.details,
@@ -993,7 +859,7 @@ export class ScheduleService {
         return data.schedule || null;
       }
     } catch (error) {
-      console.warn('Error loading schedule from localStorage:', error);
+      logger.warn('Error loading schedule from localStorage:', error);
     }
     return null;
   }
@@ -1010,7 +876,7 @@ export class ScheduleService {
         return data.unavailable_dates || [];
       }
     } catch (error) {
-      console.warn('Error loading unavailable dates from localStorage:', error);
+      logger.warn('Error loading unavailable dates from localStorage:', error);
     }
     return [];
   }
@@ -1073,7 +939,7 @@ export class ScheduleService {
         .neq('status', 'rejected');
       
       if (error) {
-        console.warn('Error fetching appointments for hardcoded schedule:', error);
+        logger.warn('Error fetching appointments for hardcoded schedule:', error);
       }
       
       // Create a set of blocked time ranges (not just start times)
@@ -1132,7 +998,7 @@ export class ScheduleService {
       };
       
     } catch (error) {
-      console.error('Error in hardcoded time slots:', error);
+      logger.error('Error in hardcoded time slots:', error);
       return {
         availableSlots: [],
         formattedSlots: [],
