@@ -99,33 +99,15 @@ export function sanitizeConsole() {
     return; // In development, don't modify console
   }
 
-  // Override all console methods in production to prevent data exposure
+  // Override ALL console methods in production to completely silence console
   const noop = () => {};
   
-  // Keep error logging but sanitize it
-  const originalError = console.error;
-  console.error = function(...args) {
-    // Only log generic error messages, not actual data
-    if (args.length > 0 && typeof args[0] === 'string') {
-      // If it's a string message, log it but sanitize any objects
-      const sanitizedArgs = args.map(arg => {
-        if (typeof arg === 'object' && arg !== null) {
-          return '[Object]'; // Don't show object contents
-        }
-        return arg;
-      });
-      originalError.apply(console, sanitizedArgs);
-    } else {
-      // For non-string errors, just log a generic message
-      originalError('[Error] An error occurred');
-    }
-  };
-
-  // Block all other console methods
+  // Block ALL console output including errors
   console.log = noop;
   console.info = noop;
   console.warn = noop;
   console.debug = noop;
+  console.error = noop; // Completely block errors
   console.table = noop;
   console.group = noop;
   console.groupEnd = noop;
@@ -143,6 +125,26 @@ export function sanitizeConsole() {
   console.profileEnd = noop;
   console.timeStamp = noop;
   console.memory = noop;
+  
+  // Also block uncaught errors and promise rejections from showing in console
+  if (typeof window !== 'undefined') {
+    // Override window.onerror to prevent error display
+    window.onerror = function() {
+      return true; // Suppress error display
+    };
+    
+    // Override unhandled promise rejections
+    window.addEventListener('unhandledrejection', function(event) {
+      event.preventDefault(); // Prevent default error logging
+      return true;
+    }, true);
+    
+    // Override error event listener
+    window.addEventListener('error', function(event) {
+      event.preventDefault(); // Prevent default error logging
+      return true;
+    }, true);
+  }
 }
 
 /**
