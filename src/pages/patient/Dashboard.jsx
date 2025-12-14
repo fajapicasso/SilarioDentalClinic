@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import supabase from '../../config/supabaseClient';
+import logger from '../../utils/logger';
 import { 
   FiCalendar, FiClock, FiAlertCircle, FiFileText, 
   FiCreditCard, FiUser, FiPlus, FiChevronRight, FiActivity,
@@ -138,7 +139,7 @@ const PatientDashboard = () => {
         // Fetch queue information
         await fetchQueueInformation();
       } catch (error) {
-        console.error('Error fetching dashboard data:', error);
+        logger.error('Error fetching dashboard data:', error);
       } finally {
         setIsLoading(false);
       }
@@ -221,7 +222,7 @@ const PatientDashboard = () => {
         .eq('status', 'confirmed');
       
       if (appointmentsError) {
-        console.error('Error fetching today\'s appointments:', appointmentsError);
+        logger.error('Error fetching today\'s appointments:', appointmentsError);
       }
       
       // Check if patient is already in queue today (any status)
@@ -243,7 +244,7 @@ const PatientDashboard = () => {
         .single();
       
       if (myQueueError && myQueueError.code !== 'PGRST116') {
-        console.error('Error fetching queue status:', myQueueError);
+        logger.error('Error fetching queue status:', myQueueError);
       }
       
       // Set your queue position to only an active entry (waiting/serving)
@@ -300,7 +301,7 @@ const PatientDashboard = () => {
         if (!isYourTurn) {
           setIsYourTurn(true);
           if (notificationSound.current) {
-            notificationSound.current.play().catch(e => console.log('Could not play notification sound', e));
+            notificationSound.current.play().catch(e => logger.log('Could not play notification sound', e));
           }
           toast.dismiss('your-turn');
           toast.success("It's your turn now! Please proceed to the dental clinic.", {
@@ -339,7 +340,7 @@ const PatientDashboard = () => {
       const { data: servingData, error: servingError } = await servingQuery;
       
       if (servingError && servingError.code !== 'PGRST116') {
-        console.error('Error fetching serving patient:', servingError);
+        logger.error('Error fetching serving patient:', servingError);
       }
       
       // Set all serving patients with branch filtering
@@ -402,7 +403,7 @@ const PatientDashboard = () => {
             setTurnNotified(true);
             fetchNotifications();
           } catch (e) {
-            console.warn('Could not create turn-now notification:', e.message);
+            logger.warn('Could not create turn-now notification:', e.message);
           }
         }
       }
@@ -427,7 +428,7 @@ const PatientDashboard = () => {
         .order('queue_number', { ascending: true });
       
       if (waitingError) {
-        console.error('Error fetching waiting list:', waitingError);
+        logger.error('Error fetching waiting list:', waitingError);
       }
       
       // Filter out current user from waiting list if they are being served
@@ -519,7 +520,7 @@ const PatientDashboard = () => {
       }
       
     } catch (error) {
-      console.error('Error fetching queue information:', error);
+      logger.error('Error fetching queue information:', error);
     } finally {
       setIsQueueUpdating(false);
     }
@@ -540,7 +541,7 @@ const PatientDashboard = () => {
         seenPatients.add(patient.patient_id);
         uniquePatients.push(patient);
       } else {
-        console.log(`🚫 Removed duplicate patient from patient dashboard: ${patient.profiles?.full_name || 'Unknown'}`);
+        logger.log(`🚫 Removed duplicate patient from patient dashboard: ${patient.profiles?.full_name || 'Unknown'}`);
       }
     });
     
@@ -561,7 +562,7 @@ const PatientDashboard = () => {
         .order('created_at', { ascending: false });
       
       if (error) {
-        console.error('Error fetching queue entries:', error);
+        logger.error('Error fetching queue entries:', error);
         return;
       }
       
@@ -577,13 +578,13 @@ const PatientDashboard = () => {
           .in('id', duplicateIds);
         
         if (deleteError) {
-          console.error('Error deleting duplicate queue entries:', deleteError);
+          logger.error('Error deleting duplicate queue entries:', deleteError);
         } else {
-          console.log('Cleaned up duplicate queue entries');
+          logger.log('Cleaned up duplicate queue entries');
         }
       }
     } catch (error) {
-      console.error('Error in cleanupDuplicateQueueEntries:', error);
+      logger.error('Error in cleanupDuplicateQueueEntries:', error);
     }
   };
 
@@ -601,7 +602,7 @@ const PatientDashboard = () => {
       const existingQueue = await isPatientInTodayQueue(supabase, user.id);
       
       if (existingQueue) {
-        console.log('Patient already in today\'s queue:', existingQueue);
+        logger.log('Patient already in today\'s queue:', existingQueue);
         toast.info(`You are already in today's queue (Position #${existingQueue.queue_number})`);
         return;
       }
@@ -631,7 +632,7 @@ const PatientDashboard = () => {
       // Refresh queue information
       await fetchQueueInformation();
     } catch (error) {
-      console.error('Error joining queue:', error);
+      logger.error('Error joining queue:', error);
       toast.error('Failed to join queue: ' + error.message);
     } finally {
       setJoiningQueue(false);

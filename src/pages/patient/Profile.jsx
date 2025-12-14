@@ -26,6 +26,7 @@ import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { toast } from 'react-toastify';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
+import logger from '../../utils/logger';
 
 // Define bucket name as a constant to avoid typos
 const BUCKET_NAME = 'patient-files';
@@ -42,13 +43,13 @@ const detectSupabaseVersion = () => {
       version = 'v1 (property)';
     }
   } catch (e) {
-    console.error('Error detecting Supabase version:', e);
+    logger.error('Error detecting Supabase version:', e);
   }
   return version;
 };
 
 const supabaseVersion = detectSupabaseVersion();
-console.log('Detected Supabase version:', supabaseVersion);
+logger.log('Detected Supabase version:', supabaseVersion);
 
 const Profile = () => {
   const { user, updateProfile } = useAuth();
@@ -125,22 +126,22 @@ const Profile = () => {
   const [tableExists, setTableExists] = useState(true); // Track if table exists
 
   useEffect(() => {
-    console.log('Profile useEffect - user:', user);
+    logger.log('Profile useEffect - user:', user);
     if (user) {
-      console.log('User found, fetching profile...');
+      logger.log('User found, fetching profile...');
       fetchUserProfile();
       fetchUploadedFiles();
       fetchChildren();
       // Initialize storage system
       initializeStorage().then(success => {
         if (success) {
-          console.log('Storage initialized successfully');
+          logger.log('Storage initialized successfully');
         } else {
-          console.warn('Storage initialization failed, fallbacks will be used');
+          logger.warn('Storage initialization failed, fallbacks will be used');
         }
       });
     } else {
-      console.log('No user available yet');
+      logger.log('No user available yet');
     }
   }, [user]);
 
@@ -169,11 +170,11 @@ const Profile = () => {
         .single();
       
       if (error) {
-        console.error('Profile fetch error:', error);
+        logger.error('Profile fetch error:', error);
         
         // If profile doesn't exist, create a basic one
         if (error.code === 'PGRST116') {
-          console.log('Profile not found, creating basic profile...');
+          logger.log('Profile not found, creating basic profile...');
           
           try {
             // Create basic profile with auth user data
@@ -208,7 +209,7 @@ const Profile = () => {
               }]);
               
             if (createError) {
-              console.error('Failed to create profile:', createError);
+              logger.error('Failed to create profile:', createError);
               throw createError;
             }
             
@@ -224,7 +225,7 @@ const Profile = () => {
             
             toast.success('Profile created successfully!');
           } catch (createProfileError) {
-            console.error('Error creating profile:', createProfileError);
+            logger.error('Error creating profile:', createProfileError);
             
             // Fall back to using auth metadata directly
             setProfile({
@@ -283,7 +284,7 @@ const Profile = () => {
       });
       
     } catch (error) {
-      console.error('Error fetching user profile:', error);
+      logger.error('Error fetching user profile:', error);
       toast.error('Failed to load profile data: ' + error.message);
     } finally {
       setIsLoading(false);
@@ -301,7 +302,7 @@ const Profile = () => {
       if (error) throw error;
       setUploadedFiles(data || []);
     } catch (error) {
-      console.error('Error fetching files:', error);
+      logger.error('Error fetching files:', error);
       toast.error('Failed to load your files');
     }
   };
@@ -471,11 +472,11 @@ const Profile = () => {
       
       // Display diagnostic info
       setDebugInfo(info);
-      console.log('Supabase diagnostics:', info);
+      logger.log('Supabase diagnostics:', info);
       
     } catch (error) {
       setDebugInfo(`Diagnostic error: ${error.message}`);
-      console.error('Diagnostic error:', error);
+      logger.error('Diagnostic error:', error);
     }
   };
 
@@ -540,7 +541,7 @@ const Profile = () => {
         throw error || new Error('Failed to update profile');
       }
     } catch (error) {
-      console.error('Error updating profile:', error);
+      logger.error('Error updating profile:', error);
       toast.error('Failed to update profile: ' + error.message);
     } finally {
       setIsLoading(false);
@@ -568,7 +569,7 @@ const Profile = () => {
       if (error) {
         // Check if guardian_id column doesn't exist
         if (error.code === '42703' || error.message?.includes('guardian_id') || error.message?.includes('column') && error.message?.includes('does not exist')) {
-          console.error('guardian_id column does not exist in profiles table. Please run the SQL script: add_guardian_id_to_profiles.sql');
+          logger.error('guardian_id column does not exist in profiles table. Please run the SQL script: add_guardian_id_to_profiles.sql');
           setTableExists(false);
           setChildren([]);
           return;
@@ -579,7 +580,7 @@ const Profile = () => {
       setTableExists(true);
       setChildren(data || []);
     } catch (error) {
-      console.error('Error fetching children:', error);
+      logger.error('Error fetching children:', error);
       if (error.code !== '42703' && !error.message?.includes('guardian_id')) {
         toast.error('Failed to load children: ' + error.message);
       }
@@ -704,7 +705,7 @@ const Profile = () => {
         const { data: { user: authUser } } = await supabase.auth.getUser();
         guardianEmail = authUser?.email || null;
       } catch (e) {
-        console.error('Error getting guardian email:', e);
+        logger.error('Error getting guardian email:', e);
       }
     }
 
@@ -787,7 +788,7 @@ const Profile = () => {
             childId = uuidData;
           }
         } catch (e) {
-          console.log('RPC UUID generation not available, using client-side');
+          logger.log('RPC UUID generation not available, using client-side');
         }
         
         // Fallback to client-side UUID generation
@@ -809,8 +810,8 @@ const Profile = () => {
           throw new Error('Failed to generate UUID for child');
         }
         
-        console.log('Generated child ID:', childId);
-        console.log('Child data to insert:', { ...childData, id: childId });
+        logger.log('Generated child ID:', childId);
+        logger.log('Child data to insert:', { ...childData, id: childId });
         
         // Prepare insert data - try with id first, database default as fallback
         // If database has DEFAULT gen_random_uuid(), we can omit id
@@ -838,7 +839,7 @@ const Profile = () => {
           disabled: childData.disabled !== undefined ? childData.disabled : false
         };
         
-        console.log('Final insert data:', insertData);
+        logger.log('Final insert data:', insertData);
         
         const { data, error } = await supabase
           .from('profiles')
@@ -847,10 +848,10 @@ const Profile = () => {
           .single();
         
         if (error) {
-          console.error('Insert error details:', error);
-          console.error('Error code:', error.code);
-          console.error('Error message:', error.message);
-          console.error('Error hint:', error.hint);
+          logger.error('Insert error details:', error);
+          logger.error('Error code:', error.code);
+          logger.error('Error message:', error.message);
+          logger.error('Error hint:', error.hint);
           throw error;
         }
         result = data;
@@ -866,13 +867,13 @@ const Profile = () => {
       resetChildForm();
       
     } catch (error) {
-      console.error('Error saving child:', error);
+      logger.error('Error saving child:', error);
       
       // Check for specific error types
       if (error.code === '42703' || error.message?.includes('guardian_id') || (error.message?.includes('column') && error.message?.includes('does not exist'))) {
         setTableExists(false);
         toast.error('Database column not found. Please run the SQL script: add_guardian_id_to_profiles.sql in your Supabase SQL Editor.');
-        console.error('🔴 IMPORTANT: The guardian_id column does not exist in profiles table. Please run add_guardian_id_to_profiles.sql in Supabase SQL Editor.');
+        logger.error('🔴 IMPORTANT: The guardian_id column does not exist in profiles table. Please run add_guardian_id_to_profiles.sql in Supabase SQL Editor.');
       } else if (error.code === '42501' || error.message?.includes('permission denied')) {
         toast.error('Permission denied. Please check your database permissions.');
       } else if (error.message) {
@@ -911,7 +912,7 @@ const Profile = () => {
       
       toast.success('Child deleted successfully');
     } catch (error) {
-      console.error('Error deleting child:', error);
+      logger.error('Error deleting child:', error);
       
       // Check for specific error types
       if (error.code === '42703' || error.message?.includes('guardian_id')) {
@@ -1157,7 +1158,7 @@ const Profile = () => {
       throw new Error('All download methods failed');
       
     } catch (error) {
-      console.error('Error downloading file directly:', error);
+      logger.error('Error downloading file directly:', error);
       toast.error(`Failed to download file: ${error.message}`);
       return null;
     }
@@ -1343,7 +1344,7 @@ const Profile = () => {
         toast.error('Could not download the file. Please try again later or contact support.');
       }
     } catch (error) {
-      console.error('Error viewing file:', error);
+      logger.error('Error viewing file:', error);
       setDebugInfo(prev => prev + `\nException: ${error.message}`);
       toast.error(`Error viewing file: ${error.message}`);
     }
@@ -1402,7 +1403,7 @@ const Profile = () => {
       }
       
     } catch (error) {
-      console.error('Download failed:', error);
+      logger.error('Download failed:', error);
       
       // Fallback method for mobile/messaging apps
       if (isMobile || isInApp) {
@@ -1559,7 +1560,7 @@ const Profile = () => {
         return false;
       }
     } catch (error) {
-      console.error('Storage initialization error:', error);
+      logger.error('Storage initialization error:', error);
       setDebugInfo(prev => prev + `\nStorage initialization failed: ${error.message}`);
       return false;
     }
@@ -1805,7 +1806,7 @@ const Profile = () => {
       // Refresh file list
       fetchUploadedFiles();
     } catch (error) {
-      console.error('Error uploading file:', error);
+      logger.error('Error uploading file:', error);
       toast.error(`Failed to upload file: ${error.message}`);
     } finally {
       setIsUploading(false);
@@ -1834,11 +1835,11 @@ const Profile = () => {
           .remove([fileToDelete.file_path]);
         
         if (storageError) {
-          console.warn('Could not delete from storage:', storageError);
+          logger.warn('Could not delete from storage:', storageError);
           // Continue anyway - we'll still delete the database record
         }
       } catch (storageError) {
-        console.warn('Storage delete failed:', storageError);
+        logger.warn('Storage delete failed:', storageError);
         // Continue to delete the database record
       }
       
@@ -1861,7 +1862,7 @@ const Profile = () => {
       setUploadedFiles(uploadedFiles.filter(f => f.id !== fileToDelete.id));
       
     } catch (error) {
-      console.error('Error deleting file:', error);
+      logger.error('Error deleting file:', error);
       toast.error('Failed to delete file: ' + error.message);
     } finally {
       setIsDeleting(false);
@@ -1961,10 +1962,10 @@ const Profile = () => {
     try {
       // Skip bucket checking and go directly to upload
       // The bucket exists (as shown in your screenshot), so we'll assume it's accessible
-      console.log('Skipping bucket initialization - proceeding with upload');
+      logger.log('Skipping bucket initialization - proceeding with upload');
       return true;
     } catch (error) {
-      console.error('Error in bucket initialization:', error);
+      logger.error('Error in bucket initialization:', error);
       // Even if there's an error, we'll try to proceed with upload
       return true;
     }
@@ -2004,7 +2005,7 @@ const Profile = () => {
         });
 
       if (uploadError) {
-        console.error('Upload error:', uploadError);
+        logger.error('Upload error:', uploadError);
         throw uploadError;
       }
 
@@ -2027,7 +2028,7 @@ const Profile = () => {
         .eq('id', user.id);
 
       if (updateError) {
-        console.error('Update error:', updateError);
+        logger.error('Update error:', updateError);
         throw updateError;
       }
 
@@ -2044,7 +2045,7 @@ const Profile = () => {
       fetchUserProfile();
       
     } catch (error) {
-      console.error('Error uploading certificate:', error);
+      logger.error('Error uploading certificate:', error);
       toast.error(`Failed to upload certificate: ${error.message}`);
     } finally {
       setIsUploadingCertificate(false);
@@ -2069,10 +2070,10 @@ const Profile = () => {
             .remove([fileName]);
           
           if (deleteError) {
-            console.warn('Could not delete certificate from storage:', deleteError.message);
+            logger.warn('Could not delete certificate from storage:', deleteError.message);
           }
         } catch (storageError) {
-          console.warn('Storage deletion error:', storageError.message);
+          logger.warn('Storage deletion error:', storageError.message);
         }
       }
 
@@ -2086,7 +2087,7 @@ const Profile = () => {
         .eq('id', user.id);
 
       if (updateError) {
-        console.error('Update error:', updateError);
+        logger.error('Update error:', updateError);
         throw updateError;
       }
 
@@ -2103,7 +2104,7 @@ const Profile = () => {
       fetchUserProfile();
       
     } catch (error) {
-      console.error('Error removing certificate:', error);
+      logger.error('Error removing certificate:', error);
       toast.error(`Failed to remove certificate: ${error.message}`);
     }
   };
@@ -2265,7 +2266,7 @@ const Profile = () => {
         .eq('id', user.id);
       
       if (updateError) {
-        console.error('Database update error:', updateError);
+        logger.error('Database update error:', updateError);
         throw updateError;
       }
       
@@ -2281,7 +2282,7 @@ const Profile = () => {
       }, 1500);
       
     } catch (error) {
-      console.error('Error uploading profile picture:', error);
+      logger.error('Error uploading profile picture:', error);
       toast.error(`Failed to upload profile picture: ${error.message}`);
     } finally {
       setIsUploadingProfilePicture(false);
@@ -2301,7 +2302,7 @@ const Profile = () => {
       toast.success('Profile picture removed successfully!');
       window.location.reload();
     } catch (error) {
-      console.error('Error removing profile picture:', error);
+      logger.error('Error removing profile picture:', error);
       toast.error('Failed to remove profile picture');
     }
   };

@@ -8,6 +8,7 @@ import { ClinicProvider } from './contexts/ClinicContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import DebugLockoutFix from './components/common/DebugLockoutFix';
 import BracesCheckupReminderService from './components/common/BracesCheckupReminderService';
+import logger from './utils/logger';
 
 // Public Pages
 import Home from './pages/public/Home';
@@ -101,18 +102,18 @@ function App() {
         const { data, error } = await supabase.auth.getSession();
         
         if (error) {
-          console.error('Session error during initialization:', error);
+          logger.error('Session error during initialization:', error);
           // Clear any potentially corrupted state if there's an error
           try {
             await supabase.auth.signOut();
           } catch (e) {
-            console.error('Error during cleanup signout:', e);
+            logger.error('Error during cleanup signout:', e);
           }
         }
         
-        console.log('Auth initialized, session:', data?.session ? 'Present' : 'None');
+        logger.log('Auth initialized, session:', data?.session ? 'Present' : 'None');
       } catch (e) {
-        console.error('Error during auth initialization:', e);
+        logger.error('Error during auth initialization:', e);
       } finally {
         setAuthInitialized(true);
       }

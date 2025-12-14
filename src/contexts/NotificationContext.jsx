@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { useAuth } from './AuthContext';
 import supabase from '../config/supabaseClient';
 import { toast } from 'react-toastify';
+import logger from '../utils/logger';
 
 const NotificationContext = createContext();
 
@@ -26,7 +27,7 @@ export function NotificationProvider({ children }) {
 
   // Debug logging
   const debugLog = useCallback((message, data = {}) => {
-    console.log(`[NotificationContext] ${message}`, data);
+    logger.log(`[NotificationContext] ${message}`, data);
   }, []);
 
   // Clear error after some time
@@ -92,7 +93,7 @@ export function NotificationProvider({ children }) {
       
     } catch (error) {
       debugLog('fetchNotifications: Error', error);
-      console.error('Error fetching notifications:', error);
+      logger.error('Error fetching notifications:', error);
       setLastError(error.message || 'Failed to load notifications');
       if (showToast) {
         toast.error('Failed to load notifications');
@@ -131,7 +132,7 @@ export function NotificationProvider({ children }) {
 
     const rules = roleBasedRules[role];
     if (!rules) {
-      console.warn(`No notification rules defined for role: ${role}`);
+      logger.warn(`No notification rules defined for role: ${role}`);
       return notifications;
     }
 
@@ -224,7 +225,7 @@ export function NotificationProvider({ children }) {
       }
     } catch (error) {
       debugLog('fetchPreferences: Error', error);
-      console.error('Error fetching notification preferences:', error);
+      logger.error('Error fetching notification preferences:', error);
       setLastError(error.message || 'Failed to load preferences');
     }
   }, [user, debugLog]);
@@ -258,7 +259,7 @@ export function NotificationProvider({ children }) {
       
     } catch (error) {
       debugLog('markAsRead: Error', { notificationId, error });
-      console.error('Error marking notification as read:', error);
+      logger.error('Error marking notification as read:', error);
       toast.error('Failed to mark notification as read');
     }
   };
@@ -289,7 +290,7 @@ export function NotificationProvider({ children }) {
       
     } catch (error) {
       debugLog('markAllAsRead: Error', error);
-      console.error('Error marking all notifications as read:', error);
+      logger.error('Error marking all notifications as read:', error);
       toast.error('Failed to mark all notifications as read');
     }
   };
@@ -323,7 +324,7 @@ export function NotificationProvider({ children }) {
       
     } catch (error) {
       debugLog('deleteNotification: Error', { notificationId, error });
-      console.error('Error deleting notification:', error);
+      logger.error('Error deleting notification:', error);
       toast.error('Failed to delete notification');
     }
   };
@@ -350,7 +351,7 @@ export function NotificationProvider({ children }) {
       
     } catch (error) {
       debugLog('clearAllNotifications: Error', error);
-      console.error('Error clearing notifications:', error);
+      logger.error('Error clearing notifications:', error);
       toast.error('Failed to clear notifications');
     }
   };
@@ -392,7 +393,7 @@ export function NotificationProvider({ children }) {
       return { success: true, data };
     } catch (error) {
       debugLog('createNotification: Error', error);
-      console.error('Error creating notification:', error);
+      logger.error('Error creating notification:', error);
       return { success: false, error };
     }
   };
@@ -432,7 +433,7 @@ export function NotificationProvider({ children }) {
       return { success: true, data };
     } catch (error) {
       debugLog('createBulkNotifications: Error', error);
-      console.error('Error creating bulk notifications:', error);
+      logger.error('Error creating bulk notifications:', error);
       return { success: false, error };
     }
   };
@@ -464,7 +465,7 @@ export function NotificationProvider({ children }) {
       return { success: true, data };
     } catch (error) {
       debugLog('updatePreferences: Error', error);
-      console.error('Error updating notification preferences:', error);
+      logger.error('Error updating notification preferences:', error);
       toast.error('Failed to update preferences');
       return { success: false, error };
     }
@@ -687,7 +688,7 @@ export function NotificationProvider({ children }) {
           .lt('expires_at', new Date().toISOString());
       } catch (error) {
         debugLog('Cleanup: Error removing expired notifications', error);
-        console.error('Error cleaning up expired notifications:', error);
+        logger.error('Error cleaning up expired notifications:', error);
       }
     };
 

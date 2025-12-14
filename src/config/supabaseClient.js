@@ -1,14 +1,15 @@
 // src/config/supabaseClient.js
 import { createClient } from '@supabase/supabase-js';
+import logger from '../utils/logger';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
-  console.error('Missing Supabase environment variables. Check .env file');
+  logger.error('Missing Supabase environment variables. Check .env file');
 }
 
-console.log("Initializing Supabase client");
+logger.log("Initializing Supabase client");
 
 // Enhanced client with better options
 const supabase = createClient(supabaseUrl, supabaseKey, {
@@ -32,16 +33,16 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
 // Test connection on initialization, but don't block the app
 (async function testConnection() {
   try {
-    console.log("Testing Supabase connection...");
+    logger.log("Testing Supabase connection...");
     // Simple health check
     const { error } = await supabase.from('profiles').select('count', { count: 'exact', head: true });
     if (error) {
-      console.error('Supabase connection test failed:', error.message);
+      logger.error('Supabase connection test failed:', error.message);
     } else {
-      console.log('Supabase connection successful');
+      logger.log('Supabase connection successful');
     }
   } catch (e) {
-    console.error('Supabase connection test exception:', e);
+    logger.error('Supabase connection test exception:', e);
   }
 })();
 
@@ -50,12 +51,12 @@ supabase.debug = async function() {
   try {
     // Test auth
     const { data: authData, error: authError } = await this.auth.getSession();
-    console.log("Auth status:", authError ? "Error" : "OK");
-    console.log("Session present:", authData?.session ? "Yes" : "No");
+    logger.log("Auth status:", authError ? "Error" : "OK");
+    logger.log("Session present:", authData?.session ? "Yes" : "No");
     
     // Test database access
     const { data: dbData, error: dbError } = await this.from('profiles').select('count', { count: 'exact', head: true });
-    console.log("Database access:", dbError ? "Error" : "OK");
+    logger.log("Database access:", dbError ? "Error" : "OK");
     
     // Return debug info
     return {
@@ -64,7 +65,7 @@ supabase.debug = async function() {
       config: { url: supabaseUrl ? "Present" : "Missing" }
     };
   } catch (e) {
-    console.error("Debug method error:", e);
+    logger.error("Debug method error:", e);
     return { error: e.message };
   }
 };
@@ -78,7 +79,7 @@ supabase.debug = async function() {
 export const handleSupabaseError = (error, defaultMessage = 'An error occurred') => {
   if (!error) return defaultMessage;
   
-  console.error('Supabase error:', error);
+  logger.error('Supabase error:', error);
   
   // Check for common error codes
   if (error.code === 'PGRST301') {
@@ -105,13 +106,13 @@ export const getCurrentUser = async () => {
     const { data: { user }, error } = await supabase.auth.getUser();
     
     if (error) {
-      console.error('Error getting current user:', error);
+      logger.error('Error getting current user:', error);
       return null;
     }
     
     return user;
   } catch (e) {
-    console.error('Exception getting current user:', e);
+    logger.error('Exception getting current user:', e);
     return null;
   }
 };
@@ -133,13 +134,13 @@ export const getCurrentUserProfile = async () => {
       .single();
     
     if (error) {
-      console.error('Error fetching user profile:', error);
+      logger.error('Error fetching user profile:', error);
       return null;
     }
     
     return data;
   } catch (e) {
-    console.error('Exception fetching user profile:', e);
+    logger.error('Exception fetching user profile:', e);
     return null;
   }
 };
@@ -154,7 +155,7 @@ const hasRole = async (role) => {
     const profile = await getCurrentUserProfile();
     return profile?.role === role;
   } catch (e) {
-    console.error(`Error checking ${role} role:`, e);
+    logger.error(`Error checking ${role} role:`, e);
     return false;
   }
 };
@@ -219,13 +220,13 @@ export const safeFetch = async (table, select = '*', options = {}) => {
     const { data, error } = await query;
     
     if (error) {
-      console.error(`Error fetching from ${table}:`, error);
+      logger.error(`Error fetching from ${table}:`, error);
       return { data: null, error };
     }
     
     return { data, error: null };
   } catch (e) {
-    console.error(`Exception fetching from ${table}:`, e);
+    logger.error(`Exception fetching from ${table}:`, e);
     return { data: null, error: e };
   }
 };

@@ -8,6 +8,7 @@ import { FiUser, FiLogOut, FiSettings, FiAlertCircle, FiMenu, FiX } from 'react-
 import { toast } from 'react-toastify';
 import NotificationBell from '../common/NotificationBell';
 import logo from '../../assets/Logo.png';
+import logger from '../../utils/logger';
 
 const Header = ({ role, isMobileMenuOpen, setIsMobileMenuOpen }) => {
   const { user, logout } = useAuth();
@@ -36,9 +37,9 @@ const Header = ({ role, isMobileMenuOpen, setIsMobileMenuOpen }) => {
 
       if (error) throw error;
       setProfileData(data);
-      console.log('Fetched profileData:', data);
+      logger.log('Fetched profileData');
     } catch (error) {
-      console.error('Error fetching profile:', error);
+      logger.error('Error fetching profile:', error);
     }
   };
 
@@ -52,7 +53,7 @@ const Header = ({ role, isMobileMenuOpen, setIsMobileMenuOpen }) => {
       if (error) throw error;
       setArchivedUsersCount(count || 0);
     } catch (error) {
-      console.error('Error checking archived users:', error);
+      logger.error('Error checking archived users:', error);
     }
   };
 

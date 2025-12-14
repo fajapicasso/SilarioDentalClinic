@@ -1,6 +1,7 @@
 // src/services/auditLogService.js - Comprehensive Audit Logging Service
 import supabase from '../config/supabaseClient';
 import { getClientInfo } from '../utils/ipUtils';
+import logger from '../utils/logger';
 
 class AuditLogService {
   constructor() {
@@ -12,11 +13,11 @@ class AuditLogService {
     if (this.initialized) return;
     
     try {
-      console.log('AuditLogService: Initializing...');
+      logger.log('AuditLogService: Initializing...');
       this.initialized = true;
-      console.log('AuditLogService: Initialized successfully');
+      logger.log('AuditLogService: Initialized successfully');
     } catch (error) {
-      console.error('AuditLogService: Initialization failed', error);
+      logger.error('AuditLogService: Initialization failed', error);
     }
   }
 
@@ -120,9 +121,9 @@ class AuditLogService {
         .single();
 
       if (error) {
-        console.error('❌ Error logging audit event:', error);
-        console.error('❌ Audit entry that failed:', auditEntry);
-        console.error('❌ Error details:', {
+        logger.error('❌ Error logging audit event:', error);
+        logger.error('❌ Audit entry that failed:', auditEntry);
+        logger.error('❌ Error details:', {
           message: error.message,
           details: error.details,
           hint: error.hint,
@@ -131,7 +132,7 @@ class AuditLogService {
         return { success: false, error: error.message };
       }
 
-      console.log('Audit event logged:', {
+      logger.log('Audit event logged:', {
         id: data.id,
         action,
         module,
@@ -141,7 +142,7 @@ class AuditLogService {
 
       return { success: true, data };
     } catch (error) {
-      console.error('Error in audit logging:', error);
+      logger.error('Error in audit logging:', error);
       return { success: false, error: error.message };
     }
   }
@@ -807,7 +808,7 @@ class AuditLogService {
 
   async testAuditLog() {
     try {
-      console.log('🧪 Testing audit log system...');
+      logger.log('🧪 Testing audit log system...');
       
       const testEntry = {
         user_id: null,
@@ -837,14 +838,14 @@ class AuditLogService {
         .single();
 
       if (error) {
-        console.error('❌ Test audit log failed:', error);
+        logger.error('❌ Test audit log failed:', error);
         return { success: false, error: error.message };
       }
 
-      console.log('✅ Test audit log successful:', data);
+      logger.log('✅ Test audit log successful:', data);
       return { success: true, data };
     } catch (error) {
-      console.error('❌ Test audit log error:', error);
+      logger.error('❌ Test audit log error:', error);
       return { success: false, error: error.message };
     }
   }
@@ -900,7 +901,7 @@ class AuditLogService {
 
       return { success: true, data: data || [] };
     } catch (error) {
-      console.error('Error fetching audit logs:', error);
+      logger.error('Error fetching audit logs:', error);
       return { success: false, error: error.message };
     }
   }
@@ -920,7 +921,7 @@ class AuditLogService {
 
       return { success: true, data: data[0] };
     } catch (error) {
-      console.error('Error fetching audit log stats:', error);
+      logger.error('Error fetching audit log stats:', error);
       return { success: false, error: error.message };
     }
   }
@@ -949,7 +950,7 @@ class AuditLogService {
 
       return { success: true, data };
     } catch (error) {
-      console.error('Error generating audit report:', error);
+      logger.error('Error generating audit report:', error);
       return { success: false, error: error.message };
     }
   }

@@ -4,6 +4,7 @@ import supabase from '../config/supabaseClient';
 import { toast } from 'react-toastify';
 import { createClient } from '@supabase/supabase-js';
 import emailService from '../services/emailService';
+import logger from '../utils/logger';
 
 // Create admin client for bypassing RLS during registration (only if service role key exists)
 let supabaseAdmin = null;
@@ -12,9 +13,9 @@ if (import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY) {
     import.meta.env.VITE_SUPABASE_URL,
     import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY
   );
-  console.log("Admin client created successfully");
+  logger.log("Admin client created successfully");
 } else {
-  console.log("Service role key not found, admin client not created");
+  logger.log("Service role key not found, admin client not created");
 }
 
 const AuthContext = createContext();
@@ -42,22 +43,22 @@ export function AuthProvider({ children }) {
     // Check for active session on component mount
     const checkSession = async () => {
       try {
-        console.log("Checking session...");
+        logger.log("Checking session...");
         const { data, error } = await supabase.auth.getSession();
         
         if (error) {
-          console.error("Session check error:", error);
+          logger.error("Session check error:", error);
           setAuthError(error);
           setLoading(false);
           return;
         }
 
         if (data?.session) {
-          console.log("Session found:", data.session.user.id);
+          logger.log("Session found:", data.session.user.id);
           
           // Check if this is a password reset flow
           if (isPasswordResetFlow()) {
-            console.log("Password reset flow detected - not setting user state on mount");
+            logger.log("Password reset flow detected - not setting user state on mount");
             setLoading(false);
             return;
           }
@@ -71,34 +72,34 @@ export function AuthProvider({ children }) {
               .single();
             
             if (profileError) {
-              console.error("Profile fetch error:", profileError);
+              logger.error("Profile fetch error:", profileError);
             }
             
             // Check if user is disabled
             if (profileData && profileData.disabled === true) {
-              console.warn("User account is disabled:", data.session.user.id);
+              logger.warn("User account is disabled:", data.session.user.id);
               await supabase.auth.signOut();
               toast.error('Your account has been disabled. Please contact an administrator.');
               setUser(null);
               setUserRole(null);
             } else if (profileData) {
               setUser(data.session.user);
-              console.log("User role found:", profileData.role);
+              logger.log("User role found:", profileData.role);
               setUserRole(profileData.role);
             } else {
-              console.warn("No profile found for user:", data.session.user.id);
+              logger.warn("No profile found for user:", data.session.user.id);
               setUser(data.session.user);
               setUserRole('patient');
             }
           } catch (profileFetchError) {
-            console.error("Error in profile fetch:", profileFetchError);
+            logger.error("Error in profile fetch:", profileFetchError);
             setUser(data.session.user);
           }
         } else {
-          console.log("No active session found");
+          logger.log("No active session found");
         }
       } catch (error) {
-        console.error('Error checking session:', error.message);
+        logger.error('Error checking session:', error.message);
         setAuthError(error);
       } finally {
         setLoading(false);
@@ -109,22 +110,22 @@ export function AuthProvider({ children }) {
 
     // Subscribe to auth changes
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth state changed:", event);
+      logger.log("Auth state changed:", event);
       
       if (session) {
-        console.log("New session established for user:", session.user.id);
+        logger.log("New session established for user:", session.user.id);
         
         // CRITICAL FIX: Check if this is a password reset flow
         // Don't auto-login for password reset flows
         if (isPasswordResetFlow() && event !== 'SIGNED_IN') {
-          console.log("Password reset flow detected - not setting user state");
+          logger.log("Password reset flow detected - not setting user state");
           setLoading(false);
           return;
         }
         
         // For password recovery events, don't auto-login
         if (event === 'PASSWORD_RECOVERY') {
-          console.log("Password recovery event - not setting user state");
+          logger.log("Password recovery event - not setting user state");
           setLoading(false);
           return;
         }
@@ -139,27 +140,27 @@ export function AuthProvider({ children }) {
           
           if (!profileError && profileData) {
             if (profileData.disabled === true) {
-              console.warn("Disabled user attempted to log in:", session.user.id);
+              logger.warn("Disabled user attempted to log in:", session.user.id);
               await supabase.auth.signOut();
               toast.error('Your account has been disabled. Please contact an administrator.');
               setUser(null);
               setUserRole(null);
             } else {
               setUser(session.user);
-              console.log("User role updated:", profileData.role);
+              logger.log("User role updated:", profileData.role);
               setUserRole(profileData.role);
             }
           } else {
-            console.warn("Could not fetch role on auth change:", profileError);
+            logger.warn("Could not fetch role on auth change:", profileError);
             setUser(session.user);
             setUserRole(userRole || 'patient');
           }
         } catch (profileError) {
-          console.error("Error getting role on auth change:", profileError);
+          logger.error("Error getting role on auth change:", profileError);
           setUser(session.user);
         }
       } else {
-        console.log("Session ended, clearing user data");
+        logger.log("Session ended, clearing user data");
         setUser(null);
         setUserRole(null);
       }
@@ -167,7 +168,7 @@ export function AuthProvider({ children }) {
     });
 
     return () => {
-      console.log("Cleaning up auth subscription");
+      logger.log("Cleaning up auth subscription");
       authListener.subscription.unsubscribe();
     };
   }, []);
@@ -175,7 +176,7 @@ export function AuthProvider({ children }) {
   const register = async (email, password, userData) => {
     try {
       setLoading(true);
-      console.log("Registering new user:", email);
+      logger.log("Registering new user:", email);
       
       const first_name = userData.first_name || '';
       const middle_name = userData.middle_name || '';
@@ -209,18 +210,18 @@ export function AuthProvider({ children }) {
       });
 
       if (error) {
-        console.error("Registration error:", error);
+        logger.error("Registration error:", error);
         throw error;
       }
 
       if (data?.user) {
-        console.log("User created successfully:", data.user.id);
-        console.log("Registration completed successfully");
+        logger.log("User created successfully:", data.user.id);
+        logger.log("Registration completed successfully");
         toast.success('Registration successful! Please check your email to verify your account.');
         return { success: true };
       }
     } catch (error) {
-      console.error("Registration process failed:", error);
+      logger.error("Registration process failed:", error);
       
       if (error.message && error.message.includes('row-level security')) {
         toast.warning('Account created! Please check your email to verify your account before logging in.');
@@ -237,7 +238,7 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     try {
       setLoading(true);
-      console.log("Attempting login for:", email);
+      logger.log("Attempting login for:", email);
       
       const { data: emailCheck, error: emailCheckError } = await supabase
         .from('profiles')
@@ -246,7 +247,7 @@ export function AuthProvider({ children }) {
         .single();
         
       if (!emailCheckError && emailCheck && emailCheck.disabled === true) {
-        console.warn("Attempt to login to disabled account:", email);
+        logger.warn("Attempt to login to disabled account:", email);
         throw new Error('Your account has been disabled. Please contact an administrator.');
       }
       
@@ -256,12 +257,12 @@ export function AuthProvider({ children }) {
       });
 
       if (error) {
-        console.error("Login error:", error);
+        logger.error("Login error:", error);
         throw error;
       }
 
       if (data?.user) {
-        console.log("Login successful for user:", data.user.id);
+        logger.log("Login successful for user:", data.user.id);
         
         try {
           const { data: profileData, error: profileError } = await supabase
@@ -271,23 +272,23 @@ export function AuthProvider({ children }) {
             .single();
           
           if (profileError) {
-            console.error("Error fetching profile after login:", profileError);
+            logger.error("Error fetching profile after login:", profileError);
             throw profileError;
           }
           
           if (profileData.disabled === true) {
-            console.warn("Disabled user logged in, forcing logout:", data.user.id);
+            logger.warn("Disabled user logged in, forcing logout:", data.user.id);
             await supabase.auth.signOut();
             throw new Error('Your account has been disabled. Please contact an administrator.');
           }
           
           setUser(data.user);
-          console.log("Setting user role:", profileData.role);
+          logger.log("Setting user role:", profileData.role);
           setUserRole(profileData.role);
           toast.success(`Welcome back, ${profileData.full_name}!`);
           return { success: true, role: profileData.role };
         } catch (profileError) {
-          console.error("Profile fetch failed after login:", profileError);
+          logger.error("Profile fetch failed after login:", profileError);
           
           if (profileError.message && profileError.message.includes('disabled')) {
             await supabase.auth.signOut();
@@ -300,7 +301,7 @@ export function AuthProvider({ children }) {
         }
       }
     } catch (error) {
-      console.error("Login process failed:", error);
+      logger.error("Login process failed:", error);
       toast.error(error.message);
       return { success: false, error: error.message };
     } finally {
@@ -311,20 +312,20 @@ export function AuthProvider({ children }) {
   const logout = async () => {
     try {
       setLoading(true);
-      console.log("Logging out user");
+      logger.log("Logging out user");
       const { error } = await supabase.auth.signOut();
       if (error && error.message !== "auth session missing!") {
-        console.error("Logout error:", error);
+        logger.error("Logout error:", error);
         throw error;
       }
-      console.log("Logout successful");
+      logger.log("Logout successful");
       setUser(null);
       setUserRole(null);
       toast.success('Logged out successfully');
       return { success: true };
     } catch (error) {
       if (error.message !== "auth session missing!") {
-        console.error("Logout process failed:", error);
+        logger.error("Logout process failed:", error);
         toast.error(error.message);
       }
       setUser(null);
@@ -338,17 +339,17 @@ export function AuthProvider({ children }) {
   const requestPasswordResetToken = async (email) => {
     try {
       setLoading(true);
-      console.log("Password reset token requested for:", email);
+      logger.log("Password reset token requested for:", email);
       
       // Use Supabase's built-in password reset email system
-      console.log("Requesting password reset via Supabase for email:", email);
+      logger.log("Requesting password reset via Supabase for email:", email);
       
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`,
       });
       
       if (error) {
-        console.error("Password reset error:", error);
+        logger.error("Password reset error:", error);
         if (error.message.includes('User not found') || error.message.includes('not found')) {
           throw new Error('No account found with this email address.');
         } else if (error.message.includes('disabled')) {
@@ -357,13 +358,13 @@ export function AuthProvider({ children }) {
         throw error;
       }
       
-      console.log("Password reset email sent successfully via Supabase");
+      logger.log("Password reset email sent successfully via Supabase");
       return { 
         success: true, 
         message: 'Password reset instructions have been sent to your email. Please check your inbox.'
       };
     } catch (error) {
-      console.error("Password reset token request failed:", error);
+      logger.error("Password reset token request failed:", error);
       return { success: false, error: error.message };
     } finally {
       setLoading(false);
@@ -381,15 +382,15 @@ export function AuthProvider({ children }) {
         .single();
       
       if (profileError) {
-        console.error("Profile fetch error:", profileError);
+        logger.error("Profile fetch error:", profileError);
         throw new Error('Failed to fetch user profile');
       }
       
       // Update the user's password in Supabase Auth
-      console.log("Attempting to update password for user:", userId);
+      logger.log("Attempting to update password for user:", userId);
       
       if (!supabaseAdmin) {
-        console.error("Service role key not available - cannot update password");
+        logger.error("Service role key not available - cannot update password");
         throw new Error('Password reset is not properly configured. Please contact support.');
       }
       
@@ -399,12 +400,12 @@ export function AuthProvider({ children }) {
       );
       
       if (updateError) {
-        console.error("Password update error:", updateError);
-        console.error("Error details:", updateError.message);
+        logger.error("Password update error:", updateError);
+        logger.error("Error details:", updateError.message);
         throw new Error(`Failed to update password: ${updateError.message}`);
       }
       
-      console.log("Password updated successfully for user:", userId);
+      logger.log("Password updated successfully for user:", userId);
       
       // Log the user in after successful password reset
       const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
@@ -413,7 +414,7 @@ export function AuthProvider({ children }) {
       });
       
       if (loginError) {
-        console.error("Auto-login after password reset failed:", loginError);
+        logger.error("Auto-login after password reset failed:", loginError);
         // Password was updated successfully, but auto-login failed
         return { 
           success: true, 
@@ -427,11 +428,11 @@ export function AuthProvider({ children }) {
       setUser(loginData.user);
       setUserRole(profileData.role);
       
-      console.log("Password reset and auto-login successful");
+      logger.log("Password reset and auto-login successful");
       return { success: true, role: profileData.role };
       
     } catch (error) {
-      console.error("Password update error:", error);
+      logger.error("Password update error:", error);
       return { success: false, error: error.message };
     }
   };
@@ -439,8 +440,8 @@ export function AuthProvider({ children }) {
   const resetPasswordWithToken = async (email, token, newPassword) => {
     try {
       setLoading(true);
-      console.log("Attempting to reset password with token for:", email);
-      console.log("Token provided:", token);
+      logger.log("Attempting to reset password with token for:", email);
+      logger.log("Token provided:", token);
       
       // Validate the custom token using database function
       const { data: validationData, error: validationError } = await supabase
@@ -450,7 +451,7 @@ export function AuthProvider({ children }) {
         });
       
       if (validationError) {
-        console.error("Token validation error:", validationError);
+        logger.error("Token validation error:", validationError);
         throw new Error(`Token validation failed: ${validationError.message}`);
       }
       
@@ -465,11 +466,11 @@ export function AuthProvider({ children }) {
       }
       
       const userId = validationResult.user_id;
-      console.log("Token validated successfully for user:", userId);
+      logger.log("Token validated successfully for user:", userId);
       
       // Update password using admin client (requires service role key)
       if (!supabaseAdmin) {
-        console.error("Service role key not available - cannot update password");
+        logger.error("Service role key not available - cannot update password");
         throw new Error('Password reset is not properly configured. Please contact support.');
       }
       
@@ -479,11 +480,11 @@ export function AuthProvider({ children }) {
       );
       
       if (updateError) {
-        console.error("Password update error:", updateError);
+        logger.error("Password update error:", updateError);
         throw new Error(`Failed to update password: ${updateError.message}`);
       }
       
-      console.log("Password updated successfully for user:", userId);
+      logger.log("Password updated successfully for user:", userId);
       
       // Get user profile data
       const { data: profileData, error: profileError } = await supabase
@@ -493,7 +494,7 @@ export function AuthProvider({ children }) {
         .single();
       
       if (profileError) {
-        console.error("Profile fetch error:", profileError);
+        logger.error("Profile fetch error:", profileError);
         throw new Error('Failed to fetch user profile');
       }
       
@@ -504,7 +505,7 @@ export function AuthProvider({ children }) {
       });
       
       if (loginError) {
-        console.error("Auto-login after password reset failed:", loginError);
+        logger.error("Auto-login after password reset failed:", loginError);
         // Password was updated successfully, but auto-login failed
         return { 
           success: true, 
@@ -518,11 +519,11 @@ export function AuthProvider({ children }) {
       setUser(loginData.user);
       setUserRole(profileData.role);
       
-      console.log("Password reset and auto-login successful");
+      logger.log("Password reset and auto-login successful");
       return { success: true, role: profileData.role };
       
     } catch (error) {
-      console.error("Password reset with token failed:", error);
+      logger.error("Password reset with token failed:", error);
       return { success: false, error: error.message };
     } finally {
       setLoading(false);
@@ -533,7 +534,7 @@ export function AuthProvider({ children }) {
   const changePassword = async (currentPassword, newPassword) => {
     try {
       setLoading(true);
-      console.log("Attempting to change password");
+      logger.log("Attempting to change password");
       
       if (!user) {
         throw new Error('You must be logged in to change your password.');
@@ -546,7 +547,7 @@ export function AuthProvider({ children }) {
         .single();
       
       if (!profileError && profileData && profileData.disabled === true) {
-        console.warn("Password change attempted for disabled account:", user.id);
+        logger.warn("Password change attempted for disabled account:", user.id);
         throw new Error('This account has been disabled. Please contact an administrator.');
       }
       
@@ -556,7 +557,7 @@ export function AuthProvider({ children }) {
       });
       
       if (signInError) {
-        console.error("Current password verification failed:", signInError);
+        logger.error("Current password verification failed:", signInError);
         throw new Error('Current password is incorrect. Please try again.');
       }
       
@@ -565,15 +566,15 @@ export function AuthProvider({ children }) {
       });
       
       if (error) {
-        console.error("Password update error:", error);
+        logger.error("Password update error:", error);
         throw error;
       }
       
-      console.log("Password updated successfully");
+      logger.log("Password updated successfully");
       toast.success('Password updated successfully');
       return { success: true };
     } catch (error) {
-      console.error("Password change process failed:", error);
+      logger.error("Password change process failed:", error);
       toast.error(error.message);
       return { success: false, error: error.message };
     } finally {
@@ -584,7 +585,7 @@ export function AuthProvider({ children }) {
   const updateProfile = async (profileData) => {
     try {
       setLoading(true);
-      console.log("Updating profile for user:", user?.id);
+      logger.log("Updating profile for user:", user?.id);
       
       const { disabled, ...safeProfileData } = profileData;
       
@@ -594,15 +595,15 @@ export function AuthProvider({ children }) {
         .eq('id', user.id);
       
       if (error) {
-        console.error("Profile update error:", error);
+        logger.error("Profile update error:", error);
         throw error;
       }
       
-      console.log("Profile updated successfully");
+      logger.log("Profile updated successfully");
       toast.success('Profile updated successfully');
       return { success: true };
     } catch (error) {
-      console.error("Profile update process failed:", error);
+      logger.error("Profile update process failed:", error);
       toast.error(error.message);
       return { success: false, error: error.message };
     } finally {

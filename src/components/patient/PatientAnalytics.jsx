@@ -10,6 +10,7 @@ import supabase from '../../config/supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
 import LoadingSpinner from '../common/LoadingSpinner';
 import { getLogoBase64DataURL } from '../../utils/logoBase64';
+import logger from '../../utils/logger';
 
 const PatientAnalytics = () => {
   const { user } = useAuth();
@@ -49,7 +50,7 @@ const PatientAnalytics = () => {
           setPatientName(name);
         }
       } catch (error) {
-        console.error('Error fetching patient name:', error);
+        logger.error('Error fetching patient name:', error);
         // Fallback to user metadata
         const name = user.user_metadata?.full_name ||
           [user.user_metadata?.first_name, user.user_metadata?.middle_name, user.user_metadata?.last_name]
@@ -68,7 +69,7 @@ const PatientAnalytics = () => {
   // San Juan = Blue, Cabugao = Green (consistent across all charts)
   const getBranchColor = (branchName) => {
     if (!branchName) {
-      console.warn('getBranchColor: branchName is empty');
+      logger.warn('getBranchColor: branchName is empty');
       return '#3b82f6'; // Default to blue
     }
     
@@ -78,18 +79,18 @@ const PatientAnalytics = () => {
     
     // Check for San Juan (case-insensitive, handles variations)
     if (lower.includes('san juan') || lower === 'sanjuan' || lower.startsWith('san juan')) {
-      console.log(`getBranchColor: "${branchName}" -> San Juan -> Blue`);
+      logger.log(`getBranchColor: "${branchName}" -> San Juan -> Blue`);
       return '#3b82f6'; // Blue
     }
     
     // Check for Cabugao (case-insensitive, handles variations)
     if (lower.includes('cabugao') || lower.startsWith('cabugao')) {
-      console.log(`getBranchColor: "${branchName}" -> Cabugao -> Green`);
+      logger.log(`getBranchColor: "${branchName}" -> Cabugao -> Green`);
       return '#10b981'; // Green
     }
     
     // Default to blue for unknown branches
-    console.warn(`getBranchColor: "${branchName}" -> Unknown branch, defaulting to Blue`);
+    logger.warn(`getBranchColor: "${branchName}" -> Unknown branch, defaulting to Blue`);
     return '#3b82f6';
   };
 
@@ -125,7 +126,7 @@ const PatientAnalytics = () => {
     if (user) {
       // Only auto-fetch if not custom date range (custom requires manual Apply)
       if (timeFilter !== 'custom') {
-        console.log('Filter changed, fetching all analytics with filter:', timeFilter);
+        logger.log('Filter changed, fetching all analytics with filter:', timeFilter);
         fetchAllAnalytics();
       }
     }
@@ -180,7 +181,7 @@ const PatientAnalytics = () => {
   useEffect(() => {
     // Don't render charts while loading - wait for data to be ready
     if (loading) {
-      console.log('Still loading, skipping chart rendering');
+      logger.log('Still loading, skipping chart rendering');
       return;
     }
 
@@ -208,7 +209,7 @@ const PatientAnalytics = () => {
           });
 
           if (foundCount === canvasIds.length) {
-            console.log(`✓ All ${canvasIds.length} canvas elements found on attempt ${attempt + 1}`);
+            logger.log(`✓ All ${canvasIds.length} canvas elements found on attempt ${attempt + 1}`);
             return true;
           }
 
@@ -223,13 +224,13 @@ const PatientAnalytics = () => {
           const canvas = document.getElementById(id);
           if (canvas) {
             foundCount++;
-            console.log(`✓ Found canvas: ${id}`);
+            logger.log(`✓ Found canvas: ${id}`);
           } else {
-            console.warn(`✗ Canvas ${id} not found`);
+            logger.warn(`✗ Canvas ${id} not found`);
           }
         });
 
-        console.log(`Found ${foundCount} of ${canvasIds.length} canvas elements after ${maxAttempts} attempts`);
+        logger.log(`Found ${foundCount} of ${canvasIds.length} canvas elements after ${maxAttempts} attempts`);
         return foundCount > 0;
       };
 
@@ -239,11 +240,11 @@ const PatientAnalytics = () => {
       const hasBranchData = branchMetrics && (branchMetrics.branchTrend?.length > 0 || Object.keys(branchMetrics.visitsPerBranch || {}).length > 0);
 
       if (!hasAppointmentData && !hasTreatmentData && !hasBranchData) {
-        console.log('No analytics data available yet, skipping chart rendering');
+        logger.log('No analytics data available yet, skipping chart rendering');
         return;
       }
 
-      console.log('Starting chart rendering process...');
+      logger.log('Starting chart rendering process...');
 
       // Wait for canvas elements to appear in DOM
       const canvasIds = [
@@ -258,7 +259,7 @@ const PatientAnalytics = () => {
       const elementsReady = await waitForCanvasElements(15); // Try for up to 3 seconds
 
       if (!elementsReady) {
-        console.error('Canvas elements not found after waiting. Charts cannot be rendered.');
+        logger.error('Canvas elements not found after waiting. Charts cannot be rendered.');
         return;
       }
 
@@ -273,7 +274,7 @@ const PatientAnalytics = () => {
               // Set minimum dimensions
               canvasParent.style.minWidth = '400px';
               canvasParent.style.minHeight = '300px';
-              console.log(`Set min dimensions for ${id} parent`);
+              logger.log(`Set min dimensions for ${id} parent`);
             }
           }
         }
@@ -283,7 +284,7 @@ const PatientAnalytics = () => {
       await new Promise(resolve => setTimeout(resolve, 300));
 
       // Render all charts
-      console.log('Rendering all charts...');
+      logger.log('Rendering all charts...');
       if (hasAppointmentData) {
         renderAppointmentCharts();
         await new Promise(resolve => setTimeout(resolve, 400));
@@ -301,7 +302,7 @@ const PatientAnalytics = () => {
 
       // Wait for charts to fully render
       await new Promise(resolve => setTimeout(resolve, 500));
-      console.log('All charts rendered successfully!');
+      logger.log('All charts rendered successfully!');
     };
 
     // Wait a bit longer to ensure DOM is fully ready
@@ -332,7 +333,7 @@ const PatientAnalytics = () => {
       case 'daily':
         // Today only - return single date for .eq() query
         const todayFormatted = formatDate(today);
-        console.log('Daily filter - Today:', todayFormatted);
+        logger.log('Daily filter - Today:', todayFormatted);
         return {
           date: todayFormatted,
           isDaily: true // Flag to use .eq() instead of range
@@ -346,7 +347,7 @@ const PatientAnalytics = () => {
         weekEnd.setDate(weekStart.getDate() + 6); // 6 days later (Sunday to Saturday inclusive)
         const weekStartFormatted = formatDate(weekStart);
         const weekEndFormatted = formatDate(weekEnd);
-        console.log('Weekly filter - Week:', weekStartFormatted, 'to', weekEndFormatted);
+        logger.log('Weekly filter - Week:', weekStartFormatted, 'to', weekEndFormatted);
         return {
           start: weekStartFormatted,
           end: weekEndFormatted
@@ -357,7 +358,7 @@ const PatientAnalytics = () => {
         const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0); // Last day of current month (day 0 of next month)
         const monthStartFormatted = formatDate(monthStart);
         const monthEndFormatted = formatDate(monthEnd);
-        console.log('Monthly filter - Month:', monthStartFormatted, 'to', monthEndFormatted);
+        logger.log('Monthly filter - Month:', monthStartFormatted, 'to', monthEndFormatted);
         return {
           start: monthStartFormatted,
           end: monthEndFormatted
@@ -390,7 +391,7 @@ const PatientAnalytics = () => {
   const fetchAnalytics = async () => {
     setLoading(true);
     try {
-      console.log('fetchAnalytics called for tab:', activeTab, 'with filter:', timeFilter);
+      logger.log('fetchAnalytics called for tab:', activeTab, 'with filter:', timeFilter);
       if (activeTab === 'appointments') {
         await fetchAppointmentAnalytics();
       } else if (activeTab === 'treatments') {
@@ -399,7 +400,7 @@ const PatientAnalytics = () => {
         await fetchBranchAnalytics();
       }
     } catch (error) {
-      console.error('Error fetching analytics:', error);
+      logger.error('Error fetching analytics:', error);
     } finally {
       setLoading(false);
     }
@@ -409,19 +410,19 @@ const PatientAnalytics = () => {
   const fetchAllAnalytics = async () => {
     setLoading(true);
     try {
-      console.log('Fetching all analytics data with filter:', timeFilter);
+      logger.log('Fetching all analytics data with filter:', timeFilter);
       // Fetch all analytics data in parallel
       const [apptMetrics, treatMetrics, branchMetricsData] = await Promise.all([
         fetchAppointmentAnalytics().catch(e => { 
-          console.error('Appointment fetch error:', e); 
+          logger.error('Appointment fetch error:', e); 
           return { total: 0, completed: 0, cancelled: 0, trend: [], avgTimeBetween: 0 }; 
         }),
         fetchTreatmentAnalytics().catch(e => { 
-          console.error('Treatment fetch error:', e); 
+          logger.error('Treatment fetch error:', e); 
           return { mostCommon: [], countByTimeframe: [], dentistFrequency: [] }; 
         }),
         fetchBranchAnalytics().catch(e => { 
-          console.error('Branch fetch error:', e); 
+          logger.error('Branch fetch error:', e); 
           return { visitsPerBranch: {}, branchTrend: [] }; 
         })
       ]);
@@ -436,9 +437,9 @@ const PatientAnalytics = () => {
       setTreatmentMetrics(safeTreatMetrics);
       setBranchMetrics(safeBranchMetrics);
       
-      console.log('All analytics data fetched successfully');
+      logger.log('All analytics data fetched successfully');
     } catch (error) {
-      console.error('Error fetching all analytics:', error);
+      logger.error('Error fetching all analytics:', error);
     } finally {
       setLoading(false);
     }
@@ -447,7 +448,7 @@ const PatientAnalytics = () => {
   const fetchAppointmentAnalytics = async () => {
     try {
       const dateRange = getDateRange();
-      console.log('Fetching appointment analytics with date range:', dateRange, 'timeFilter:', timeFilter);
+      logger.log('Fetching appointment analytics with date range:', dateRange, 'timeFilter:', timeFilter);
       
       let query = supabase
         .from('appointments')
@@ -457,10 +458,10 @@ const PatientAnalytics = () => {
       if (dateRange) {
         if (dateRange.isDaily) {
           // For daily, use .eq() to match exactly today
-          console.log('Appointment daily filter applied (exact match):', dateRange.date);
+          logger.log('Appointment daily filter applied (exact match):', dateRange.date);
           query = query.eq('appointment_date', dateRange.date);
         } else if (dateRange.start && dateRange.end) {
-          console.log('Appointment date range filter applied:', { start: dateRange.start, end: dateRange.end });
+          logger.log('Appointment date range filter applied:', { start: dateRange.start, end: dateRange.end });
           query = query
             .gte('appointment_date', dateRange.start)
             .lte('appointment_date', dateRange.end); // Use lte to include end date
@@ -468,13 +469,13 @@ const PatientAnalytics = () => {
       }
 
       const { data, error } = await query;
-      console.log('Appointment query executed. Records found:', data?.length || 0);
+      logger.log('Appointment query executed. Records found:', data?.length || 0);
       if (error) {
-        console.error('Appointment analytics query error:', error);
+        logger.error('Appointment analytics query error:', error);
         throw error;
       }
       
-      console.log('Appointment analytics data fetched:', data?.length || 0, 'records');
+      logger.log('Appointment analytics data fetched:', data?.length || 0, 'records');
 
       if (!data || data.length === 0) {
         const emptyMetrics = {
@@ -520,7 +521,7 @@ const PatientAnalytics = () => {
         avgTimeBetween = intervals.reduce((a, b) => a + b, 0) / intervals.length;
       }
 
-      console.log('Appointment metrics calculated:', {
+      logger.log('Appointment metrics calculated:', {
         total,
         completed,
         cancelled,
@@ -538,7 +539,7 @@ const PatientAnalytics = () => {
       setAppointmentMetrics(metrics);
       return metrics; // Return the data for use in print function
     } catch (error) {
-      console.error('Error fetching appointment analytics:', error);
+      logger.error('Error fetching appointment analytics:', error);
       // Set empty state on error
       const emptyMetrics = {
         total: 0,
@@ -555,7 +556,7 @@ const PatientAnalytics = () => {
   const fetchTreatmentAnalytics = async () => {
     try {
       const dateRange = getDateRange();
-      console.log('Fetching treatment analytics with date range:', dateRange, 'timeFilter:', timeFilter);
+      logger.log('Fetching treatment analytics with date range:', dateRange, 'timeFilter:', timeFilter);
       
       let query = supabase
         .from('treatments')
@@ -565,10 +566,10 @@ const PatientAnalytics = () => {
       if (dateRange) {
         if (dateRange.isDaily) {
           // For daily, use .eq() to match exactly today
-          console.log('Treatment daily filter applied (exact match):', dateRange.date);
+          logger.log('Treatment daily filter applied (exact match):', dateRange.date);
           query = query.eq('treatment_date', dateRange.date);
         } else if (dateRange.start && dateRange.end) {
-          console.log('Treatment date range filter:', dateRange);
+          logger.log('Treatment date range filter:', dateRange);
           query = query
             .gte('treatment_date', dateRange.start)
             .lte('treatment_date', dateRange.end); // Use lte to include end date
@@ -576,13 +577,13 @@ const PatientAnalytics = () => {
       }
 
       const { data, error } = await query;
-      console.log('Treatment query executed. Records found:', data?.length || 0);
+      logger.log('Treatment query executed. Records found:', data?.length || 0);
       if (error) {
-        console.error('Treatment analytics query error:', error);
+        logger.error('Treatment analytics query error:', error);
         throw error;
       }
       
-      console.log('Treatment analytics data fetched:', data?.length || 0, 'records');
+      logger.log('Treatment analytics data fetched:', data?.length || 0, 'records');
 
       if (!data || data.length === 0) {
         const emptyMetrics = {
@@ -635,7 +636,7 @@ const PatientAnalytics = () => {
         .map(([name, count]) => ({ name, count }))
         .sort((a, b) => b.count - a.count);
 
-      console.log('Treatment metrics calculated:', {
+      logger.log('Treatment metrics calculated:', {
         mostCommon: mostCommon.length,
         countByTimeframe: countByTimeframe.length,
         dentistFrequency: dentistFrequency.length
@@ -649,7 +650,7 @@ const PatientAnalytics = () => {
       setTreatmentMetrics(metrics);
       return metrics; // Return the data for use in print function
     } catch (error) {
-      console.error('Error fetching treatment analytics:', error);
+      logger.error('Error fetching treatment analytics:', error);
       // Set empty state on error
       const emptyMetrics = {
         mostCommon: [],
@@ -664,7 +665,7 @@ const PatientAnalytics = () => {
   const fetchBranchAnalytics = async () => {
     try {
       const dateRange = getDateRange();
-      console.log('Fetching branch analytics with date range:', dateRange, 'timeFilter:', timeFilter);
+      logger.log('Fetching branch analytics with date range:', dateRange, 'timeFilter:', timeFilter);
       
       // Get all appointments (not just completed) for branch analytics
       let query = supabase
@@ -675,10 +676,10 @@ const PatientAnalytics = () => {
       if (dateRange) {
         if (dateRange.isDaily) {
           // For daily, use .eq() to match exactly today
-          console.log('Branch appointment daily filter applied (exact match):', dateRange.date);
+          logger.log('Branch appointment daily filter applied (exact match):', dateRange.date);
           query = query.eq('appointment_date', dateRange.date);
         } else if (dateRange.start && dateRange.end) {
-          console.log('Branch appointment date range filter applied:', { start: dateRange.start, end: dateRange.end });
+          logger.log('Branch appointment date range filter applied:', { start: dateRange.start, end: dateRange.end });
           query = query
             .gte('appointment_date', dateRange.start)
             .lte('appointment_date', dateRange.end); // Use lte to include end date
@@ -686,13 +687,13 @@ const PatientAnalytics = () => {
       }
 
       const { data, error } = await query;
-      console.log('Branch query executed. Records found:', data?.length || 0);
+      logger.log('Branch query executed. Records found:', data?.length || 0);
       if (error) {
-        console.error('Branch analytics query error:', error);
+        logger.error('Branch analytics query error:', error);
         throw error;
       }
       
-      console.log('Branch analytics data fetched:', data?.length || 0, 'records');
+      logger.log('Branch analytics data fetched:', data?.length || 0, 'records');
 
       if (!data || data.length === 0) {
         const emptyMetrics = {
@@ -727,7 +728,7 @@ const PatientAnalytics = () => {
       const branchTrend = Array.from(branchTrendMap.values())
         .sort((a, b) => a.date.localeCompare(b.date));
 
-      console.log('Branch metrics calculated:', {
+      logger.log('Branch metrics calculated:', {
         visitsPerBranch: Object.keys(visitsPerBranch).length,
         branchTrendLength: branchTrend.length
       });
@@ -739,7 +740,7 @@ const PatientAnalytics = () => {
       setBranchMetrics(metrics);
       return metrics; // Return the data for use in print function
     } catch (error) {
-      console.error('Error fetching branch analytics:', error);
+      logger.error('Error fetching branch analytics:', error);
       // Set empty state on error
       const emptyMetrics = {
         visitsPerBranch: {},
@@ -763,7 +764,7 @@ const PatientAnalytics = () => {
     
     // Safety check: ensure metrics has all required properties
     if (!metrics || typeof metrics !== 'object') {
-      console.warn('renderAppointmentCharts: Invalid metrics, using defaults');
+      logger.warn('renderAppointmentCharts: Invalid metrics, using defaults');
       return;
     }
     
@@ -916,7 +917,7 @@ const PatientAnalytics = () => {
     
     // Safety check: ensure metrics has all required properties
     if (!metrics || typeof metrics !== 'object') {
-      console.warn('renderTreatmentCharts: Invalid metrics, using defaults');
+      logger.warn('renderTreatmentCharts: Invalid metrics, using defaults');
       return;
     }
     // Treatment Count Chart - render if we have data
@@ -1060,7 +1061,7 @@ const PatientAnalytics = () => {
     
     // Safety check: ensure metrics has all required properties
     if (!metrics || typeof metrics !== 'object') {
-      console.warn('renderBranchCharts: Invalid metrics, using defaults');
+      logger.warn('renderBranchCharts: Invalid metrics, using defaults');
       return;
     }
     // Branch Usage Chart - render if we have branch data
@@ -1117,7 +1118,7 @@ const PatientAnalytics = () => {
       // Use consistent colors based on branch name
       const branchColors = branches.map(branch => {
         const color = getBranchColor(branch);
-        console.log(`Branch Usage Chart - Branch: "${branch}", Color: ${color} (${color === '#3b82f6' ? 'Blue' : 'Green'})`);
+        logger.log(`Branch Usage Chart - Branch: "${branch}", Color: ${color} (${color === '#3b82f6' ? 'Blue' : 'Green'})`);
         return color;
       });
 
@@ -1182,7 +1183,7 @@ const PatientAnalytics = () => {
 
       // Get unique branches from data
       const uniqueBranches = [...new Set(metrics.branchTrend.map(t => t.branch))];
-      console.log('🔍 Raw branch names from data:', uniqueBranches);
+      logger.log('🔍 Raw branch names from data:', uniqueBranches);
       
       // Find the exact branch names (handle any case/spacing variations)
       let sanJuanBranch = null;
@@ -1198,7 +1199,7 @@ const PatientAnalytics = () => {
         }
       });
       
-      console.log('📍 Identified branches - San Juan:', sanJuanBranch, 'Cabugao:', cabugaoBranch);
+      logger.log('📍 Identified branches - San Juan:', sanJuanBranch, 'Cabugao:', cabugaoBranch);
       
       // Create datasets in EXPLICIT order: Cabugao first (GREEN), then San Juan (BLUE)
       const dates = [...new Set(metrics.branchTrend.map(t => t.date))].sort();
@@ -1224,7 +1225,7 @@ const PatientAnalytics = () => {
           pointRadius: 4,
           pointHoverRadius: 6
         });
-        console.log(`✅ Added Cabugao dataset: "${cabugaoBranch}" with GREEN color (#10b981)`);
+        logger.log(`✅ Added Cabugao dataset: "${cabugaoBranch}" with GREEN color (#10b981)`);
       }
       
       // 2. Add San Juan dataset SECOND with BLUE color
@@ -1247,7 +1248,7 @@ const PatientAnalytics = () => {
           pointRadius: 4,
           pointHoverRadius: 6
         });
-        console.log(`✅ Added San Juan dataset: "${sanJuanBranch}" with BLUE color (#3b82f6)`);
+        logger.log(`✅ Added San Juan dataset: "${sanJuanBranch}" with BLUE color (#3b82f6)`);
       }
       
       // 3. Add any other branches (shouldn't happen, but just in case)
@@ -1269,11 +1270,11 @@ const PatientAnalytics = () => {
             backgroundColor: '#f59e0b40',
             tension: 0.3
           });
-          console.log(`⚠️ Added other branch dataset: "${branch}" with ORANGE color`);
+          logger.log(`⚠️ Added other branch dataset: "${branch}" with ORANGE color`);
         }
       });
       
-      console.log('Final datasets for Branch Trend:', datasets.map(d => ({ label: d.label, borderColor: d.borderColor })));
+      logger.log('Final datasets for Branch Trend:', datasets.map(d => ({ label: d.label, borderColor: d.borderColor })));
 
       // Use datasets directly - they're already in correct order (Cabugao GREEN first, San Juan BLUE second)
       // No need to sort since we're adding them in the correct order already
@@ -1744,16 +1745,16 @@ const PatientAnalytics = () => {
 
   const handlePrint = async () => {
     try {
-      console.log('Starting print process...');
+      logger.log('Starting print process...');
       // Don't set loading to true - it will hide the content sections and canvas elements!
       // We need the canvas elements to remain in the DOM for printing
 
       // Fetch all analytics data for all tabs
-      console.log('Fetching analytics data...');
+      logger.log('Fetching analytics data...');
       const [apptMetrics, treatMetrics, branchMetricsData] = await Promise.all([
-        fetchAppointmentAnalytics().catch(e => { console.error('Appointment fetch error:', e); return { total: 0, completed: 0, cancelled: 0, trend: [], avgTimeBetween: 0 }; }),
-        fetchTreatmentAnalytics().catch(e => { console.error('Treatment fetch error:', e); return { mostCommon: [], countByTimeframe: [], dentistFrequency: [] }; }),
-        fetchBranchAnalytics().catch(e => { console.error('Branch fetch error:', e); return { visitsPerBranch: {}, branchTrend: [] }; })
+        fetchAppointmentAnalytics().catch(e => { logger.error('Appointment fetch error:', e); return { total: 0, completed: 0, cancelled: 0, trend: [], avgTimeBetween: 0 }; }),
+        fetchTreatmentAnalytics().catch(e => { logger.error('Treatment fetch error:', e); return { mostCommon: [], countByTimeframe: [], dentistFrequency: [] }; }),
+        fetchBranchAnalytics().catch(e => { logger.error('Branch fetch error:', e); return { visitsPerBranch: {}, branchTrend: [] }; })
       ]);
       
       // Update state with fetched data and wait for React to process
@@ -1764,7 +1765,7 @@ const PatientAnalytics = () => {
       // Wait for React state to update and component to re-render
       await new Promise(resolve => setTimeout(resolve, 300));
       
-      console.log('Analytics data fetched and ready');
+      logger.log('Analytics data fetched and ready');
 
       // FIRST: Make all tab sections visible so canvas elements exist in DOM
       const contentContainer = document.getElementById('patient-analytics-content');
@@ -1775,7 +1776,7 @@ const PatientAnalytics = () => {
       // Find all sections that have inline display styles (the tab content divs)
       // They are direct children of a div inside #patient-analytics-content
       const wrapperDiv = contentContainer.querySelector('div:not(.border-b)'); // Get the content wrapper, not the tabs nav
-      console.log('Wrapper div found:', !!wrapperDiv);
+      logger.log('Wrapper div found:', !!wrapperDiv);
       
       // Try multiple ways to find sections
       let allSections = [];
@@ -1799,7 +1800,7 @@ const PatientAnalytics = () => {
         allSections = Array.from(wrapperDiv.children);
       }
       
-      console.log(`Found ${allSections.length} tab sections in DOM`);
+      logger.log(`Found ${allSections.length} tab sections in DOM`);
       
       // Store original styles for restoration
       const sectionStyles = new Map();
@@ -1842,11 +1843,11 @@ const PatientAnalytics = () => {
       
       // Check if any canvas elements exist at all in the content area
       const allCanvasesInContent = contentContainer.querySelectorAll('canvas');
-      console.log(`Total canvas elements found in content area: ${allCanvasesInContent.length}`);
+      logger.log(`Total canvas elements found in content area: ${allCanvasesInContent.length}`);
       
       // List all canvas IDs found
       allCanvasesInContent.forEach(canvas => {
-        console.log(`  - Canvas ID: ${canvas.id || '(no id)'}, tagName: ${canvas.tagName}`);
+        logger.log(`  - Canvas ID: ${canvas.id || '(no id)'}, tagName: ${canvas.tagName}`);
       });
       
       // NOW find all canvas elements - they should exist now
@@ -1865,30 +1866,30 @@ const PatientAnalytics = () => {
         const canvas = document.getElementById(id);
         if (canvas) {
           foundCanvasCount++;
-          console.log(`✓ Found canvas: ${id}`);
+          logger.log(`✓ Found canvas: ${id}`);
           const canvasParent = canvas.parentElement;
           if (canvasParent) {
             const rect = canvasParent.getBoundingClientRect();
-            console.log(`  Canvas ${id} parent dimensions: ${rect.width}x${rect.height}`);
+            logger.log(`  Canvas ${id} parent dimensions: ${rect.width}x${rect.height}`);
             if (rect.width === 0 || rect.height === 0) {
               canvasParent.style.minWidth = '400px';
               canvasParent.style.minHeight = '300px';
-              console.log(`  Set min dimensions for ${id} parent`);
+              logger.log(`  Set min dimensions for ${id} parent`);
             }
           }
         } else {
-          console.warn(`✗ Canvas ${id} still not found after making sections visible`);
+          logger.warn(`✗ Canvas ${id} still not found after making sections visible`);
         }
       });
       
-      console.log(`Found ${foundCanvasCount} of ${canvasIds.length} canvas elements`);
+      logger.log(`Found ${foundCanvasCount} of ${canvasIds.length} canvas elements`);
       
       // Force another layout recalculation
       void document.body.offsetHeight;
       await new Promise(resolve => setTimeout(resolve, 300));
       
       // Now render all charts with the fetched data
-      console.log('Rendering all charts...');
+      logger.log('Rendering all charts...');
       renderAppointmentCharts(apptMetrics);
       await new Promise(resolve => setTimeout(resolve, 500));
       
@@ -1900,7 +1901,7 @@ const PatientAnalytics = () => {
       
       // Wait for all charts to fully render and update
       await new Promise(resolve => setTimeout(resolve, 1000));
-      console.log('All charts should be rendered now');
+      logger.log('All charts should be rendered now');
 
       // Get current date and time
       const now = new Date();
@@ -1923,7 +1924,7 @@ const PatientAnalytics = () => {
         { name: 'branchTrend', ref: branchTrendRef, id: 'chart-branchTrend' }
       ];
 
-      console.log('Converting charts to images...');
+      logger.log('Converting charts to images...');
       
       for (const config of chartConfigs) {
         try {
@@ -1932,25 +1933,25 @@ const PatientAnalytics = () => {
           // Try to get canvas from ref first
           if (config.ref && config.ref.current) {
             canvas = config.ref.current;
-            console.log(`Found ${config.name} via ref`);
+            logger.log(`Found ${config.name} via ref`);
           } else {
             // Fallback: try to find canvas by ID
             const canvasElement = document.getElementById(config.id);
             if (canvasElement) {
               canvas = canvasElement;
-              console.log(`Found ${config.name} via DOM query`);
+              logger.log(`Found ${config.name} via DOM query`);
             }
           }
           
           if (!canvas) {
-            console.warn(`Chart ${config.name} canvas not found (ref or DOM)`);
+            logger.warn(`Chart ${config.name} canvas not found (ref or DOM)`);
             continue;
           }
           
           // Check if we have a Chart.js instance
           const chartInstance = window[config.name];
           if (chartInstance) {
-            console.log(`Found chart instance for ${config.name}`);
+            logger.log(`Found chart instance for ${config.name}`);
             // Force chart to update and render
             try {
               if (typeof chartInstance.resize === 'function') {
@@ -1961,11 +1962,11 @@ const PatientAnalytics = () => {
               }
               await new Promise(resolve => setTimeout(resolve, 200));
             } catch (updateError) {
-              console.warn(`Error updating chart ${config.name}:`, updateError);
+              logger.warn(`Error updating chart ${config.name}:`, updateError);
             }
           } else {
             // Chart instance not found, but we have canvas - try to render it
-            console.warn(`No chart instance found for ${config.name}, but canvas exists`);
+            logger.warn(`No chart instance found for ${config.name}, but canvas exists`);
           }
           
           // Get canvas dimensions from parent if needed
@@ -1996,23 +1997,23 @@ const PatientAnalytics = () => {
               const dataUrl = canvas.toDataURL('image/png', 1.0);
               if (dataUrl && dataUrl !== 'data:,') {
                 chartImages[config.name] = dataUrl;
-                console.log(`✓ Successfully converted ${config.name} (${canvas.width}x${canvas.height})`);
+                logger.log(`✓ Successfully converted ${config.name} (${canvas.width}x${canvas.height})`);
               } else {
-                console.warn(`Chart ${config.name} produced empty data URL`);
+                logger.warn(`Chart ${config.name} produced empty data URL`);
               }
             } catch (conversionError) {
-              console.error(`Error converting ${config.name} to image:`, conversionError);
+              logger.error(`Error converting ${config.name} to image:`, conversionError);
             }
           } else {
-            console.warn(`Chart ${config.name} has invalid dimensions: ${canvas.width}x${canvas.height}`);
+            logger.warn(`Chart ${config.name} has invalid dimensions: ${canvas.width}x${canvas.height}`);
           }
         } catch (error) {
-          console.error(`Error processing ${config.name}:`, error);
+          logger.error(`Error processing ${config.name}:`, error);
         }
       }
       
-      console.log(`Chart images converted: ${Object.keys(chartImages).length} of ${chartConfigs.length}`);
-      console.log('Successfully converted charts:', Object.keys(chartImages));
+      logger.log(`Chart images converted: ${Object.keys(chartImages).length} of ${chartConfigs.length}`);
+      logger.log('Successfully converted charts:', Object.keys(chartImages));
       
       // Restore original tab visibility
       sectionStyles.forEach((style, section) => {
@@ -2203,11 +2204,11 @@ const PatientAnalytics = () => {
       };
 
       // Get logo as base64 for print
-      console.log('Getting logo...');
+      logger.log('Getting logo...');
       const logoDataURL = await getLogoBase64DataURL();
 
       // Create print HTML with all sections
-      console.log('Building print HTML...');
+      logger.log('Building print HTML...');
       const printHTML = `
       <!DOCTYPE html>
       <html lang="en">
@@ -2425,13 +2426,13 @@ const PatientAnalytics = () => {
     `;
 
       // Create blob URL and open in new window/tab
-      console.log('Creating print document...');
+      logger.log('Creating print document...');
       const blob = new Blob([printHTML], { type: 'text/html;charset=utf-8' });
       const blobUrl = URL.createObjectURL(blob);
       
       // Iframe fallback method (defined first so it's in scope)
       const useIframeMethod = () => {
-        console.log('Using iframe method...');
+        logger.log('Using iframe method...');
         const existingIframe = document.getElementById('print-iframe');
         if (existingIframe) {
           existingIframe.remove();
@@ -2454,7 +2455,7 @@ const PatientAnalytics = () => {
             try {
               iframe.contentWindow.focus();
               iframe.contentWindow.print();
-              console.log('Print triggered via iframe');
+              logger.log('Print triggered via iframe');
               setTimeout(() => {
                 if (iframe && iframe.parentNode) {
                   iframe.remove();
@@ -2463,7 +2464,7 @@ const PatientAnalytics = () => {
                 URL.revokeObjectURL(blobUrl);
               }, 1000);
             } catch (e) {
-              console.error('Iframe print error:', e);
+              logger.error('Iframe print error:', e);
               if (iframe && iframe.parentNode) {
                 iframe.remove();
               }
@@ -2496,7 +2497,7 @@ const PatientAnalytics = () => {
               throw new Error('Iframe not ready');
             }
           } catch (e) {
-            console.error('Iframe print failed:', e);
+            logger.error('Iframe print failed:', e);
             alert('Unable to open print dialog automatically. The report has been prepared. Please check if a new tab opened, or use your browser\'s print function (Ctrl+P / Cmd+P).');
             if (iframe && iframe.parentNode) {
               iframe.remove();
@@ -2522,7 +2523,7 @@ const PatientAnalytics = () => {
             setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
           }
         } catch (e) {
-          console.error('Print error:', e);
+          logger.error('Print error:', e);
           setLoading(false);
           URL.revokeObjectURL(blobUrl);
         }
@@ -2531,7 +2532,7 @@ const PatientAnalytics = () => {
       try {
         printWindow = window.open(blobUrl, '_blank');
         if (printWindow && !printWindow.closed) {
-          console.log('Print window opened successfully');
+          logger.log('Print window opened successfully');
           
           // Wait for window to load and then print
           const printWhenReady = () => {
@@ -2550,7 +2551,7 @@ const PatientAnalytics = () => {
                 }
               }
             } catch (e) {
-              console.error('Error checking print window readiness:', e);
+              logger.error('Error checking print window readiness:', e);
               triggerPrint();
             }
           };
@@ -2566,16 +2567,16 @@ const PatientAnalytics = () => {
           }, 2500);
         } else {
           // Pop-up blocked, use iframe
-          console.warn('Pop-up blocked, using iframe method');
+          logger.warn('Pop-up blocked, using iframe method');
           useIframeMethod();
         }
       } catch (e) {
-        console.warn('Window.open failed, using iframe:', e);
+        logger.warn('Window.open failed, using iframe:', e);
         useIframeMethod();
       }
     } catch (error) {
-      console.error('Error printing analytics:', error);
-      console.error('Error stack:', error.stack);
+      logger.error('Error printing analytics:', error);
+      logger.error('Error stack:', error.stack);
       alert(`Failed to print analytics: ${error.message}. Please try again.`);
       setLoading(false);
     }
@@ -2585,21 +2586,21 @@ const PatientAnalytics = () => {
     setLoading(true);
     
     try {
-      console.log('Starting PDF generation...');
+      logger.log('Starting PDF generation...');
       
       // Step 1: Fetch all analytics data
-      console.log('Fetching all analytics data...');
+      logger.log('Fetching all analytics data...');
       const [apptMetrics, treatMetrics, branchMetricsData] = await Promise.all([
         fetchAppointmentAnalytics().catch(e => {
-          console.error('Appointment fetch error:', e);
+          logger.error('Appointment fetch error:', e);
           return { total: 0, completed: 0, cancelled: 0, trend: [], avgTimeBetween: 0 };
         }),
         fetchTreatmentAnalytics().catch(e => {
-          console.error('Treatment fetch error:', e);
+          logger.error('Treatment fetch error:', e);
           return { mostCommon: [], countByTimeframe: [], dentistFrequency: [] };
         }),
         fetchBranchAnalytics().catch(e => {
-          console.error('Branch fetch error:', e);
+          logger.error('Branch fetch error:', e);
           return { visitsPerBranch: {}, branchTrend: [] };
         })
       ]);
@@ -2643,12 +2644,12 @@ const PatientAnalytics = () => {
         allSections = Array.from(contentContainer.querySelectorAll('div[style*="display"]'));
       }
       
-      console.log(`Found ${allSections.length} sections to make visible`);
+      logger.log(`Found ${allSections.length} sections to make visible`);
       
       // Log section details
       allSections.forEach((section, idx) => {
         const canvases = section.querySelectorAll('canvas');
-        console.log(`Section ${idx}: ${canvases.length} canvases, display: ${section.style.display || 'not set'}`);
+        logger.log(`Section ${idx}: ${canvases.length} canvases, display: ${section.style.display || 'not set'}`);
       });
       
       const originalStyles = new Map();
@@ -2714,18 +2715,18 @@ const PatientAnalytics = () => {
       // Also search specifically in our sections
       allSections.forEach(section => {
         const sectionCanvases = section.querySelectorAll('canvas');
-        console.log(`Section has ${sectionCanvases.length} canvases`);
+        logger.log(`Section has ${sectionCanvases.length} canvases`);
       });
       
       // If no canvases found, they might not be rendered yet - wait and try again
       if (initialCanvases.length === 0) {
-        console.warn('No canvases found initially, waiting for React to render...');
+        logger.warn('No canvases found initially, waiting for React to render...');
         await new Promise(resolve => setTimeout(resolve, 1000));
         initialCanvases = document.querySelectorAll('canvas');
-        console.log(`After wait: Found ${initialCanvases.length} canvas elements`);
+        logger.log(`After wait: Found ${initialCanvases.length} canvas elements`);
       }
       
-      console.log(`Found ${initialCanvases.length} canvas elements in document`);
+      logger.log(`Found ${initialCanvases.length} canvas elements in document`);
       
       // Create a map of canvas IDs to canvases for easy lookup
       const canvasMap = new Map();
@@ -2787,9 +2788,9 @@ const PatientAnalytics = () => {
           canvas.style.display = 'block';
           canvas.style.visibility = 'visible';
           
-          console.log(`  Set ${id} dimensions to: ${canvas.width}x${canvas.height} (dpr: ${dpr})`);
+          logger.log(`  Set ${id} dimensions to: ${canvas.width}x${canvas.height} (dpr: ${dpr})`);
         } else {
-          console.warn(`  Canvas ${id} not found in DOM`);
+          logger.warn(`  Canvas ${id} not found in DOM`);
         }
       });
       
@@ -2797,29 +2798,29 @@ const PatientAnalytics = () => {
       await new Promise(resolve => setTimeout(resolve, 800));
       
       // Step 4: Verify all canvas elements exist before rendering
-      console.log('Checking for required canvas elements...');
+      logger.log('Checking for required canvas elements...');
       const missingCanvases = [];
       canvasIdsList.forEach(id => {
         const canvas = document.getElementById(id);
         if (!canvas) {
           missingCanvases.push(id);
-          console.warn(`Missing canvas: ${id}`);
+          logger.warn(`Missing canvas: ${id}`);
         } else {
-          console.log(`✓ Found canvas: ${id} (${canvas.width}x${canvas.height})`);
+          logger.log(`✓ Found canvas: ${id} (${canvas.width}x${canvas.height})`);
         }
       });
       
       if (missingCanvases.length > 0) {
-        console.warn(`Missing ${missingCanvases.length} canvas elements. Attempting to find them...`);
+        logger.warn(`Missing ${missingCanvases.length} canvas elements. Attempting to find them...`);
         // Try to find them in all sections
         allSections.forEach((section, idx) => {
           const sectionCanvases = section.querySelectorAll('canvas');
-          console.log(`Section ${idx} canvases:`, Array.from(sectionCanvases).map(c => c.id || '(no id)'));
+          logger.log(`Section ${idx} canvases:`, Array.from(sectionCanvases).map(c => c.id || '(no id)'));
         });
       }
       
       // Step 5: Ensure all canvas elements have proper dimensions BEFORE rendering charts
-      console.log('Setting dimensions on all canvas elements before rendering...');
+      logger.log('Setting dimensions on all canvas elements before rendering...');
       
       canvasIdsList.forEach(id => {
         const canvas = document.getElementById(id);
@@ -2851,9 +2852,9 @@ const PatientAnalytics = () => {
           canvas.style.width = width + 'px';
           canvas.style.height = height + 'px';
           
-          console.log(`Set ${id} dimensions to: ${canvas.width}x${canvas.height}`);
+          logger.log(`Set ${id} dimensions to: ${canvas.width}x${canvas.height}`);
         } else {
-          console.warn(`Canvas ${id} not found when setting dimensions`);
+          logger.warn(`Canvas ${id} not found when setting dimensions`);
         }
       });
       
@@ -2861,8 +2862,8 @@ const PatientAnalytics = () => {
       await new Promise(resolve => setTimeout(resolve, 500));
       
       // Step 6: Render all charts
-      console.log('Rendering all charts...');
-      console.log('Chart instances before rendering:', {
+      logger.log('Rendering all charts...');
+      logger.log('Chart instances before rendering:', {
         appointmentTrend: !!window.appointmentTrend,
         appointmentComparison: !!window.appointmentComparison,
         treatmentCount: !!window.treatmentCount,
@@ -2876,32 +2877,32 @@ const PatientAnalytics = () => {
         renderAppointmentCharts(apptMetrics);
         await new Promise(resolve => setTimeout(resolve, 2000));
       } catch (e) {
-        console.error('Error rendering appointment charts:', e);
+        logger.error('Error rendering appointment charts:', e);
       }
       
       try {
         renderTreatmentCharts(treatMetrics);
         await new Promise(resolve => setTimeout(resolve, 2000));
       } catch (e) {
-        console.error('Error rendering treatment charts:', e);
+        logger.error('Error rendering treatment charts:', e);
       }
       
       try {
         renderBranchCharts(branchMetricsData);
         await new Promise(resolve => setTimeout(resolve, 2000));
       } catch (e) {
-        console.error('Error rendering branch charts:', e);
+        logger.error('Error rendering branch charts:', e);
       }
       
       // Verify canvas dimensions after rendering
-      console.log('Canvas dimensions after chart rendering:');
+      logger.log('Canvas dimensions after chart rendering:');
       canvasIdsList.forEach(id => {
         const canvas = document.getElementById(id);
         if (canvas) {
-          console.log(`  ${id}: ${canvas.width}x${canvas.height}`);
+          logger.log(`  ${id}: ${canvas.width}x${canvas.height}`);
           // Fix dimensions if still 0x0
           if (canvas.width === 0 || canvas.height === 0) {
-            console.warn(`  Fixing ${id} dimensions (was 0x0)`);
+            logger.warn(`  Fixing ${id} dimensions (was 0x0)`);
             canvas.width = 400;
             canvas.height = 200;
             const chartName = id.replace('chart-', '');
@@ -2916,7 +2917,7 @@ const PatientAnalytics = () => {
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       // Verify charts were created
-      console.log('Chart instances after rendering:', {
+      logger.log('Chart instances after rendering:', {
         appointmentTrend: !!window.appointmentTrend,
         appointmentComparison: !!window.appointmentComparison,
         treatmentCount: !!window.treatmentCount,
@@ -2926,13 +2927,13 @@ const PatientAnalytics = () => {
       });
       
       // Verify canvas elements again after rendering
-      console.log('Canvas elements after chart rendering:');
+      logger.log('Canvas elements after chart rendering:');
       canvasIdsList.forEach(id => {
         const canvas = document.getElementById(id);
         if (canvas) {
-          console.log(`  ${id}: ${canvas.width}x${canvas.height}, Chart instance: ${!!window[id.replace('chart-', '')]}`);
+          logger.log(`  ${id}: ${canvas.width}x${canvas.height}, Chart instance: ${!!window[id.replace('chart-', '')]}`);
         } else {
-          console.warn(`  ${id}: NOT FOUND`);
+          logger.warn(`  ${id}: NOT FOUND`);
         }
       });
       
@@ -2943,21 +2944,21 @@ const PatientAnalytics = () => {
       void contentContainer.offsetHeight;
       
       // Step 6: Convert charts to images (SIMPLE - directly from Chart.js instances)
-      console.log('Converting charts to images...');
+      logger.log('Converting charts to images...');
       const chartImages = {};
       
       // Simple function to convert chart to image
       const convertChartToImage = async (chartName, chartInstance) => {
         try {
           if (!chartInstance) {
-            console.warn(`Chart instance ${chartName} not found`);
+            logger.warn(`Chart instance ${chartName} not found`);
             return null;
           }
           
           // Get canvas from chart instance
           const canvas = chartInstance.canvas;
           if (!canvas) {
-            console.warn(`Canvas not found for ${chartName}`);
+            logger.warn(`Canvas not found for ${chartName}`);
             return null;
           }
           
@@ -2992,16 +2993,16 @@ const PatientAnalytics = () => {
           if (canvas.width > 0 && canvas.height > 0) {
             const dataUrl = canvas.toDataURL('image/png', 1.0);
             if (dataUrl && dataUrl !== 'data:,' && dataUrl.length > 100) {
-              console.log(`✓ Converted ${chartName} to image (${canvas.width}x${canvas.height})`);
+              logger.log(`✓ Converted ${chartName} to image (${canvas.width}x${canvas.height})`);
               return dataUrl;
             } else {
-              console.warn(`Chart ${chartName} produced invalid data URL`);
+              logger.warn(`Chart ${chartName} produced invalid data URL`);
             }
           }
           
           return null;
         } catch (error) {
-          console.error(`Error converting ${chartName}:`, error);
+          logger.error(`Error converting ${chartName}:`, error);
           return null;
         }
       };
@@ -3015,7 +3016,7 @@ const PatientAnalytics = () => {
       chartImages.branchTrend = await convertChartToImage('branchTrend', window.branchTrend);
       
       const convertedCount = Object.values(chartImages).filter(img => img !== null).length;
-      console.log(`Chart conversion complete. Successfully converted: ${convertedCount} of 6 charts`);
+      logger.log(`Chart conversion complete. Successfully converted: ${convertedCount} of 6 charts`);
       
       // Step 7: Restore original styles
       originalStyles.forEach((style, section) => {
@@ -3028,7 +3029,7 @@ const PatientAnalytics = () => {
       }
       
       // Step 7: Get logo and build print HTML for PDF
-      console.log('Getting logo for PDF...');
+      logger.log('Getting logo for PDF...');
       const logoDataURL = await getLogoBase64DataURL();
       
       // Helper function to get image dimensions from base64
@@ -3051,12 +3052,12 @@ const PatientAnalytics = () => {
         if (dataUrl && dataUrl.startsWith('data:')) {
           const dims = await getImageDimensions(dataUrl);
           chartDimensions[key] = dims;
-          console.log(`Chart ${key} dimensions: ${dims.width}x${dims.height}`);
+          logger.log(`Chart ${key} dimensions: ${dims.width}x${dims.height}`);
         }
       }
       
       // Log chart images status
-      console.log('Chart images status:', {
+      logger.log('Chart images status:', {
         appointmentTrend: !!chartImages.appointmentTrend,
         appointmentComparison: !!chartImages.appointmentComparison,
         treatmentCount: !!chartImages.treatmentCount,
@@ -3415,7 +3416,7 @@ const PatientAnalytics = () => {
       `;
 
       // Step 8: Convert HTML to canvas using html2canvas
-      console.log('Converting HTML to canvas...');
+      logger.log('Converting HTML to canvas...');
       const parser = new DOMParser();
       const parsed = parser.parseFromString(printHTML, 'text/html');
 
@@ -3440,7 +3441,7 @@ const PatientAnalytics = () => {
 
       // Wait for images to load with timeout and validation
       const images = Array.from(container.querySelectorAll('img'));
-      console.log(`Waiting for ${images.length} images to load...`);
+      logger.log(`Waiting for ${images.length} images to load...`);
       
       // Set explicit dimensions for chart images to help html2canvas
       images.forEach((img, index) => {
@@ -3465,20 +3466,20 @@ const PatientAnalytics = () => {
       
       await Promise.all(images.map((img, index) => new Promise((res) => { 
         const timeout = setTimeout(() => {
-          console.warn(`Image ${index} load timeout, src: ${img.src ? img.src.substring(0, 50) : 'no src'}...`);
+          logger.warn(`Image ${index} load timeout, src: ${img.src ? img.src.substring(0, 50) : 'no src'}...`);
           res();
         }, 10000);
         
         if (img.complete && img.naturalWidth > 0) {
           clearTimeout(timeout);
-          console.log(`Image ${index} already loaded (${img.naturalWidth}x${img.naturalHeight})`);
+          logger.log(`Image ${index} already loaded (${img.naturalWidth}x${img.naturalHeight})`);
           res();
         } else if (img.src && img.src.startsWith('data:')) {
           // For base64 images, create a new image to ensure it loads
           const tempImg = new Image();
           tempImg.onload = () => {
             clearTimeout(timeout);
-            console.log(`Image ${index} (base64) loaded successfully (${tempImg.width}x${tempImg.height})`);
+            logger.log(`Image ${index} (base64) loaded successfully (${tempImg.width}x${tempImg.height})`);
             // Ensure the original img has the same dimensions
             if (!img.width || !img.height) {
               img.width = tempImg.width;
@@ -3488,19 +3489,19 @@ const PatientAnalytics = () => {
           };
           tempImg.onerror = (err) => {
             clearTimeout(timeout);
-            console.error(`Image ${index} (base64) failed to load:`, err);
+            logger.error(`Image ${index} (base64) failed to load:`, err);
             res();
           };
           tempImg.src = img.src;
         } else {
           img.onload = () => {
             clearTimeout(timeout);
-            console.log(`Image ${index} loaded successfully (${img.naturalWidth}x${img.naturalHeight})`);
+            logger.log(`Image ${index} loaded successfully (${img.naturalWidth}x${img.naturalHeight})`);
             res();
           };
           img.onerror = (err) => {
             clearTimeout(timeout);
-            console.error(`Image ${index} failed to load:`, err, img.src);
+            logger.error(`Image ${index} failed to load:`, err, img.src);
             res();
           };
         }
@@ -3509,14 +3510,14 @@ const PatientAnalytics = () => {
       // Additional wait to ensure all images are rendered
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      console.log('All images loaded, rendering to canvas...');
-      console.log('Chart images available:', Object.keys(chartImages).length);
+      logger.log('All images loaded, rendering to canvas...');
+      logger.log('Chart images available:', Object.keys(chartImages).length);
       
       // Verify images are still in the container
       const finalImages = Array.from(container.querySelectorAll('img'));
-      console.log(`Final image count: ${finalImages.length}`);
+      logger.log(`Final image count: ${finalImages.length}`);
       finalImages.forEach((img, index) => {
-        console.log(`Image ${index}: src length=${img.src ? img.src.length : 0}, width=${img.width || img.naturalWidth}, height=${img.height || img.naturalHeight}`);
+        logger.log(`Image ${index}: src length=${img.src ? img.src.length : 0}, width=${img.width || img.naturalWidth}, height=${img.height || img.naturalHeight}`);
       });
 
       // Render container to canvas with better configuration
@@ -3533,7 +3534,7 @@ const PatientAnalytics = () => {
           const clonedImages = clonedDoc.querySelectorAll('img');
           clonedImages.forEach((img, index) => {
             if (img.src && img.src.startsWith('data:')) {
-              console.log(`Cloned image ${index} has data URL: ${img.src.substring(0, 50)}...`);
+              logger.log(`Cloned image ${index} has data URL: ${img.src.substring(0, 50)}...`);
             }
           });
         }
@@ -3543,7 +3544,7 @@ const PatientAnalytics = () => {
         throw new Error('Failed to render canvas');
       }
       
-      console.log('Canvas rendered successfully, dimensions:', canvas.width, 'x', canvas.height);
+      logger.log('Canvas rendered successfully, dimensions:', canvas.width, 'x', canvas.height);
       
       // Clean up container
       document.body.removeChild(container);
@@ -3590,10 +3591,10 @@ const PatientAnalytics = () => {
       const fileName = `Patient_Analytics_Report_${now.toISOString().split('T')[0]}.pdf`;
       pdf.save(fileName);
       
-      console.log('PDF generated and saved successfully');
+      logger.log('PDF generated and saved successfully');
       setLoading(false);
     } catch (error) {
-      console.error('Error generating PDF:', error);
+      logger.error('Error generating PDF:', error);
       alert(`Failed to generate PDF: ${error.message}. Please try again.`);
       setLoading(false);
     }
