@@ -10,6 +10,7 @@ import PDFGenerator from '../../components/common/PDFGenerator';
 import StandardizedPrinter from '../../components/common/StandardizedPrinter';
 import DatePicker from '../../components/common/DatePicker';
 import { useUniversalAudit } from '../../hooks/useUniversalAudit';
+import logger from '../../utils/logger';
 
 const DentalChart = ({ editMode: propEditMode }) => {
   const { pathname } = useLocation();
@@ -160,7 +161,7 @@ const dentalHistory = [
         .select('count', { count: 'exact', head: true });
       
       if (connectionError) {
-        console.error('Connection test failed:', connectionError);
+        logger.error('Connection test failed:', connectionError);
         setConnectionStatus('failed');
         toast.error('Database connection failed. Please check your internet connection.');
         return false;
@@ -169,7 +170,7 @@ const dentalHistory = [
       // Check authentication
       const user = await getCurrentUser();
       if (!user) {
-        console.error('No authenticated user found');
+        logger.error('No authenticated user found');
         setConnectionStatus('unauthorized');
         toast.error('Please log in to access the dental chart.');
         navigate('/login');
@@ -179,14 +180,14 @@ const dentalHistory = [
       // Get user profile and verify patient role
       const profile = await getCurrentUserProfile();
       if (!profile) {
-        console.error('User profile not found');
+        logger.error('User profile not found');
         setConnectionStatus('unauthorized');
         toast.error('User profile not found. Please contact support.');
         return false;
       }
 
       if (profile.role !== 'patient') {
-        console.error('User is not a patient:', profile.role);
+        logger.error('User is not a patient:', profile.role);
         setConnectionStatus('unauthorized');
         toast.error('Access denied. This page is for patients only.');
         navigate('/dashboard');
@@ -207,7 +208,7 @@ const dentalHistory = [
             .single();
           
           if (childError || !childProfile) {
-            console.error('Patient trying to access a child\'s chart without permission:', childId);
+            logger.error('Patient trying to access a child\'s chart without permission:', childId);
             setConnectionStatus('unauthorized');
             toast.error('You do not have permission to access this child\'s dental chart.');
             navigate('/patient/records');
@@ -215,7 +216,7 @@ const dentalHistory = [
           }
         } else {
           // Not a child, so must be their own chart
-          console.error('Patient trying to access another patient\'s chart:', patientId, 'vs', user.id);
+          logger.error('Patient trying to access another patient\'s chart:', patientId, 'vs', user.id);
           setConnectionStatus('unauthorized');
           toast.error('You can only access your own dental chart.');
           navigate('/dashboard');
@@ -227,7 +228,7 @@ const dentalHistory = [
       setConnectionStatus('connected');
       return true;
     } catch (error) {
-      console.error('Connection validation error:', error);
+      logger.error('Connection validation error:', error);
       setConnectionStatus('failed');
       toast.error('Connection validation failed. Please try again.');
       return false;
@@ -300,7 +301,7 @@ const dentalHistory = [
       
       if (error) {
         if (retryCount < 2) {
-          console.log(`Retrying fetchPatientData (attempt ${retryCount + 1})`);
+          logger.log(`Retrying fetchPatientData (attempt ${retryCount + 1})`);
           setTimeout(() => fetchPatientData(retryCount + 1), 1000);
           return;
         }
@@ -310,7 +311,7 @@ const dentalHistory = [
       setPatient(data);
       setOriginalPatient(data);
     } catch (error) {
-      console.error('Error fetching patient:', error);
+      logger.error('Error fetching patient:', error);
       const errorMessage = handleSupabaseError(error, 'Failed to load patient data');
       toast.error(errorMessage);
       
@@ -336,7 +337,7 @@ const dentalHistory = [
       
       if (error) {
         if (retryCount < 2) {
-          console.log(`Retrying fetchDentalChart (attempt ${retryCount + 1})`);
+          logger.log(`Retrying fetchDentalChart (attempt ${retryCount + 1})`);
           setTimeout(() => fetchDentalChart(retryCount + 1), 1000);
           return;
         }
@@ -348,7 +349,7 @@ const dentalHistory = [
         setOriginalDentalChart(data.chart_data || {});
       }
     } catch (error) {
-      console.error('Error fetching dental chart:', error);
+      logger.error('Error fetching dental chart:', error);
       const errorMessage = handleSupabaseError(error, 'Failed to load dental chart');
       toast.error(errorMessage);
       
@@ -384,7 +385,7 @@ const dentalHistory = [
       
       if (error) {
         if (retryCount < 2) {
-          console.log(`Retrying fetchTreatmentHistory (attempt ${retryCount + 1})`);
+          logger.log(`Retrying fetchTreatmentHistory (attempt ${retryCount + 1})`);
           setTimeout(() => fetchTreatmentHistory(retryCount + 1), 1000);
           return;
         }
@@ -393,7 +394,7 @@ const dentalHistory = [
       
       setTreatments(data || []);
     } catch (error) {
-      console.error('Error fetching treatment history:', error);
+      logger.error('Error fetching treatment history:', error);
       const errorMessage = handleSupabaseError(error, 'Failed to load treatment history');
       toast.error(errorMessage);
       
@@ -469,7 +470,7 @@ const dentalHistory = [
 
       if (error) {
         if (retryCount < 2) {
-          console.log(`Retrying saveDentalChart (attempt ${retryCount + 1})`);
+          logger.log(`Retrying saveDentalChart (attempt ${retryCount + 1})`);
           setTimeout(() => saveDentalChart(retryCount + 1), 1000);
           return;
         }
@@ -503,12 +504,12 @@ const dentalHistory = [
               .eq('id', targetPatientId);
             
             if (profileError) {
-              console.error('Error updating patient profile:', profileError);
+              logger.error('Error updating patient profile:', profileError);
               // Don't throw - chart was saved successfully, profile update is secondary
               toast.warning('Dental chart saved, but profile update failed');
             }
           } catch (profileUpdateError) {
-            console.error('Error updating patient profile:', profileUpdateError);
+            logger.error('Error updating patient profile:', profileUpdateError);
             // Don't throw - chart was saved successfully
           }
         }
@@ -524,7 +525,7 @@ const dentalHistory = [
       // Refresh patient data to show updated information
       fetchPatientData();
     } catch (error) {
-      console.error('Error saving dental chart:', error);
+      logger.error('Error saving dental chart:', error);
       const errorMessage = handleSupabaseError(error, 'Failed to save dental chart');
       toast.error(errorMessage);
       
@@ -612,7 +613,7 @@ const dentalHistory = [
           window.print();
           toast.info('Printing current page as fallback.');
         } catch (fallbackError) {
-          console.error('Fallback print failed:', fallbackError);
+          logger.error('Fallback print failed:', fallbackError);
           toast.error('Print failed. Please check your browser settings and try again.');
         }
         return;
@@ -771,7 +772,7 @@ const dentalHistory = [
             </div>
           `;
         } catch (error) {
-          console.error('Error generating dental chart HTML:', error);
+          logger.error('Error generating dental chart HTML:', error);
           return '<div class="dental-chart-error">Dental chart data not available</div>';
         }
       };
@@ -1836,7 +1837,7 @@ const dentalHistory = [
                 }, 1000);
               };
             } catch (error) {
-              console.error('Print error:', error);
+              logger.error('Print error:', error);
               setTimeout(function() {
                 window.close();
               }, 2000);
@@ -1859,7 +1860,7 @@ const dentalHistory = [
       
       toast.success('Opening print dialog...');
     } catch (error) {
-      console.error('Error printing dental chart:', error);
+      logger.error('Error printing dental chart:', error);
       toast.error('Failed to print dental chart. Please try again.');
     }
   };

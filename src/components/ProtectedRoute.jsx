@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import Sidebar from './layouts/Sidebar';
 import Header from './layouts/Header';
 import LoadingSpinner from './common/LoadingSpinner';
+import logger from '../utils/logger';
 
 const ProtectedRoute = ({ role }) => {
   const { user, userRole, loading, authError } = useAuth();
@@ -52,13 +53,13 @@ const ProtectedRoute = ({ role }) => {
 
   // If not logged in, redirect to login page
   if (!user) {
-    console.log("ProtectedRoute: No user found, redirecting to login");
+    logger.log("ProtectedRoute: No user found, redirecting to login");
     return <Navigate to="/login" replace />;
   }
 
   // If a specific role is required and user doesn't have it, redirect to their proper dashboard
   if (role && userRole !== role) {
-    console.log(`ProtectedRoute: User role (${userRole}) doesn't match required role (${role}), redirecting`);
+    logger.log(`ProtectedRoute: User role doesn't match required role, redirecting`);
     
     // Redirect to the appropriate dashboard based on the user's role
     switch (userRole) {
@@ -72,12 +73,12 @@ const ProtectedRoute = ({ role }) => {
         return <Navigate to="/patient/dashboard" replace />;
       default:
         // If role is unknown for some reason, send to home
-        console.warn("Unknown user role:", userRole);
+        logger.warn("Unknown user role");
         return <Navigate to="/" replace />;
     }
   }
 
-  console.log(`ProtectedRoute: User authorized with role (${userRole}), rendering content`);
+  logger.log(`ProtectedRoute: User authorized, rendering content`);
   
   // User is authenticated and has the correct role, render the protected content
   return (

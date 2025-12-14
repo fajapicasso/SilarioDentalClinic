@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { FiCalendar, FiSearch, FiFilter, FiX } from 'react-icons/fi';
 import supabase from '../../config/supabaseClient';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import logger from '../../utils/logger';
 
 const Services = () => {
   const [services, setServices] = useState([]);
@@ -75,7 +76,7 @@ const Services = () => {
         setCategorizedServices(grouped);
       }
     } catch (error) {
-      console.error('Error fetching services:', error);
+      logger.error('Error fetching services:', error);
     } finally {
       setIsLoading(false);
     }

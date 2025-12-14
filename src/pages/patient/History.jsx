@@ -6,6 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import ModernDentalChart from '../../components/common/ModernDentalChart';
 import { toast } from 'react-toastify';
+import logger from '../../utils/logger';
 
 // Dental chart symbols from the official form
 const chartSymbols = {
@@ -124,7 +125,7 @@ const History = () => {
       if (error) throw error;
       setPatientProfile(data);
     } catch (error) {
-      console.error('Error fetching patient profile:', error);
+      logger.error('Error fetching patient profile:', error);
     }
   };
 
@@ -139,7 +140,7 @@ const History = () => {
       if (error) throw error;
       setUploadedFiles(data || []);
     } catch (error) {
-      console.error('Error fetching files:', error);
+      logger.error('Error fetching files:', error);
       toast.error('Failed to load your files');
     }
   };
@@ -157,16 +158,16 @@ const History = () => {
       }
       
       setDentalChart(data);
-      console.log('Dental chart fetched:', data);
+      logger.log('Dental chart fetched:', data);
       if (data) {
-        console.log('Dental chart teeth data:', data.teeth);
-        console.log('Number of teeth with data:', data.teeth ? Object.keys(data.teeth).length : 0);
+        logger.log('Dental chart teeth data:', data.teeth);
+        logger.log('Number of teeth with data:', data.teeth ? Object.keys(data.teeth).length : 0);
         if (data.teeth) {
-          console.log('Sample teeth with symbols:', Object.entries(data.teeth).slice(0, 5));
+          logger.log('Sample teeth with symbols:', Object.entries(data.teeth).slice(0, 5));
         }
       }
     } catch (error) {
-      console.error('Error fetching dental chart:', error);
+      logger.error('Error fetching dental chart:', error);
       // Don't show error toast as dental chart might not exist yet
     }
   };
@@ -205,7 +206,7 @@ const History = () => {
       
       setProcedures(['all', ...uniqueProcedures]);
     } catch (error) {
-      console.error('Error fetching treatment history:', error);
+      logger.error('Error fetching treatment history:', error);
       toast.error('Failed to load treatment history');
     } finally {
       setIsLoading(false);
@@ -990,7 +991,7 @@ const History = () => {
       });
       fetchUploadedFiles();
     } catch (error) {
-      console.error('Error uploading file:', error);
+      logger.error('Error uploading file:', error);
       toast.error(`Failed to upload file: ${error.message}`);
     } finally {
       setIsUploading(false);
@@ -1049,7 +1050,7 @@ const History = () => {
       }
       throw new Error('All download methods failed');
     } catch (error) {
-      console.error('Error downloading file:', error);
+      logger.error('Error downloading file:', error);
       toast.error(`Failed to download file: ${error.message}`);
     }
   };
@@ -1089,7 +1090,7 @@ const History = () => {
       setUploadedFiles(uploadedFiles.filter(f => f.id !== fileToDelete.id));
       
     } catch (error) {
-      console.error('Error deleting file:', error);
+      logger.error('Error deleting file:', error);
       toast.error('Failed to delete file: ' + error.message);
     } finally {
       setIsDeleting(false);
@@ -1165,7 +1166,7 @@ const History = () => {
       }
       
     } catch (error) {
-      console.error('Download failed:', error);
+      logger.error('Download failed:', error);
       
       // Fallback method for mobile/messaging apps
       if (isMobile || isInApp) {

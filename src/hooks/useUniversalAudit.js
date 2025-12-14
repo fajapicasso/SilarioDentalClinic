@@ -2,6 +2,7 @@
 import { useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import auditLogService from '../services/auditLogService';
+import logger from '../utils/logger';
 
 export const useUniversalAudit = () => {
   const { user, userRole } = useAuth();
@@ -53,7 +54,7 @@ export const useUniversalAudit = () => {
       
       // Check for duplicates (especially for page views and settings views)
       if (isDuplicate(action, module, section, resourceName, userId)) {
-        console.log(`🔄 Skipping duplicate audit log: ${action} - ${module} - ${resourceName}`);
+        logger.log(`🔄 Skipping duplicate audit log`);
         return { success: true, skipped: true };
       }
 
@@ -83,7 +84,7 @@ export const useUniversalAudit = () => {
       const result = await auditLogService.logEvent(auditData);
       return result;
     } catch (error) {
-      console.error('Error logging audit action:', error);
+      logger.error('Error logging audit action:', error);
       return { success: false, error: error.message };
     }
   }, [user, userRole, isDuplicate]);
@@ -99,7 +100,7 @@ export const useUniversalAudit = () => {
     const lastPageView = recentLogs.current.get(key);
     
     if (lastPageView && (now - lastPageView) < 10000) { // 10 seconds for page views
-      console.log(`🔄 Skipping duplicate page view: ${pageName}`);
+      logger.log(`🔄 Skipping duplicate page view`);
       return { success: true, skipped: true };
     }
     
@@ -528,7 +529,7 @@ export const useUniversalAudit = () => {
     const lastSettingsView = recentLogs.current.get(key);
     
     if (lastSettingsView && (now - lastSettingsView) < 15000) { // 15 seconds for settings views
-      console.log(`🔄 Skipping duplicate settings view: ${settingsType}`);
+      logger.log(`🔄 Skipping duplicate settings view`);
       return { success: true, skipped: true };
     }
     

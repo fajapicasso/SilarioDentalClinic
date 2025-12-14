@@ -11,6 +11,7 @@ import ModernDentalChart from '../../components/common/ModernDentalChart';
 import PatientDentalChart from './DentalChart';
 import { useUniversalAudit } from '../../hooks/useUniversalAudit';
 import { useAuth } from '../../contexts/AuthContext';
+import logger from '../../utils/logger';
 
 // Define bucket name as a constant to avoid typos
 const BUCKET_NAME = 'patient-files';
@@ -316,7 +317,7 @@ const MyDentalRecords = () => {
       if (error) {
         // Check if guardian_id column doesn't exist
         if (error.code === '42703' || error.message?.includes('guardian_id')) {
-          console.error('guardian_id column does not exist in profiles table.');
+          logger.error('guardian_id column does not exist in profiles table.');
           setChildren([]);
           return;
         }
@@ -325,7 +326,7 @@ const MyDentalRecords = () => {
       
       setChildren(data || []);
     } catch (error) {
-      console.error('Error fetching children:', error);
+      logger.error('Error fetching children:', error);
       if (error.code !== '42703' && !error.message?.includes('guardian_id')) {
         toast.error('Failed to load children records');
       }
@@ -366,7 +367,7 @@ const MyDentalRecords = () => {
       
       setAllPatientsFileCounts(countMap);
     } catch (error) {
-      console.error('Error fetching file counts:', error);
+      logger.error('Error fetching file counts:', error);
     }
   };
 
@@ -454,14 +455,14 @@ const MyDentalRecords = () => {
       // If viewing a child, ensure the profile has guardian_id set (not null)
       if (viewingChildId && viewingChildId !== user.id) {
         if (!profileData.guardian_id || profileData.guardian_id !== user.id) {
-          console.error('Error: Child profile does not have correct guardian_id');
+          logger.error('Error: Child profile does not have correct guardian_id');
           toast.error('Unable to load child records. Please verify the child profile is correctly linked.');
           navigate('/patient/records');
           return;
         }
         // Verify this is actually a child's profile, not the guardian's
         if (profileData.id === user.id) {
-          console.error('Error: Fetched guardian profile instead of child profile');
+          logger.error('Error: Fetched guardian profile instead of child profile');
           toast.error('Error loading child records');
           navigate('/patient/records');
           return;
@@ -491,7 +492,7 @@ const MyDentalRecords = () => {
       
       setUploadedFiles(processedFiles);
     } catch (error) {
-      console.error('Error fetching patient data:', error);
+      logger.error('Error fetching patient data:', error);
       toast.error('Failed to load patient data');
     } finally {
       setIsLoading(false);
@@ -525,7 +526,7 @@ const MyDentalRecords = () => {
       if (error) throw error;
       setTreatments(data || []);
     } catch (error) {
-      console.error('Error fetching treatment history:', error);
+      logger.error('Error fetching treatment history:', error);
       toast.error('Failed to load treatment history');
     }
   };
@@ -559,7 +560,7 @@ const MyDentalRecords = () => {
       
       setDentalChart(data);
     } catch (error) {
-      console.error('Error fetching dental chart:', error);
+      logger.error('Error fetching dental chart:', error);
       // Don't show error toast as dental chart might not exist yet
     }
   };
@@ -599,7 +600,7 @@ const MyDentalRecords = () => {
       setEditingTreatment(null);
       fetchTreatmentHistory();
     } catch (error) {
-      console.error('Error saving treatment:', error);
+      logger.error('Error saving treatment:', error);
       toast.error('Failed to save treatment record');
     } finally {
       setIsSubmittingTreatment(false);
@@ -622,7 +623,7 @@ const MyDentalRecords = () => {
       toast.success('Treatment record deleted successfully');
       fetchTreatmentHistory();
     } catch (error) {
-      console.error('Error deleting treatment:', error);
+      logger.error('Error deleting treatment:', error);
       toast.error('Failed to delete treatment record');
     }
   };
@@ -1095,7 +1096,7 @@ const MyDentalRecords = () => {
         autoClose: 3000
       });
     } catch (error) {
-      console.error('Error printing file:', error);
+      logger.error('Error printing file:', error);
       toast.update(toastId, {
         render: 'Failed to print: ' + error.message,
         type: toast.TYPE.ERROR,
@@ -1130,7 +1131,7 @@ const MyDentalRecords = () => {
           });
         
         if (uploadError) {
-          console.error('Storage upload error:', uploadError);
+          logger.error('Storage upload error:', uploadError);
           throw uploadError;
         }
         
@@ -1144,7 +1145,7 @@ const MyDentalRecords = () => {
           throw new Error('Could not generate public URL for file');
         }
       } catch (storageError) {
-        console.error('Storage error details:', storageError);
+        logger.error('Storage error details:', storageError);
         // Try short-lived signed URL as a fallback
         try {
           const { data: signed } = await supabase.storage
@@ -1202,7 +1203,7 @@ const MyDentalRecords = () => {
       // Ensure list stays in sync by refetching from DB after upload
       await fetchPatientData();
     } catch (error) {
-      console.error('Error uploading file:', error);
+      logger.error('Error uploading file:', error);
       toast.update(toastId, {
         render: `Failed to upload file: ${error.message}`,
         type: toast.TYPE.ERROR,
@@ -1231,10 +1232,10 @@ const MyDentalRecords = () => {
           .remove([fileToDelete.file_path]);
         
         if (storageError) {
-          console.warn('Storage error:', storageError);
+          logger.warn('Storage error:', storageError);
         }
       } catch (storageError) {
-        console.warn('Failed to delete from storage:', storageError);
+        logger.warn('Failed to delete from storage:', storageError);
       }
       
       const { error: dbError } = await supabase
@@ -1254,7 +1255,7 @@ const MyDentalRecords = () => {
         currentFiles.filter(f => f.id !== fileToDelete.id)
       );
     } catch (error) {
-      console.error('Error deleting file:', error);
+      logger.error('Error deleting file:', error);
       toast.update(toastId, {
         render: `Failed to delete file: ${error.message}`,
         type: toast.TYPE.ERROR,

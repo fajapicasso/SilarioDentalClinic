@@ -1,9 +1,19 @@
 // src/utils/ipUtils.js - IP Address and Location Utilities
+import logger from './logger';
+
+// Disable IP fetching in production to prevent errors and data exposure
+const isProduction = import.meta.env.PROD === true || import.meta.env.MODE === 'production';
 
 /**
  * Get client IP address using multiple methods
+ * DISABLED in production to prevent errors and data exposure
  */
 export async function getClientIP() {
+  // In production, skip IP fetching to prevent console errors
+  if (isProduction) {
+    return 'Unknown';
+  }
+
   try {
     // Method 1: Try to get IP from a public service
     const response = await fetch('https://api.ipify.org?format=json');
@@ -12,7 +22,7 @@ export async function getClientIP() {
       return data.ip;
     }
   } catch (error) {
-    console.log('Failed to get IP from ipify.org:', error);
+    logger.log('Failed to get IP from ipify.org:', error);
   }
 
   try {
@@ -23,7 +33,7 @@ export async function getClientIP() {
       return data.ip;
     }
   } catch (error) {
-    console.log('Failed to get IP from ipapi.co:', error);
+    logger.log('Failed to get IP from ipapi.co:', error);
   }
 
   // Fallback to localhost for development
@@ -32,14 +42,16 @@ export async function getClientIP() {
 
 /**
  * Get client location based on IP address
+ * DISABLED in production to prevent errors and data exposure
  */
 export async function getClientLocation(ipAddress) {
-  if (!ipAddress || ipAddress === '127.0.0.1') {
+  // In production, skip location fetching to prevent console errors
+  if (isProduction || !ipAddress || ipAddress === '127.0.0.1' || ipAddress === 'Unknown') {
     return {
-      country: 'Local',
-      region: 'Development',
-      city: 'Localhost',
-      timezone: 'UTC'
+      country: 'Unknown',
+      region: 'Unknown',
+      city: 'Unknown',
+      timezone: 'Unknown'
     };
   }
 
@@ -58,7 +70,8 @@ export async function getClientLocation(ipAddress) {
       };
     }
   } catch (error) {
-    console.log('Failed to get location from ipapi.co:', error);
+    // Silently fail in production, log in development
+    logger.log('Failed to get location from ipapi.co:', error);
   }
 
   try {
@@ -76,7 +89,8 @@ export async function getClientLocation(ipAddress) {
       };
     }
   } catch (error) {
-    console.log('Failed to get location from ip-api.com:', error);
+    // Silently fail in production, log in development
+    logger.log('Failed to get location from ip-api.com:', error);
   }
 
   return {

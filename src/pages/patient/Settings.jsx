@@ -7,6 +7,7 @@ import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
 import { useUniversalAudit } from '../../hooks/useUniversalAudit';
+import logger from '../../utils/logger';
 
 const Settings = () => {
   const { user, logout } = useAuth();
@@ -105,7 +106,7 @@ const Settings = () => {
 
       // If table doesn't exist or error occurs, use the default settings
       if (tableError) {
-        console.log('Using default notification settings (table may not exist)');
+        logger.log('Using default notification settings (table may not exist)');
         return;
       }
 
@@ -116,7 +117,7 @@ const Settings = () => {
         .single();
       
       if (error && error.code !== 'PGRST116') {
-        console.warn('Error fetching notification settings:', error.message);
+        logger.warn('Error fetching notification settings:', error.message);
         return;
       }
       
@@ -124,7 +125,7 @@ const Settings = () => {
         setNotificationSettings(data);
       }
     } catch (error) {
-      console.error('Error fetching notification settings:', error);
+      logger.error('Error fetching notification settings:', error);
     }
   };
 
@@ -138,7 +139,7 @@ const Settings = () => {
 
       // If table doesn't exist or error occurs, use the default settings
       if (tableError) {
-        console.log('Using default privacy settings (table may not exist)');
+        logger.log('Using default privacy settings (table may not exist)');
         return;
       }
 
@@ -149,7 +150,7 @@ const Settings = () => {
         .single();
       
       if (error && error.code !== 'PGRST116') {
-        console.warn('Error fetching privacy settings:', error.message);
+        logger.warn('Error fetching privacy settings:', error.message);
         return;
       }
       
@@ -157,7 +158,7 @@ const Settings = () => {
         setPrivacySettings(data);
       }
     } catch (error) {
-      console.error('Error fetching privacy settings:', error);
+      logger.error('Error fetching privacy settings:', error);
     }
   };
 
@@ -292,14 +293,14 @@ const Settings = () => {
           await logout();
           navigate('/login');
         } catch (logoutError) {
-          console.error('Error during logout:', logoutError);
+          logger.error('Error during logout:', logoutError);
           // Force redirect anyway
           window.location.href = '/login';
         }
       }, 2000);
       
     } catch (error) {
-      console.error('Error updating password:', error.message);
+      logger.error('Error updating password:', error.message);
       toast.error(`Password update failed: ${error.message || 'Unknown error'}`);
       setIsPasswordLoading(false);
     }
@@ -332,7 +333,7 @@ const Settings = () => {
 
       if (tableError) {
         // In a real app, you would create the table here if needed
-        console.log('Table may not exist. In a real app, we would create it here.');
+        logger.log('Table may not exist. In a real app, we would create it here.');
         // Simulate success for demo
         await new Promise(resolve => setTimeout(resolve, 800));
         toast.success('Notification settings saved (simulation)');
@@ -379,7 +380,7 @@ const Settings = () => {
       
       toast.success('Notification settings saved');
     } catch (error) {
-      console.error('Error saving notification settings:', error);
+      logger.error('Error saving notification settings:', error);
       toast.error(`Failed to save notification settings: ${error.message || 'Unknown error'}`);
     } finally {
       setIsLoading(false);
@@ -397,7 +398,7 @@ const Settings = () => {
 
       if (tableError) {
         // In a real app, you would create the table here if needed
-        console.log('Table may not exist. In a real app, we would create it here.');
+        logger.log('Table may not exist. In a real app, we would create it here.');
         // Simulate success for demo
         await new Promise(resolve => setTimeout(resolve, 800));
         toast.success('Privacy settings saved (simulation)');
@@ -444,7 +445,7 @@ const Settings = () => {
       
       toast.success('Privacy settings saved');
     } catch (error) {
-      console.error('Error saving privacy settings:', error);
+      logger.error('Error saving privacy settings:', error);
       toast.error(`Failed to save privacy settings: ${error.message || 'Unknown error'}`);
     } finally {
       setIsLoading(false);
@@ -456,7 +457,7 @@ const Settings = () => {
       await logout();
       navigate('/login');
     } catch (error) {
-      console.error('Error logging out:', error);
+      logger.error('Error logging out:', error);
       toast.error('Failed to log out');
     }
   };
