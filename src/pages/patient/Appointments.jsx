@@ -1361,7 +1361,8 @@ const PatientAppointments = () => {
                 appointmentId: appointmentId,
                 date: dateString,
                 time: values.appointment_time,
-                branch: values.branch
+                branch: values.branch,
+                doctorId: assignedDoctorId || values.doctor_id || null
               },
               patientData
             );
@@ -2073,6 +2074,36 @@ const PatientAppointments = () => {
             } 
           : appointment
       ));
+      
+      // Send reschedule notifications to all users
+      try {
+        const notificationService = (await import('../../services/notificationService.js')).default;
+        const { data: appointmentData } = await supabase
+          .from('appointments')
+          .select('patient_id, doctor_id')
+          .eq('id', selectedAppointmentForAction.id)
+          .single();
+        
+        if (appointmentData) {
+          await notificationService.notifyAppointmentRescheduled(
+            {
+              patientId: appointmentData.patient_id,
+              appointmentId: selectedAppointmentForAction.id,
+              date: rescheduleDate.toISOString().split('T')[0],
+              time: rescheduleTimeSlot,
+              branch: rescheduleBranch,
+              doctorId: appointmentData.doctor_id || selectedAppointmentForAction.doctor_id || null
+            },
+            selectedAppointmentForAction.appointment_date,
+            selectedAppointmentForAction.appointment_time,
+            selectedAppointmentForAction.branch,
+            user?.full_name || 'Patient'
+          );
+        }
+      } catch (notificationError) {
+        logger.error('Error sending reschedule notification:', notificationError);
+        // Don't fail the reschedule if notification fails
+      }
       
       const statusMessage = shouldChangeToPending 
         ? 'Appointment rescheduled and status changed to pending for approval!'

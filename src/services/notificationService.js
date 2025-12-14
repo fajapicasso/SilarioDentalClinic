@@ -98,8 +98,129 @@ class NotificationService {
         return { success: true, count: 0 };
       }
 
-      // Create notifications for all users
-      const notifications = users.map(user => ({
+      // STRONG duplicate check: For appointment notifications, check if ANY notification exists
+      // for this appointmentId + action (regardless of recipient or role)
+      // This prevents duplicates even if function is called multiple times simultaneously
+      if (metadata && metadata.appointmentId && metadata.action) {
+        // First, check if ANY notification exists for this appointment (most strict check)
+        // This prevents race conditions where multiple calls happen simultaneously
+        const { data: anyExistingNotification } = await supabase
+          .from('notifications')
+          .select('id, recipient_id')
+          .eq('title', title)
+          .eq('category', category)
+          .eq('metadata->>appointmentId', metadata.appointmentId.toString())
+          .eq('metadata->>action', metadata.action)
+          .limit(1);
+        
+        // If ANY notification exists for this appointment, skip creating ALL new ones
+        if (anyExistingNotification && anyExistingNotification.length > 0) {
+          logger.log(`Notification for appointment ${metadata.appointmentId} already exists - skipping all duplicates for role ${role}`);
+          return { success: true, count: 0, skipped: true };
+        }
+        
+        // Get all users of this role
+        const roleUserIds = users.map(u => u.id);
+        
+        if (roleUserIds.length === 0) {
+          logger.log(`No users found for role ${role} - skipping notification creation`);
+          return { success: true, count: 0, skipped: true };
+        }
+        
+        // Double-check: Check if ANY user of this role already has a notification for this appointment
+        const { data: existingAppointmentNotifications } = await supabase
+          .from('notifications')
+          .select('id, recipient_id, metadata')
+          .eq('title', title)
+          .eq('category', category)
+          .eq('metadata->>appointmentId', metadata.appointmentId.toString())
+          .eq('metadata->>action', metadata.action)
+          .in('recipient_id', roleUserIds);
+        
+        if (existingAppointmentNotifications && existingAppointmentNotifications.length > 0) {
+          // Filter to only check notifications for users with this role
+          const existingRecipientIds = new Set(existingAppointmentNotifications.map(n => n.recipient_id));
+          const usersToNotify = users.filter(user => !existingRecipientIds.has(user.id));
+          
+          if (usersToNotify.length === 0) {
+            logger.log(`All ${role} users already have notification for appointment ${metadata.appointmentId} - skipping all duplicates`);
+            return { success: true, count: 0, skipped: true };
+          }
+          
+          // Only create for users who don't have it yet
+          const notifications = usersToNotify.map(user => ({
+            recipient_id: user.id,
+            sender_id: senderId,
+            title,
+            message,
+            type,
+            category,
+            priority,
+            action_url: actionUrl,
+            action_label: actionLabel,
+            metadata,
+            expires_at: expiresAt,
+            created_at: new Date().toISOString()
+          }));
+
+          const { data, error } = await supabase
+            .from('notifications')
+            .insert(notifications)
+            .select();
+
+          if (error) throw error;
+
+          logger.log(`Created ${data.length} notifications for role: ${role} (${users.length - usersToNotify.length} duplicates skipped)`);
+          return { success: true, count: data.length, data };
+        }
+      }
+      
+      // For non-appointment notifications or fallback: Check per recipient
+      let duplicateQuery = supabase
+        .from('notifications')
+        .select('id, recipient_id, metadata')
+        .eq('title', title)
+        .eq('category', category)
+        .in('recipient_id', users.map(u => u.id));
+      
+      // If metadata contains appointmentId, check for that to prevent duplicates for same appointment
+      if (metadata && metadata.appointmentId) {
+        duplicateQuery = duplicateQuery.eq('metadata->>appointmentId', metadata.appointmentId.toString());
+        if (metadata.action) {
+          duplicateQuery = duplicateQuery.eq('metadata->>action', metadata.action);
+        }
+      } else {
+        // For non-appointment notifications, use 5-minute window
+        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+        duplicateQuery = duplicateQuery.gte('created_at', fiveMinutesAgo);
+      }
+      
+      const { data: existingNotifications } = await duplicateQuery;
+      
+      // Additional filtering for appointment notifications to ensure exact match
+      let filteredExisting = existingNotifications || [];
+      if (metadata && metadata.appointmentId) {
+        filteredExisting = filteredExisting.filter(n => {
+          const metaAppointmentId = n.metadata?.appointmentId || n.metadata?.['appointmentId'];
+          const metaAction = n.metadata?.action || n.metadata?.['action'];
+          const matchesAppointmentId = metaAppointmentId?.toString() === metadata.appointmentId.toString();
+          const matchesAction = !metadata.action || metaAction === metadata.action;
+          return matchesAppointmentId && matchesAction;
+        });
+      }
+
+      const existingRecipientIds = new Set(filteredExisting.map(n => n.recipient_id));
+
+      // Filter out users who already have this notification
+      const usersToNotify = users.filter(user => !existingRecipientIds.has(user.id));
+
+      if (usersToNotify.length === 0) {
+        logger.log(`All users with role ${role} already have this notification - skipping duplicate`);
+        return { success: true, count: 0, skipped: true };
+      }
+
+      // Create notifications for users who don't already have it
+      const notifications = usersToNotify.map(user => ({
         recipient_id: user.id,
         sender_id: senderId,
         title,
@@ -121,7 +242,7 @@ class NotificationService {
 
       if (error) throw error;
 
-      logger.log(`Created ${data.length} notifications for role: ${role}`);
+      logger.log(`Created ${data.length} notifications for role: ${role} (${users.length - usersToNotify.length} duplicates skipped)`);
       return { success: true, count: data.length, data };
     } catch (error) {
       logger.error(`Error creating notifications for role ${role}:`, error);
@@ -132,9 +253,112 @@ class NotificationService {
   // Appointment-related notifications
   async notifyAppointmentCreated(appointmentData, patientData) {
     try {
-      const { patientId, appointmentId, date, time, branch } = appointmentData;
+      const { patientId, appointmentId, date, time, branch, doctorId } = appointmentData;
       
-      logger.log('Creating appointment notifications for:', { appointmentId, patientId });
+      if (!appointmentId) {
+        logger.error('Cannot create notifications: appointmentId is missing');
+        return { success: false, error: 'appointmentId is required' };
+      }
+      
+      // STRONG duplicate check: Check if notifications for this appointment already exist
+      // Check for ANY notification with this appointmentId and action (regardless of recipient)
+      // This prevents duplicates even if function is called multiple times simultaneously
+      // We check for ANY notification first, then check per role
+      
+      // First, check if ANY notification exists for this appointment (most strict check)
+      const { data: anyExistingNotification } = await supabase
+        .from('notifications')
+        .select('id, recipient_id')
+        .eq('title', 'New Appointment Request')
+        .eq('category', 'appointment')
+        .eq('metadata->>appointmentId', appointmentId.toString())
+        .eq('metadata->>action', 'new_request')
+        .limit(1);
+      
+      // If ANY notification exists for this appointment, skip creating ALL new ones
+      if (anyExistingNotification && anyExistingNotification.length > 0) {
+        logger.log('Notifications for this appointment already exist - skipping all duplicates', { 
+          appointmentId, 
+          existingNotificationId: anyExistingNotification[0].id
+        });
+        return { success: true, skipped: true, reason: 'duplicate_exists' };
+      }
+      
+      // Additional check: Get all staff, admin, and doctor user IDs to check per role
+      const { data: staffUsers } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('role', 'staff')
+        .eq('disabled', false);
+      
+      const { data: adminUsers } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('role', 'admin')
+        .eq('disabled', false);
+      
+      const { data: doctorUsers } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('role', 'doctor')
+        .eq('disabled', false);
+      
+      // Combine all role user IDs
+      const allRoleUserIds = [
+        ...(staffUsers || []).map(u => u.id),
+        ...(adminUsers || []).map(u => u.id),
+        ...(doctorUsers || []).map(u => u.id)
+      ];
+      
+      // Double-check: If we have role users, check if any of them already have notifications
+      if (allRoleUserIds.length > 0) {
+        const { data: existingRoleNotifications } = await supabase
+          .from('notifications')
+          .select('id, recipient_id')
+          .eq('title', 'New Appointment Request')
+          .eq('category', 'appointment')
+          .eq('metadata->>appointmentId', appointmentId.toString())
+          .eq('metadata->>action', 'new_request')
+          .in('recipient_id', allRoleUserIds)
+          .limit(1);
+        
+        // If notifications exist for any role user, skip creating ALL new ones
+        if (existingRoleNotifications && existingRoleNotifications.length > 0) {
+          logger.log('Role notifications for this appointment already exist - skipping all duplicates', { 
+            appointmentId, 
+            existingCount: existingRoleNotifications.length
+          });
+          return { success: true, skipped: true, reason: 'duplicate_exists' };
+        }
+      }
+      
+      // Also check patient notification
+      const { data: existingPatientNotification } = await supabase
+        .from('notifications')
+        .select('id')
+        .eq('recipient_id', patientId)
+        .eq('title', 'Appointment Request Submitted')
+        .eq('category', 'appointment')
+        .eq('metadata->>appointmentId', appointmentId.toString())
+        .limit(1);
+      
+      if (existingPatientNotification && existingPatientNotification.length > 0) {
+        logger.log('Patient notification for this appointment already exists - skipping duplicate', { appointmentId });
+        return { success: true, skipped: true, reason: 'patient_notification_exists' };
+      }
+      
+      logger.log('Creating appointment notifications for:', { appointmentId, patientId, doctorId });
+      
+      // Get doctor information if doctor is assigned
+      let doctorName = null;
+      if (doctorId) {
+        const { data: doctorData } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', doctorId)
+          .single();
+        doctorName = doctorData?.full_name;
+      }
 
       // Notify the patient
       await this.createNotification({
@@ -149,30 +373,69 @@ class NotificationService {
         metadata: { appointmentId, action: 'created' }
       });
 
+      // Build message with doctor name if assigned - make it prominent
+      const doctorInfo = doctorName ? ` Assigned Doctor: Dr. ${doctorName}` : '';
+      const appointmentMessage = `${patientData.full_name} has requested an appointment for ${date} at ${time} (${branch} branch).${doctorInfo}`;
+
       // Notify admins
       await this.createRoleNotifications({
         role: 'admin',
-        title: 'New Appointment',
-        message: `${patientData.full_name} has requested an appointment for ${date} at ${time} (${branch} branch).`,
+        title: 'New Appointment Request',
+        message: appointmentMessage,
         type: 'info',
         category: 'appointment',
         priority: 'high',
         actionUrl: '/admin/appointments',
         actionLabel: 'Review Request',
-        metadata: { appointmentId, patientId, action: 'new_request' }
+        metadata: { appointmentId, patientId, doctorId, doctorName, action: 'new_request' }
       });
 
       // Notify doctors
+      // If a doctor is assigned, only notify that specific doctor
+      // If no doctor is assigned, notify all doctors
+      if (doctorId && doctorName) {
+        // Only notify the assigned doctor
+        const doctorMessage = `${patientData.full_name} | Admin has assigned you to be the doctor for the appointment on ${date} at ${time} (${branch} branch).`;
+        
+        await this.createNotification({
+          recipientId: doctorId,
+          title: 'New Appointment Request',
+          message: doctorMessage,
+          type: 'info',
+          category: 'appointment',
+          priority: 'high',
+          actionUrl: '/doctor/appointments',
+          actionLabel: 'Review Request',
+          metadata: { appointmentId, patientId, doctorId, doctorName, action: 'new_request' }
+        });
+      } else {
+        // No doctor assigned yet - notify all doctors
+        const doctorMessage = `${patientData.full_name} has requested an appointment for ${date} at ${time} (${branch} branch).`;
+        
+        await this.createRoleNotifications({
+          role: 'doctor',
+          title: 'New Appointment Request',
+          message: doctorMessage,
+          type: 'info',
+          category: 'appointment',
+          priority: 'high',
+          actionUrl: '/doctor/appointments',
+          actionLabel: 'Review Request',
+          metadata: { appointmentId, patientId, doctorId: null, doctorName: null, action: 'new_request' }
+        });
+      }
+
+      // Notify staff - use the same message as admin
       await this.createRoleNotifications({
-        role: 'doctor',
-        title: 'New Appointment',
-        message: `${patientData.full_name} | Admin has assigned you to be the doctor for the appointment on ${date} at ${time} (${branch} branch).`,
+        role: 'staff',
+        title: 'New Appointment Request',
+        message: appointmentMessage,
         type: 'info',
         category: 'appointment',
         priority: 'high',
-        actionUrl: '/doctor/appointments',
+        actionUrl: '/staff/appointments',
         actionLabel: 'Review Request',
-        metadata: { appointmentId, patientId, action: 'new_request' }
+        metadata: { appointmentId, patientId, doctorId, doctorName, action: 'new_request' }
       });
 
       return { success: true };
@@ -193,7 +456,8 @@ class NotificationService {
       switch (newStatus) {
         case 'confirmed':
           title = 'Appointment Confirmed';
-          message = `Your appointment on ${date} at ${time} (${branch} branch) has been confirmed.${doctorData ? ` Assigned to Dr. ${doctorData.full_name}.` : ''}`;
+          const doctorInfoText = doctorData ? ` Assigned Doctor: Dr. ${doctorData.full_name}` : '';
+          message = `Your appointment on ${date} at ${time} (${branch} branch) has been confirmed.${doctorInfoText}`;
           type = 'success';
           priority = 'high';
           break;
@@ -245,6 +509,138 @@ class NotificationService {
       return { success: true };
     } catch (error) {
       logger.error('Error in notifyAppointmentStatusChange:', error);
+      return { success: false, error };
+    }
+  }
+
+  // Notify when appointment is rescheduled
+  async notifyAppointmentRescheduled(appointmentData, oldDate, oldTime, oldBranch, rescheduledBy = null) {
+    try {
+      const { patientId, appointmentId, date, time, branch, doctorId } = appointmentData;
+      
+      if (!appointmentId) {
+        logger.error('Cannot create reschedule notifications: appointmentId is missing');
+        return { success: false, error: 'appointmentId is required' };
+      }
+      
+      logger.log('Creating appointment reschedule notifications:', { 
+        appointmentId, 
+        oldDate, 
+        oldTime, 
+        oldBranch,
+        newDate: date,
+        newTime: time,
+        newBranch: branch
+      });
+
+      // Get patient data
+      const { data: patientData } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .eq('id', patientId)
+        .single();
+
+      if (!patientData) {
+        logger.error('Patient not found for appointment reschedule notification');
+        return { success: false, error: 'Patient not found' };
+      }
+
+      // Get doctor information if doctor is assigned
+      let doctorName = null;
+      if (doctorId) {
+        const { data: doctorData } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', doctorId)
+          .single();
+        doctorName = doctorData?.full_name;
+      }
+
+      // Format dates for display
+      const formatDate = (dateStr) => {
+        try {
+          const date = new Date(dateStr);
+          return date.toLocaleDateString('en-US', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          });
+        } catch (e) {
+          return dateStr;
+        }
+      };
+
+      const formattedOldDate = formatDate(oldDate);
+      const formattedNewDate = formatDate(date);
+
+      // Notify the patient - include doctor name prominently
+      const patientDoctorInfo = doctorName ? ` Assigned Doctor: Dr. ${doctorName}` : '';
+      const patientMessage = `Your appointment has been rescheduled from ${formattedOldDate} at ${oldTime} (${oldBranch} branch) to ${formattedNewDate} at ${time} (${branch} branch).${patientDoctorInfo}`;
+      
+      await this.createNotification({
+        recipientId: patientId,
+        title: 'Appointment Rescheduled',
+        message: patientMessage,
+        type: 'info',
+        category: 'appointment',
+        priority: 'high',
+        actionUrl: '/patient/appointments',
+        actionLabel: 'View Appointment',
+        metadata: { appointmentId, action: 'rescheduled', oldDate, oldTime, oldBranch, newDate: date, newTime: time, newBranch: branch }
+      });
+
+      // Build message for staff/admin/doctor - make doctor name prominent
+      const doctorInfoText = doctorName ? ` Assigned Doctor: Dr. ${doctorName}` : '';
+      const rescheduleMessage = `${patientData.full_name}'s appointment has been rescheduled from ${formattedOldDate} at ${oldTime} (${oldBranch} branch) to ${formattedNewDate} at ${time} (${branch} branch).${doctorInfoText}`;
+      const rescheduledByText = rescheduledBy ? ` Rescheduled by: ${rescheduledBy}` : '';
+
+      // Notify admins
+      await this.createRoleNotifications({
+        role: 'admin',
+        title: 'Appointment Rescheduled',
+        message: rescheduleMessage + rescheduledByText,
+        type: 'info',
+        category: 'appointment',
+        priority: 'high',
+        actionUrl: '/admin/appointments',
+        actionLabel: 'View Appointment',
+        metadata: { appointmentId, patientId, doctorId, doctorName, action: 'rescheduled', oldDate, oldTime, oldBranch, newDate: date, newTime: time, newBranch: branch }
+      });
+
+      // Notify staff - use the same message as admin
+      await this.createRoleNotifications({
+        role: 'staff',
+        title: 'Appointment Rescheduled',
+        message: rescheduleMessage + rescheduledByText,
+        type: 'info',
+        category: 'appointment',
+        priority: 'high',
+        actionUrl: '/staff/appointments',
+        actionLabel: 'View Appointment',
+        metadata: { appointmentId, patientId, doctorId, doctorName, action: 'rescheduled', oldDate, oldTime, oldBranch, newDate: date, newTime: time, newBranch: branch }
+      });
+
+      // Notify the assigned doctor (if any)
+      if (doctorId && doctorName) {
+        const doctorMessage = `${patientData.full_name}'s appointment has been rescheduled from ${formattedOldDate} at ${oldTime} (${oldBranch} branch) to ${formattedNewDate} at ${time} (${branch} branch).${rescheduledByText}`;
+        
+        await this.createNotification({
+          recipientId: doctorId,
+          title: 'Appointment Rescheduled',
+          message: doctorMessage,
+          type: 'info',
+          category: 'appointment',
+          priority: 'high',
+          actionUrl: '/doctor/appointments',
+          actionLabel: 'View Appointment',
+          metadata: { appointmentId, patientId, action: 'rescheduled', oldDate, oldTime, oldBranch, newDate: date, newTime: time, newBranch: branch }
+        });
+      }
+
+      return { success: true };
+    } catch (error) {
+      logger.error('Error in notifyAppointmentRescheduled:', error);
       return { success: false, error };
     }
   }
@@ -626,6 +1022,7 @@ export const {
   createRoleNotifications,
   notifyAppointmentCreated,
   notifyAppointmentStatusChange,
+  notifyAppointmentRescheduled,
   notifyPaymentReceived,
   notifyPaymentStatusChange,
   notifyWelcomeNewUser,

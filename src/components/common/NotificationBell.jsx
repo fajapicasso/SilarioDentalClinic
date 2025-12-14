@@ -65,7 +65,7 @@ const NotificationBell = () => {
       setError(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contextNotifications, contextUnreadCount, contextLoading, contextConnectionStatus, hasContext]);
+  }, [contextNotifications, contextUnreadCount, contextLoading, contextConnectionStatus, hasContext, notificationContext]);
 
   // Fallback notification fetch if context is not available
   const fallbackFetchNotifications = async () => {
@@ -77,20 +77,143 @@ const NotificationBell = () => {
     try {
       const { default: supabase } = await import('../../config/supabaseClient');
       
-      const { data, error: fetchError } = await supabase
+      // Get user role to determine if they should see all notifications
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+      
+      const userRole = profileData?.role;
+      
+      // Build query - staff and admin see all notifications
+      let query = supabase
         .from('notifications')
         .select(`
           *,
-          sender:profiles!sender_id(id, full_name, role)
-        `)
-        .eq('recipient_id', user.id)
+          sender:profiles!sender_id(id, full_name, role),
+          recipient:profiles!recipient_id(id, full_name, role)
+        `);
+      
+      // Only filter by recipient_id for non-admin/non-staff users
+      if (userRole !== 'admin' && userRole !== 'staff') {
+        query = query.eq('recipient_id', user.id);
+      }
+      
+      const { data, error: fetchError } = await query
         .order('created_at', { ascending: false })
         .limit(10);
 
       if (fetchError) throw fetchError;
 
-      setNotifications(data || []);
-      const unread = data?.filter(n => !n.is_read).length || 0;
+      // Apply doctor filtering if needed
+      let filteredData = data || [];
+      
+      if (userRole === 'doctor' && user) {
+        filteredData = filteredData.filter(notification => {
+          // CRITICAL: Only show notifications sent TO this doctor (recipient_id must match)
+          // Also check that recipient is a doctor (not staff or other role)
+          if (notification.recipient_id !== user.id) {
+            // Not sent to this doctor - filter out
+            return false;
+          }
+          
+          // Check that recipient is a doctor (not staff)
+          if (notification.recipient && notification.recipient.role !== 'doctor') {
+            console.log('🚫 Fallback: Notification sent to non-doctor - filtering out:', {
+              notificationId: notification.id,
+              recipientRole: notification.recipient.role,
+              title: notification.title
+            });
+            return false;
+          }
+          
+          if (notification.recipient_id === user.id) {
+            // For appointment notifications: Only show if doctorId in metadata matches current doctor OR no doctor assigned
+            if (notification.category === 'appointment') {
+              let notificationDoctorId = null;
+              
+              if (notification.metadata) {
+                if (typeof notification.metadata === 'object') {
+                  notificationDoctorId = notification.metadata.doctorId || notification.metadata['doctorId'];
+                } else if (typeof notification.metadata === 'string') {
+                  try {
+                    const parsed = JSON.parse(notification.metadata);
+                    notificationDoctorId = parsed?.doctorId || parsed?.['doctorId'];
+                  } catch (e) {
+                    notificationDoctorId = null;
+                  }
+                }
+              }
+              
+              // If no doctorId in metadata, check if message mentions assignment
+              // Old notifications might not have doctorId but mention assignment
+              if (!notificationDoctorId) {
+                const message = notification.message || '';
+                const hasDoctorAssignment = message.includes('assigned') || message.includes('Assigned Doctor');
+                
+                if (hasDoctorAssignment) {
+                  // This is likely an old notification - filter it out
+                  console.log('⚠️ Fallback: Notification has no doctorId but mentions assignment - filtering out:', {
+                    notificationId: notification.id,
+                    message: message.substring(0, 100)
+                  });
+                  return false;
+                }
+                
+                // Truly unassigned - show to all doctors
+                return true;
+              }
+              
+              // Only show if doctorId matches current doctor
+              const matches = String(notificationDoctorId).trim() === String(user.id).trim();
+              
+              if (!matches) {
+                console.log('🔴 Fallback: Doctor notification FILTERED OUT:', {
+                  notificationId: notification.id,
+                  notificationDoctorId: String(notificationDoctorId).trim(),
+                  currentDoctorId: String(user.id).trim()
+                });
+              }
+              
+              return matches;
+            }
+            
+            // For payment/billing: Only show if doctorId matches
+            if (notification.category === 'payment' || notification.category === 'billing') {
+              let notificationDoctorId = null;
+              
+              if (notification.metadata) {
+                if (typeof notification.metadata === 'object') {
+                  notificationDoctorId = notification.metadata.doctorId || notification.metadata['doctorId'];
+                } else if (typeof notification.metadata === 'string') {
+                  try {
+                    const parsed = JSON.parse(notification.metadata);
+                    notificationDoctorId = parsed?.doctorId || parsed?.['doctorId'];
+                  } catch (e) {
+                    notificationDoctorId = null;
+                  }
+                }
+              }
+              
+              // If no doctorId, don't show to doctors
+              if (!notificationDoctorId) {
+                return false;
+              }
+              
+              // Only show if doctorId matches current doctor
+              return String(notificationDoctorId).trim() === String(user.id).trim();
+            }
+            
+            // For other types, show if sent to this doctor
+            return true;
+          }
+          return false;
+        });
+      }
+      
+      setNotifications(filteredData);
+      const unread = filteredData.filter(n => !n.is_read).length || 0;
       setUnreadCount(unread);
       setConnectionStatus('connected');
     } catch (err) {
@@ -111,11 +234,28 @@ const NotificationBell = () => {
     try {
       const { default: supabase } = await import('../../config/supabaseClient');
       
-      const { error } = await supabase
+      // Get user role to determine if they can mark any notification as read
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+      
+      const userRole = profileData?.role;
+      
+      // Staff and admin can mark any notification as read
+      // Regular users can only mark their own notifications as read
+      let updateQuery = supabase
         .from('notifications')
         .update({ is_read: true, updated_at: new Date().toISOString() })
-        .eq('id', notificationId)
-        .eq('recipient_id', user.id);
+        .eq('id', notificationId);
+      
+      // Only filter by recipient_id for non-staff/non-admin users
+      if (userRole !== 'admin' && userRole !== 'staff') {
+        updateQuery = updateQuery.eq('recipient_id', user.id);
+      }
+
+      const { error } = await updateQuery;
 
       if (error) throw error;
 
@@ -176,7 +316,7 @@ const NotificationBell = () => {
       hasFetchedRef.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, hasContext]);
+  }, [user, hasContext, fetchNotifications]);
 
   // Set up real-time subscription for fallback mode
   useEffect(() => {
@@ -188,29 +328,140 @@ const NotificationBell = () => {
       try {
         const { default: supabase } = await import('../../config/supabaseClient');
         
+        // Get user role to determine if they should receive all notifications
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+        
+        const userRole = profileData?.role;
+        
+        // Staff and Admin should receive ALL notifications, not just their own
+        const subscriptionConfig = {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications'
+        };
+        
+        // Only add filter for non-admin/non-staff users
+        if (userRole !== 'admin' && userRole !== 'staff') {
+          subscriptionConfig.filter = `recipient_id=eq.${user.id}`;
+        }
+        
         channel = supabase
-          .channel('notifications')
+          .channel(`notifications-${user.id}`)
           .on(
             'postgres_changes',
-            {
-              event: 'INSERT',
-              schema: 'public',
-              table: 'notifications',
-              filter: `recipient_id=eq.${user.id}`
-            },
+            subscriptionConfig,
             async (payload) => {
               try {
+                const { default: supabase } = await import('../../config/supabaseClient');
                 const { data, error } = await supabase
                   .from('notifications')
                   .select(`
                     *,
-                    sender:profiles!sender_id(id, full_name, role)
+                    sender:profiles!sender_id(id, full_name, role),
+                    recipient:profiles!recipient_id(id, full_name, role)
                   `)
                   .eq('id', payload.new.id)
                   .single();
 
                 if (!error && data) {
-                  setNotifications(prev => [data, ...prev.slice(0, 9)]);
+                  // Get user role for filtering and deduplication
+                  const { data: profileData } = await supabase
+                    .from('profiles')
+                    .select('role')
+                    .eq('id', user.id)
+                    .single();
+                  
+                  const userRole = profileData?.role;
+                  
+                  // For doctors: Check if this notification is assigned to them
+                  // Also ensure recipient is a doctor (not staff)
+                  if (userRole === 'doctor' && data.recipient_id === user.id) {
+                    // Check that recipient is a doctor (not staff)
+                    if (data.recipient && data.recipient.role !== 'doctor') {
+                      console.log('🚫 Real-time: Notification sent to non-doctor - filtering out:', {
+                        notificationId: data.id,
+                        recipientRole: data.recipient.role,
+                        title: data.title
+                      });
+                      return; // Don't add notification sent to staff
+                    }
+                    
+                    // For appointment notifications: Only show if doctorId matches
+                    if (data.category === 'appointment') {
+                      let notificationDoctorId = null;
+                      
+                      if (data.metadata) {
+                        if (typeof data.metadata === 'object') {
+                          notificationDoctorId = data.metadata.doctorId || data.metadata['doctorId'];
+                        } else if (typeof data.metadata === 'string') {
+                          try {
+                            const parsed = JSON.parse(data.metadata);
+                            notificationDoctorId = parsed?.doctorId || parsed?.['doctorId'];
+                          } catch (e) {
+                            notificationDoctorId = null;
+                          }
+                        }
+                      }
+                      
+                      // If doctorId exists and doesn't match, don't add the notification
+                      if (notificationDoctorId && String(notificationDoctorId).trim() !== String(user.id).trim()) {
+                        return; // Don't add notification for other doctor's appointment
+                      }
+                    }
+                    
+                    // For payment/billing: Only show if doctorId matches
+                    if (data.category === 'payment' || data.category === 'billing') {
+                      let notificationDoctorId = null;
+                      
+                      if (data.metadata) {
+                        if (typeof data.metadata === 'object') {
+                          notificationDoctorId = data.metadata.doctorId || data.metadata['doctorId'];
+                        } else if (typeof data.metadata === 'string') {
+                          try {
+                            const parsed = JSON.parse(data.metadata);
+                            notificationDoctorId = parsed?.doctorId || parsed?.['doctorId'];
+                          } catch (e) {
+                            notificationDoctorId = null;
+                          }
+                        }
+                      }
+                      
+                      // If no doctorId or doesn't match, don't add
+                      if (!notificationDoctorId || String(notificationDoctorId).trim() !== String(user.id).trim()) {
+                        return; // Don't add notification
+                      }
+                    }
+                  }
+                  
+                  setNotifications(prev => {
+                    // Deduplicate by id first
+                    const existsById = prev.find(n => n.id === data.id);
+                    if (existsById) {
+                      return prev;
+                    }
+                    
+                    // For staff/admin: Also deduplicate by appointmentId + title + category
+                    if ((userRole === 'staff' || userRole === 'admin') &&
+                        data.category === 'appointment' &&
+                        data.metadata?.appointmentId &&
+                        data.title === 'New Appointment Request') {
+                      // Check if another notification with same appointmentId already exists
+                      const existsByAppointment = prev.find(n =>
+                        n.category === 'appointment' &&
+                        n.metadata?.appointmentId === data.metadata.appointmentId &&
+                        n.title === 'New Appointment Request'
+                      );
+                      if (existsByAppointment) {
+                        return prev;
+                      }
+                    }
+                    
+                    return [data, ...prev.slice(0, 9)];
+                  });
                   setUnreadCount(prev => prev + 1);
                 }
               } catch (err) {
@@ -218,9 +469,16 @@ const NotificationBell = () => {
               }
             }
           )
-          .subscribe();
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+              setConnectionStatus('connected');
+            } else if (status === 'CHANNEL_ERROR') {
+              setConnectionStatus('error');
+            }
+          });
       } catch (err) {
         logger.error('Error setting up real-time subscription:', err);
+        setConnectionStatus('error');
       }
     };
 
@@ -229,13 +487,29 @@ const NotificationBell = () => {
     return () => {
       if (channel) {
         const cleanup = async () => {
-          const { default: supabase } = await import('../../config/supabaseClient');
-          supabase.removeChannel(channel);
+          try {
+            const { default: supabase } = await import('../../config/supabaseClient');
+            await supabase.removeChannel(channel);
+          } catch (err) {
+            logger.error('Error cleaning up real-time subscription:', err);
+          }
         };
         cleanup();
       }
     };
   }, [user, hasContext]);
+
+  // Refresh notifications when dropdown opens
+  useEffect(() => {
+    if (showDropdown && user) {
+      if (hasContext && fetchNotifications) {
+        fetchNotifications();
+      } else {
+        fallbackFetchNotifications();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showDropdown, user, hasContext, fetchNotifications]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -334,9 +608,48 @@ const NotificationBell = () => {
       await markAllAsRead();
     } else {
       // Fallback implementation
-      const unreadNotifications = notifications.filter(n => !n.is_read);
-      for (const notification of unreadNotifications) {
-        await fallbackMarkAsRead(notification.id);
+      try {
+        const { default: supabase } = await import('../../config/supabaseClient');
+        
+        // Get user role to determine if they can mark all notifications as read
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+        
+        const userRole = profileData?.role;
+        
+        // Staff and admin can mark ALL notifications as read
+        // Regular users can only mark their own notifications as read
+        let updateQuery = supabase
+          .from('notifications')
+          .update({ is_read: true, updated_at: new Date().toISOString() })
+          .eq('is_read', false);
+        
+        // Only filter by recipient_id for non-staff/non-admin users
+        if (userRole !== 'admin' && userRole !== 'staff') {
+          updateQuery = updateQuery.eq('recipient_id', user.id);
+        }
+        
+        const { error } = await updateQuery;
+        
+        if (error) throw error;
+        
+        // Update local state
+        setNotifications(prev => {
+          if (userRole === 'admin' || userRole === 'staff') {
+            return prev.map(n => ({ ...n, is_read: true }));
+          } else {
+            return prev.map(n => 
+              n.recipient_id === user.id ? { ...n, is_read: true } : n
+            );
+          }
+        });
+        
+        setUnreadCount(0);
+      } catch (error) {
+        logger.error('Error marking all notifications as read:', error);
       }
     }
   };

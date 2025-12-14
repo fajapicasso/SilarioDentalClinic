@@ -801,6 +801,36 @@ const AdminAppointments = () => {
           : appointment
       ));
       
+      // Send reschedule notifications to all users
+      try {
+        const notificationService = (await import('../../services/notificationService.js')).default;
+        const { data: appointmentData } = await supabase
+          .from('appointments')
+          .select('patient_id, doctor_id')
+          .eq('id', selectedAppointment.id)
+          .single();
+        
+        if (appointmentData) {
+          await notificationService.notifyAppointmentRescheduled(
+            {
+              patientId: appointmentData.patient_id,
+              appointmentId: selectedAppointment.id,
+              date: rescheduleDate.toISOString().split('T')[0],
+              time: selectedTimeSlot,
+              branch: selectedBranchForReschedule,
+              doctorId: appointmentData.doctor_id || selectedAppointment.doctor_id || null
+            },
+            selectedAppointment.appointment_date,
+            selectedAppointment.appointment_time,
+            selectedAppointment.branch,
+            user?.full_name || 'Admin'
+          );
+        }
+      } catch (notificationError) {
+        logger.error('Error sending reschedule notification:', notificationError);
+        // Don't fail the reschedule if notification fails
+      }
+      
       const statusMessage = shouldChangeToPending 
         ? 'Appointment rescheduled and status changed to pending for approval'
         : 'Appointment rescheduled successfully';

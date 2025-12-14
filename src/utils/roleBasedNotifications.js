@@ -607,6 +607,190 @@ export const notifyAllStaff = async (eventType, eventData) => {
 };
 
 /**
+ * DOCTOR TO STAFF NOTIFICATIONS
+ * Allow doctors to send notifications directly to staff
+ */
+export const notifyStaffFromDoctor = async (doctorId, staffId, message, title = null, metadata = {}) => {
+  try {
+    // Get doctor info
+    const { data: doctor, error: doctorError } = await supabase
+      .from('profiles')
+      .select('id, full_name, role')
+      .eq('id', doctorId)
+      .single();
+
+    if (doctorError) throw doctorError;
+    if (doctor.role !== 'doctor') {
+      throw new Error('Only doctors can send notifications to staff');
+    }
+
+    return await createNotification({
+      recipientId: staffId,
+      senderId: doctorId,
+      title: title || `Message from Dr. ${doctor.full_name}`,
+      message: message,
+      type: 'info',
+      category: 'message',
+      priority: metadata.priority || 'normal',
+      actionUrl: metadata.actionUrl || '/staff/dashboard',
+      actionLabel: metadata.actionLabel || 'View Details',
+      metadata: {
+        eventType: 'doctor_message',
+        fromDoctor: doctorId,
+        doctorName: doctor.full_name,
+        ...metadata
+      }
+    });
+  } catch (error) {
+    console.error('Error sending notification from doctor to staff:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * PATIENT TO STAFF NOTIFICATIONS
+ * Allow patients to send notifications directly to staff
+ */
+export const notifyStaffFromPatient = async (patientId, staffId, message, title = null, metadata = {}) => {
+  try {
+    // Get patient info
+    const { data: patient, error: patientError } = await supabase
+      .from('profiles')
+      .select('id, full_name, role')
+      .eq('id', patientId)
+      .single();
+
+    if (patientError) throw patientError;
+    if (patient.role !== 'patient') {
+      throw new Error('Only patients can send notifications to staff');
+    }
+
+    return await createNotification({
+      recipientId: staffId,
+      senderId: patientId,
+      title: title || `Message from ${patient.full_name}`,
+      message: message,
+      type: 'info',
+      category: 'message',
+      priority: metadata.priority || 'normal',
+      actionUrl: metadata.actionUrl || '/staff/dashboard',
+      actionLabel: metadata.actionLabel || 'View Details',
+      metadata: {
+        eventType: 'patient_message',
+        fromPatient: patientId,
+        patientName: patient.full_name,
+        ...metadata
+      }
+    });
+  } catch (error) {
+    console.error('Error sending notification from patient to staff:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * DOCTOR TO ALL STAFF NOTIFICATIONS
+ * Allow doctors to send notifications to all staff members
+ */
+export const notifyAllStaffFromDoctor = async (doctorId, message, title = null, metadata = {}) => {
+  try {
+    // Get doctor info
+    const { data: doctor, error: doctorError } = await supabase
+      .from('profiles')
+      .select('id, full_name, role')
+      .eq('id', doctorId)
+      .single();
+
+    if (doctorError) throw doctorError;
+    if (doctor.role !== 'doctor') {
+      throw new Error('Only doctors can send notifications to staff');
+    }
+
+    // Get all staff
+    const { data: staff, error: staffError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('role', 'staff')
+      .neq('disabled', true);
+
+    if (staffError) throw staffError;
+
+    const staffIds = staff.map(s => s.id);
+
+    return await createBulkNotifications(staffIds, {
+      senderId: doctorId,
+      title: title || `Message from Dr. ${doctor.full_name}`,
+      message: message,
+      type: 'info',
+      category: 'message',
+      priority: metadata.priority || 'normal',
+      actionUrl: metadata.actionUrl || '/staff/dashboard',
+      actionLabel: metadata.actionLabel || 'View Details',
+      metadata: {
+        eventType: 'doctor_message',
+        fromDoctor: doctorId,
+        doctorName: doctor.full_name,
+        ...metadata
+      }
+    });
+  } catch (error) {
+    console.error('Error sending notification from doctor to all staff:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * PATIENT TO ALL STAFF NOTIFICATIONS
+ * Allow patients to send notifications to all staff members (for urgent cases)
+ */
+export const notifyAllStaffFromPatient = async (patientId, message, title = null, metadata = {}) => {
+  try {
+    // Get patient info
+    const { data: patient, error: patientError } = await supabase
+      .from('profiles')
+      .select('id, full_name, role')
+      .eq('id', patientId)
+      .single();
+
+    if (patientError) throw patientError;
+    if (patient.role !== 'patient') {
+      throw new Error('Only patients can send notifications to staff');
+    }
+
+    // Get all staff
+    const { data: staff, error: staffError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('role', 'staff')
+      .neq('disabled', true);
+
+    if (staffError) throw staffError;
+
+    const staffIds = staff.map(s => s.id);
+
+    return await createBulkNotifications(staffIds, {
+      senderId: patientId,
+      title: title || `Message from ${patient.full_name}`,
+      message: message,
+      type: 'info',
+      category: 'message',
+      priority: metadata.priority || 'high',
+      actionUrl: metadata.actionUrl || '/staff/dashboard',
+      actionLabel: metadata.actionLabel || 'View Details',
+      metadata: {
+        eventType: 'patient_message',
+        fromPatient: patientId,
+        patientName: patient.full_name,
+        ...metadata
+      }
+    });
+  } catch (error) {
+    console.error('Error sending notification from patient to all staff:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
  * PATIENT NOTIFICATIONS (Enhanced)
  * Patients only see their own notifications:
  * - Appointment status (approved, canceled, rescheduled)
