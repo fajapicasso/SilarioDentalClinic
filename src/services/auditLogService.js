@@ -114,6 +114,9 @@ class AuditLogService {
       };
 
       // Insert audit log entry
+      // In production, fail silently to prevent console errors
+      const isProduction = import.meta.env.PROD === true || import.meta.env.MODE === 'production';
+      
       const { data, error } = await supabase
         .from('audit_logs')
         .insert(auditEntry)
@@ -121,14 +124,18 @@ class AuditLogService {
         .single();
 
       if (error) {
-        logger.error('❌ Error logging audit event:', error);
-        logger.error('❌ Audit entry that failed:', auditEntry);
-        logger.error('❌ Error details:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        });
+        // In production, fail silently to prevent console errors
+        if (!isProduction) {
+          logger.error('❌ Error logging audit event:', error);
+          logger.error('❌ Audit entry that failed:', auditEntry);
+          logger.error('❌ Error details:', {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code
+          });
+        }
+        // Return silently in production
         return { success: false, error: error.message };
       }
 

@@ -102,38 +102,64 @@ export function sanitizeConsole() {
   // Override ALL console methods in production to completely silence console
   const noop = () => {};
   
-  // Store original console methods before overriding (for emergency debugging)
-  const originalConsole = {
-    log: console.log,
-    error: console.error,
-    warn: console.warn,
-    info: console.info,
-    debug: console.debug
-  };
-  
   // Block ALL console output including errors
-  console.log = noop;
-  console.info = noop;
-  console.warn = noop;
-  console.debug = noop;
-  console.error = noop; // Completely block errors
-  console.table = noop;
-  console.group = noop;
-  console.groupEnd = noop;
-  console.groupCollapsed = noop;
-  console.time = noop;
-  console.timeEnd = noop;
-  console.trace = noop;
-  console.dir = noop;
-  console.dirxml = noop;
-  console.assert = noop;
-  console.count = noop;
-  console.countReset = noop;
-  console.clear = noop;
-  console.profile = noop;
-  console.profileEnd = noop;
-  console.timeStamp = noop;
-  console.memory = noop;
+  // Use try-catch to ensure it works even if console is protected
+  try {
+    console.log = noop;
+    console.info = noop;
+    console.warn = noop;
+    console.debug = noop;
+    console.error = noop; // Completely block errors
+    console.table = noop;
+    console.group = noop;
+    console.groupEnd = noop;
+    console.groupCollapsed = noop;
+    console.time = noop;
+    console.timeEnd = noop;
+    console.trace = noop;
+    console.dir = noop;
+    console.dirxml = noop;
+    console.assert = noop;
+    console.count = noop;
+    console.countReset = noop;
+    console.clear = noop;
+    console.profile = noop;
+    console.profileEnd = noop;
+    console.timeStamp = noop;
+    console.memory = noop;
+    
+    // Try to make console methods non-writable to prevent restoration
+    try {
+      Object.defineProperty(console, 'log', { value: noop, writable: false, configurable: false });
+      Object.defineProperty(console, 'error', { value: noop, writable: false, configurable: false });
+      Object.defineProperty(console, 'warn', { value: noop, writable: false, configurable: false });
+      Object.defineProperty(console, 'info', { value: noop, writable: false, configurable: false });
+      Object.defineProperty(console, 'debug', { value: noop, writable: false, configurable: false });
+    } catch (e) {
+      // If defineProperty fails, that's okay - the assignment above will work
+    }
+  } catch (e) {
+    // If console methods can't be overridden, ignore
+  }
+  
+  // Intercept fetch to prevent network errors from being logged to console
+  if (typeof window !== 'undefined') {
+    try {
+      const originalFetch = window.fetch;
+      window.fetch = function(...args) {
+        // Call original fetch but suppress error logging
+        const promise = originalFetch.apply(this, args);
+        
+        // Intercept the promise to catch errors silently
+        return promise.catch(error => {
+          // Return a rejected promise without logging
+          return Promise.reject(error);
+        });
+      };
+    } catch (e) {
+      // If fetch interception fails, ignore
+    }
+  }
   
   // Only block console - don't interfere with error handling
   // This allows the app to function normally while hiding console output
