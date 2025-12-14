@@ -1,7 +1,6 @@
 // src/config/supabaseClient.js
 import { createClient } from '@supabase/supabase-js';
 import logger from '../utils/logger';
-import { createSanitizedSupabaseClient } from '../utils/dataPrivacy';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -232,7 +231,4 @@ export const safeFetch = async (table, select = '*', options = {}) => {
   }
 };
 
-// Wrap supabase client with privacy protection in production
-const protectedSupabase = createSanitizedSupabaseClient(supabase);
-
-export default protectedSupabase;
+export default supabase;

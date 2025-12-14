@@ -79,86 +79,53 @@ export function sanitizeData(data) {
 }
 
 /**
- * Sanitize Supabase response
- * Wraps Supabase client to automatically sanitize all responses
+ * Sanitize Supabase response for logging only
+ * NOTE: This does NOT modify actual data - only for console logging
+ * The actual data returned to the UI is unchanged
  */
 export function createSanitizedSupabaseClient(originalClient) {
-  if (!isProduction) {
-    return originalClient; // In development, return original client
-  }
-
-  // Intercept the 'from' method to wrap query builders
-  const originalFrom = originalClient.from.bind(originalClient);
-  
-  originalClient.from = function(table) {
-    const queryBuilder = originalFrom(table);
-    
-    // Wrap the query builder's methods that return promises
-    const methodsToWrap = ['select', 'insert', 'update', 'delete', 'upsert', 'rpc'];
-    
-    methodsToWrap.forEach(method => {
-      if (typeof queryBuilder[method] === 'function') {
-        const originalMethod = queryBuilder[method].bind(queryBuilder);
-        queryBuilder[method] = function(...args) {
-          const result = originalMethod(...args);
-          
-          // If it returns a promise, sanitize the response
-          if (result && typeof result.then === 'function') {
-            return result.then(response => {
-              if (response && response.data) {
-                return {
-                  ...response,
-                  data: sanitizeData(response.data),
-                  error: response.error ? {
-                    message: 'Error occurred',
-                    code: response.error.code || 'UNKNOWN'
-                  } : null
-                };
-              }
-              return response;
-            }).catch(error => {
-              return {
-                data: null,
-                error: {
-                  message: 'Error occurred',
-                  code: error.code || 'UNKNOWN'
-                }
-              };
-            });
-          }
-          
-          return result;
-        };
-      }
-    });
-    
-    return queryBuilder;
-  };
-  
+  // Don't wrap Supabase client - it breaks the UI
+  // Instead, we only block console logs
   return originalClient;
 }
 
 /**
  * Sanitize console output
  * Prevents any data from being logged in production
+ * This only blocks console output - does NOT affect UI data
  */
 export function sanitizeConsole() {
   if (!isProduction) {
     return; // In development, don't modify console
   }
 
-  // Override all console methods in production
+  // Override all console methods in production to prevent data exposure
   const noop = () => {};
-  const sanitizedError = (...args) => {
-    // Only log generic error messages
-    console.error('[Error] An error occurred');
+  
+  // Keep error logging but sanitize it
+  const originalError = console.error;
+  console.error = function(...args) {
+    // Only log generic error messages, not actual data
+    if (args.length > 0 && typeof args[0] === 'string') {
+      // If it's a string message, log it but sanitize any objects
+      const sanitizedArgs = args.map(arg => {
+        if (typeof arg === 'object' && arg !== null) {
+          return '[Object]'; // Don't show object contents
+        }
+        return arg;
+      });
+      originalError.apply(console, sanitizedArgs);
+    } else {
+      // For non-string errors, just log a generic message
+      originalError('[Error] An error occurred');
+    }
   };
 
+  // Block all other console methods
   console.log = noop;
   console.info = noop;
   console.warn = noop;
   console.debug = noop;
-  console.error = sanitizedError;
   console.table = noop;
   console.group = noop;
   console.groupEnd = noop;
