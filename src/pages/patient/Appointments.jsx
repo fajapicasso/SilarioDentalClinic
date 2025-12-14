@@ -1722,10 +1722,6 @@ const PatientAppointments = () => {
         // Fetch available time slots for the current date and branch
         const duration = selectedAppointmentForAction.duration || 30;
         // Fetching time slots for reschedule - no logging in production
-          date: selectedAppointmentForAction.appointment_date,
-          branch: initialBranch,
-          duration: duration
-        });
         fetchRescheduleTimeSlots(initialDate, initialBranch, duration);
         
         // Close the action modal and open reschedule modal

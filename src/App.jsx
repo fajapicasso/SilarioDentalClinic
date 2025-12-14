@@ -9,6 +9,7 @@ import { NotificationProvider } from './contexts/NotificationContext';
 import DebugLockoutFix from './components/common/DebugLockoutFix';
 import BracesCheckupReminderService from './components/common/BracesCheckupReminderService';
 import logger from './utils/logger';
+import { initializePrivacyProtection } from './utils/dataPrivacy';
 
 // Public Pages
 import Home from './pages/public/Home';
@@ -93,6 +94,11 @@ function App() {
 
   // Check for debug mode
   const isDebugMode = new URLSearchParams(window.location.search).get('debug') === 'unlock';
+
+  // Initialize privacy protection on app startup
+  useEffect(() => {
+    initializePrivacyProtection();
+  }, []);
 
   // Add extra initialization to ensure auth is ready
   useEffect(() => {
