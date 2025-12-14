@@ -8,6 +8,36 @@
     <link rel="apple-touch-icon" href="/src/assets/ssdc.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Silario Dental Clinic</title>
+    <!-- Privacy Protection - Block console immediately in production -->
+    <script>
+      (function() {
+        // Check if in production
+        var isProd = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+        if (isProd) {
+          var noop = function() {};
+          // Block all console methods immediately
+          console.log = noop;
+          console.error = noop;
+          console.warn = noop;
+          console.info = noop;
+          console.debug = noop;
+          console.table = noop;
+          console.group = noop;
+          console.groupEnd = noop;
+          console.groupCollapsed = noop;
+          console.time = noop;
+          console.timeEnd = noop;
+          console.trace = noop;
+          console.dir = noop;
+          console.dirxml = noop;
+          console.assert = noop;
+          // Suppress errors
+          window.onerror = function() { return true; };
+          window.addEventListener('error', function(e) { e.preventDefault(); return true; }, true);
+          window.addEventListener('unhandledrejection', function(e) { e.preventDefault(); return true; }, true);
+        }
+      })();
+    </script>
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
