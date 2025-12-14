@@ -151,17 +151,43 @@ export function initializePrivacyProtection() {
     
     // Prevent data exposure through window object
     if (typeof window !== 'undefined') {
-      // Remove any debug objects
-      delete window.__REACT_DEVTOOLS_GLOBAL_HOOK__;
-      delete window.__REDUX_DEVTOOLS_EXTENSION__;
-      delete window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__;
+      // Try to remove debug objects (safely, without errors)
+      try {
+        if (window.__REACT_DEVTOOLS_GLOBAL_HOOK__) {
+          try {
+            delete window.__REACT_DEVTOOLS_GLOBAL_HOOK__;
+          } catch (e) {
+            // Property can't be deleted, try to override it instead
+            try {
+              Object.defineProperty(window, '__REACT_DEVTOOLS_GLOBAL_HOOK__', {
+                value: undefined,
+                writable: false,
+                configurable: true
+              });
+            } catch (e2) {
+              // Ignore if we can't override either
+            }
+          }
+        }
+      } catch (e) {
+        // Ignore errors
+      }
       
-      // Prevent React DevTools
-      Object.defineProperty(window, '__REACT_DEVTOOLS_GLOBAL_HOOK__', {
-        value: undefined,
-        writable: false,
-        configurable: false
-      });
+      try {
+        if (window.__REDUX_DEVTOOLS_EXTENSION__) {
+          delete window.__REDUX_DEVTOOLS_EXTENSION__;
+        }
+      } catch (e) {
+        // Ignore
+      }
+      
+      try {
+        if (window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__) {
+          delete window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__;
+        }
+      } catch (e) {
+        // Ignore
+      }
       
       // Try to suppress DevTools console output
       try {
