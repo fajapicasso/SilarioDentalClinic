@@ -449,6 +449,49 @@ export class ScheduleService {
         return false;
       }
       
+      // Check if provider already has an appointment at this time
+      const { data: existingAppointments, error: appointmentError } = await supabase
+        .from('appointments')
+        .select(`
+          id,
+          appointment_time,
+          appointment_durations(duration_minutes)
+        `)
+        .eq('appointment_date', date)
+        .eq('doctor_id', provider.id)
+        .neq('status', 'cancelled')
+        .neq('status', 'rejected');
+      
+      if (appointmentError) {
+        logger.error('Error checking provider appointments:', appointmentError);
+        return false;
+      }
+      
+      // Check for time conflicts with existing appointments
+      if (existingAppointments && existingAppointments.length > 0) {
+        const requestedTimeMinutes = this.timeToMinutes(time);
+        const defaultDuration = 30; // Default appointment duration
+        
+        const hasConflict = existingAppointments.some(apt => {
+          const existingDuration = (apt.appointment_durations && apt.appointment_durations[0]?.duration_minutes) || defaultDuration;
+          const existingStartMinutes = this.timeToMinutes(apt.appointment_time);
+          const existingEndMinutes = existingStartMinutes + existingDuration;
+          
+          // Check if requested time falls within an existing appointment
+          // Using a 30-minute default for the new appointment
+          const requestedEndMinutes = requestedTimeMinutes + defaultDuration;
+          
+          // Check for overlap
+          const hasOverlap = (requestedTimeMinutes < existingEndMinutes && requestedEndMinutes > existingStartMinutes);
+          
+          return hasOverlap;
+        });
+        
+        if (hasConflict) {
+          return false;
+        }
+      }
+      
       // Provider is available - no logging in production
       return true;
     } catch (error) {
@@ -723,10 +766,56 @@ export class ScheduleService {
   
   /**
    * Check if a specific date/time is available for booking
+   * This checks both provider availability AND existing appointments
    */
   static async isTimeSlotAvailable(branch, date, time, durationMinutes = 30) {
-    const providers = await this.getAvailableProviders(branch, date, time);
-    return providers.length > 0;
+    try {
+      // First check if any providers are available at this time
+      const providers = await this.getAvailableProviders(branch, date, time);
+      
+      if (providers.length === 0) {
+        return false;
+      }
+      
+      // Then check if there are any existing appointments that would conflict
+      const { data: existingAppointments, error } = await supabase
+        .from('appointments')
+        .select(`
+          id,
+          appointment_time,
+          doctor_id,
+          appointment_durations(duration_minutes)
+        `)
+        .eq('appointment_date', date)
+        .eq('branch', branch)
+        .neq('status', 'cancelled')
+        .neq('status', 'rejected');
+      
+      if (error) {
+        logger.error('Error checking existing appointments:', error);
+        return false;
+      }
+      
+      // Check if the requested time slot conflicts with any existing appointment
+      const requestedStartMinutes = this.timeToMinutes(time);
+      const requestedEndMinutes = requestedStartMinutes + durationMinutes;
+      
+      const hasConflict = existingAppointments?.some(apt => {
+        const existingDuration = (apt.appointment_durations && apt.appointment_durations[0]?.duration_minutes) || 30;
+        const existingStartMinutes = this.timeToMinutes(apt.appointment_time);
+        const existingEndMinutes = existingStartMinutes + existingDuration;
+        
+        // Check for overlap
+        const hasOverlap = (requestedStartMinutes < existingEndMinutes && requestedEndMinutes > existingStartMinutes);
+        
+        return hasOverlap;
+      });
+      
+      return !hasConflict;
+    } catch (error) {
+      logger.error('Error in isTimeSlotAvailable:', error);
+      return false;
+    }
   }
   
   /**

@@ -1473,10 +1473,10 @@ const MyDentalRecords = () => {
                   )}
                 </div>
                 
-                {/* Debug info - show guardian_id to verify this is a child */}
+                {/* Note for child's record */}
                 {patient.guardian_id && (
                   <div className="mt-2 p-2 bg-blue-50 rounded text-xs text-blue-700">
-                    <strong>Note:</strong> This is a child's record (Guardian ID: {patient.guardian_id.substring(0, 8)})
+                    <strong>Note:</strong> This is a child's record
                   </div>
                 )}
               </div>

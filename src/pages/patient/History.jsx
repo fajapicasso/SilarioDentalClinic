@@ -687,10 +687,6 @@ const History = () => {
               <div class="info-value">${patientProfile?.full_name || 'N/A'}</div>
             </div>
             <div class="info-item">
-              <div class="info-label">Patient ID:</div>
-              <div class="info-value">${patientProfile?.id ? patientProfile.id.substring(0, 8) : 'N/A'}</div>
-            </div>
-            <div class="info-item">
               <div class="info-label">Date of Birth:</div>
               <div class="info-value">${patientProfile?.birthday ? formatDate(patientProfile.birthday) : 'N/A'}</div>
             </div>
@@ -869,7 +865,6 @@ const History = () => {
     
     content += `PATIENT INFORMATION:\n`;
     content += `Name: ${patientProfile?.full_name || 'N/A'}\n`;
-    content += `Patient ID: ${patientProfile?.id ? patientProfile.id.substring(0, 8) : 'N/A'}\n`;
     content += `Date of Birth: ${patientProfile?.birthday ? formatDate(patientProfile.birthday) : 'N/A'}\n`;
     content += `Age: ${patientProfile?.birthday ? calculateAge(patientProfile.birthday) + ' years' : 'N/A'}\n`;
     content += `Gender: ${patientProfile?.gender ? patientProfile.gender.charAt(0).toUpperCase() + patientProfile.gender.slice(1) : 'N/A'}\n`;

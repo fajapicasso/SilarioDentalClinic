@@ -1980,7 +1980,6 @@ const dentalHistory = [
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-900">{patient.full_name}</p>
-                <p className="text-xs text-gray-500">Patient ID: {patient.id && patient.id.substring(0, 8)}</p>
               </div>
               <button
                 onClick={downloadDentalFormPDF}

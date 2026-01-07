@@ -205,7 +205,7 @@ const DoctorAppointments = () => {
           is_emergency,
           created_at
         `)
-        .order('appointment_date', { ascending: true });
+        .order('appointment_date', { ascending: false });
       
       // Filter appointments based on user role:
       // - Doctors can only see appointments assigned to them or unassigned pending appointments
@@ -523,6 +523,15 @@ const DoctorAppointments = () => {
         app.branch?.toLowerCase().includes(query) ||
         (app.serviceNames && app.serviceNames.some(service => service?.toLowerCase().includes(query)))
       );
+    }
+    
+    // Sort all filtered appointments by date (latest first) if not already sorted
+    if (activeTab !== 'cancelled') {
+      filtered.sort((a, b) => {
+        const dateA = new Date(`${a.appointment_date}T${a.appointment_time}`);
+        const dateB = new Date(`${b.appointment_date}T${b.appointment_time}`);
+        return dateB - dateA; // Latest dates first
+      });
     }
     
     setFilteredAppointments(filtered);

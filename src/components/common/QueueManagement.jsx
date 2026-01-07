@@ -227,7 +227,7 @@ const QueueManagement = () => {
     fetchQueueData();
   }, [activeBranch]);
 
-  // Set up periodic check for appointments that should be added to queue (5 hours before appointment time)
+  // Set up periodic check for appointments that should be added to queue (9 hours before appointment time)
   useEffect(() => {
     const checkAppointmentsInterval = setInterval(() => {
       // Only check if we're not already auto-adding to prevent race conditions
@@ -814,27 +814,27 @@ const QueueManagement = () => {
            const isAppointmentInQueue = queueAppointmentIds.has(appointment.id);
            const isPatientInQueue = queuePatientIds.has(appointment.patient_id);
            
-           // Check if appointment should be added to queue (5 hours before appointment time)
-           let shouldAddToQueue = false;
-           if (appointment.appointment_time) {
-             const [hours, minutes] = appointment.appointment_time.split(':').map(Number);
-             const appointmentDateTime = new Date();
-             appointmentDateTime.setHours(hours, minutes, 0, 0);
-             
-             // Add 5 hours before appointment time
-             const fiveHoursBefore = new Date(appointmentDateTime.getTime() - (5 * 60 * 60 * 1000));
-             
-             // Only add if current time is within 5 hours of appointment time
-             shouldAddToQueue = now > fiveHoursBefore;
-             
-             logger.log(`Appointment ${appointment.id} timing check:`, {
-               appointmentTime: appointment.appointment_time,
-               appointmentDateTime: appointmentDateTime.toISOString(),
-               fiveHoursBefore: fiveHoursBefore.toISOString(),
-               currentTime: now.toISOString(),
-               shouldAddToQueue
-             });
-           }
+          // Check if appointment should be added to queue (9 hours before appointment time)
+          let shouldAddToQueue = false;
+          if (appointment.appointment_time) {
+            const [hours, minutes] = appointment.appointment_time.split(':').map(Number);
+            const appointmentDateTime = new Date();
+            appointmentDateTime.setHours(hours, minutes, 0, 0);
+            
+            // Add 9 hours before appointment time
+            const nineHoursBefore = new Date(appointmentDateTime.getTime() - (9 * 60 * 60 * 1000));
+            
+            // Only add if current time is within 9 hours of appointment time
+            shouldAddToQueue = now > nineHoursBefore;
+            
+            logger.log(`Appointment ${appointment.id} timing check:`, {
+              appointmentTime: appointment.appointment_time,
+              appointmentDateTime: appointmentDateTime.toISOString(),
+              nineHoursBefore: nineHoursBefore.toISOString(),
+              currentTime: now.toISOString(),
+              shouldAddToQueue
+            });
+          }
            
            logger.log(`Checking appointment ${appointment.id} for patient ${appointment.patient_id}:`, {
              status: appointment.status,

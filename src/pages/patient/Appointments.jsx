@@ -968,10 +968,11 @@ const PatientAppointments = () => {
       
       // If no slot found on same date, try next 7 days
       logger.log('⚠️ No available slot on same date, checking next days...');
-      let currentDate = new Date(date);
+      const baseDate = new Date(date);
       
       for (let i = 1; i <= 7; i++) {
-        currentDate.setDate(currentDate.getDate() + 1);
+        const currentDate = new Date(baseDate);
+        currentDate.setDate(baseDate.getDate() + i);
         const nextDateStr = formatDateLocal(currentDate);
         
         const nextSlotsResult = await ScheduleService.getAvailableTimeSlots(branch, nextDateStr, durationMinutes, null);
@@ -988,6 +989,60 @@ const PatientAppointments = () => {
       return { nextTime: null, nextDate: null, found: false };
     } catch (error) {
       logger.error('❌ Error finding next available time slot:', error);
+      return { nextTime: null, nextDate: null, found: false };
+    }
+  };
+
+  /**
+   * Find the next available time slot for a SPECIFIC doctor.
+   * This is used to preserve the originally auto-assigned doctor when an appointment must be moved.
+   */
+  const findNextAvailableTimeSlotForDoctor = async (
+    doctorId,
+    date,
+    branch,
+    requestedTime,
+    durationMinutes = 30
+  ) => {
+    try {
+      if (!doctorId) {
+        return await findNextAvailableTimeSlot(date, branch, requestedTime, durationMinutes);
+      }
+
+      // Same-day: find first available slot after requestedTime
+      const slotsResult = await ScheduleService.getAvailableTimeSlots(branch, date, durationMinutes, doctorId);
+
+      if (slotsResult && slotsResult.availableSlots && slotsResult.availableSlots.length > 0) {
+        const [reqHour, reqMinute] = requestedTime.split(':').map(Number);
+        const requestedMinutes = reqHour * 60 + reqMinute;
+
+        const nextSlot = slotsResult.availableSlots.find(slot => {
+          const [slotHour, slotMinute] = slot.split(':').map(Number);
+          const slotMinutes = slotHour * 60 + slotMinute;
+          return slotMinutes > requestedMinutes;
+        });
+
+        if (nextSlot) {
+          return { nextTime: nextSlot, nextDate: date, found: true };
+        }
+      }
+
+      // Next days: check up to 7 days ahead, pick first available slot of the day
+      const baseDate = new Date(date);
+      for (let i = 1; i <= 7; i++) {
+        const currentDate = new Date(baseDate);
+        currentDate.setDate(baseDate.getDate() + i);
+        const nextDateStr = formatDateLocal(currentDate);
+
+        const nextSlotsResult = await ScheduleService.getAvailableTimeSlots(branch, nextDateStr, durationMinutes, doctorId);
+        if (nextSlotsResult && nextSlotsResult.availableSlots && nextSlotsResult.availableSlots.length > 0) {
+          return { nextTime: nextSlotsResult.availableSlots[0], nextDate: nextDateStr, found: true };
+        }
+      }
+
+      return { nextTime: null, nextDate: null, found: false };
+    } catch (error) {
+      logger.error('❌ Error finding next available time slot for doctor:', error);
       return { nextTime: null, nextDate: null, found: false };
     }
   };
@@ -1123,19 +1178,6 @@ const PatientAppointments = () => {
         return;
       }
       
-      const isAvailable = await ScheduleService.isTimeSlotAvailable(
-        values.branch, 
-        dateString, 
-        values.appointment_time, 
-        calculateAppointmentDuration(values.service_id)
-      );
-      
-      if (!isAvailable) {
-        toast.error('This time slot is no longer available. Please select another time.');
-        setSubmitting(false);
-        return;
-      }
-      
       const duration = calculateAppointmentDuration(values.service_id);
       
       // Determine patient_id and guardian_id based on selected patient type
@@ -1228,52 +1270,7 @@ const PatientAppointments = () => {
           return;
         }
         
-        // Check for time slot conflicts before inserting
-        const { data: conflictingAppointments, error: conflictCheckError } = await supabase
-          .from('appointments')
-          .select('id, appointment_time, patient_id')
-          .eq('appointment_date', appointmentData.appointment_date)
-          .eq('appointment_time', appointmentData.appointment_time)
-          .eq('branch', appointmentData.branch)
-          .in('status', ['pending', 'confirmed']);
-        
-        if (conflictCheckError) {
-          logger.error('Error checking for conflicts:', conflictCheckError);
-          throw conflictCheckError;
-        }
-        
-        // If conflict detected, automatically reschedule to next available time
-        if (conflictingAppointments && conflictingAppointments.length > 0) {
-          // Time slot conflict detected - no logging in production
-          
-          const nextSlotResult = await findNextAvailableTimeSlot(
-            appointmentData.appointment_date,
-            appointmentData.branch,
-            appointmentData.appointment_time,
-            duration
-          );
-          
-          if (nextSlotResult.found) {
-            // Update appointment data with next available time
-            appointmentData.appointment_date = nextSlotResult.nextDate;
-            appointmentData.appointment_time = nextSlotResult.nextTime;
-            
-            // Show notification to user
-            toast.warning(
-              `The requested time slot was already taken. Your appointment has been automatically rescheduled to ${formatDate(nextSlotResult.nextDate)} at ${formatTime(nextSlotResult.nextTime)}.`,
-              { autoClose: 6000 }
-            );
-            
-            // Auto-rescheduled - no logging in production
-          } else {
-            // No available slots found
-            toast.error('The requested time slot is already taken, and no available slots were found in the next 7 days. Please try selecting a different time manually.');
-            setSubmitting(false);
-            return;
-          }
-        }
-        
-        // Automatic doctor assignment (after conflict resolution, so doctor is assigned to final time)
+        // Automatic doctor assignment (assign ONCE and preserve if appointment must be moved)
         let assignedDoctorId = null;
         let assignmentMessage = '';
         
@@ -1311,15 +1308,133 @@ const PatientAppointments = () => {
         if (assignedDoctorId) {
           appointmentData.doctor_id = assignedDoctorId;
         }
-        
-        // Insert new appointment
-        const { data, error } = await supabase
-          .from('appointments')
-          .insert(appointmentData)
-          .select('id');
-        
-        if (error) throw error;
-        appointmentId = data[0].id;
+
+        // If selected slot is not available, automatically move to the next available slot.
+        // If we have an auto-assigned doctor, we must keep that doctor after moving.
+        const isAvailableNow = await ScheduleService.isTimeSlotAvailable(
+          appointmentData.branch,
+          appointmentData.appointment_date,
+          appointmentData.appointment_time,
+          duration
+        );
+
+        if (!isAvailableNow) {
+          const nextSlotResult = assignedDoctorId
+            ? await findNextAvailableTimeSlotForDoctor(
+                assignedDoctorId,
+                appointmentData.appointment_date,
+                appointmentData.branch,
+                appointmentData.appointment_time,
+                duration
+              )
+            : await findNextAvailableTimeSlot(
+                appointmentData.appointment_date,
+                appointmentData.branch,
+                appointmentData.appointment_time,
+                duration
+              );
+
+          if (nextSlotResult.found) {
+            appointmentData.appointment_date = nextSlotResult.nextDate;
+            appointmentData.appointment_time = nextSlotResult.nextTime;
+
+            toast.warning(
+              `The requested time slot was already taken. Your appointment has been automatically rescheduled to ${formatDate(nextSlotResult.nextDate)} at ${formatTime(nextSlotResult.nextTime)}.`,
+              { autoClose: 6000 }
+            );
+
+            // If we did NOT have a doctor assigned originally, try assigning now for the moved slot.
+            if (!assignedDoctorId) {
+              try {
+                const AutoDoctorAssignmentService = (await import('../../services/autoDoctorAssignmentService.js')).default;
+                const movedAssignmentResult = await AutoDoctorAssignmentService.assignDoctorAutomatically({
+                  branch: appointmentData.branch,
+                  appointment_date: appointmentData.appointment_date,
+                  appointment_time: appointmentData.appointment_time,
+                  services: values.service_id ? [values.service_id] : [],
+                  duration_minutes: duration
+                });
+
+                if (movedAssignmentResult?.success && movedAssignmentResult.doctor_id) {
+                  assignedDoctorId = movedAssignmentResult.doctor_id;
+                  assignmentMessage = movedAssignmentResult.message || assignmentMessage;
+                  appointmentData.doctor_id = assignedDoctorId;
+                }
+              } catch (movedAssignErr) {
+                logger.error('❌ Error assigning doctor after auto-reschedule:', movedAssignErr);
+              }
+            }
+          } else {
+            toast.error('The requested time slot is already taken, and no available slots were found in the next 7 days. Please try selecting a different time manually.');
+            setSubmitting(false);
+            return;
+          }
+        }
+
+        const isSlotConflictError = (err) => {
+          const code = err?.code || err?.error?.code;
+          const message = `${err?.message || ''} ${err?.details || ''} ${err?.hint || ''}`.toLowerCase();
+          return code === '23505' || message.includes('duplicate key') || message.includes('unique constraint');
+        };
+
+        // Insert new appointment with retry-on-conflict.
+        // This handles true simultaneous booking attempts (race conditions).
+        let inserted = false;
+        let insertAttempts = 0;
+        const maxAttempts = 10;
+
+        while (!inserted && insertAttempts < maxAttempts) {
+          insertAttempts += 1;
+
+          const { data, error } = await supabase
+            .from('appointments')
+            .insert(appointmentData)
+            .select('id');
+
+          if (!error) {
+            appointmentId = data?.[0]?.id;
+            inserted = true;
+            break;
+          }
+
+          // If DB says the slot is taken, move to the next available slot and retry.
+          if (isSlotConflictError(error)) {
+            const nextSlotResult = assignedDoctorId
+              ? await findNextAvailableTimeSlotForDoctor(
+                  assignedDoctorId,
+                  appointmentData.appointment_date,
+                  appointmentData.branch,
+                  appointmentData.appointment_time,
+                  duration
+                )
+              : await findNextAvailableTimeSlot(
+                  appointmentData.appointment_date,
+                  appointmentData.branch,
+                  appointmentData.appointment_time,
+                  duration
+                );
+
+            if (!nextSlotResult.found) {
+              throw new Error('The requested time slot is already taken, and no available slots were found in the next 7 days. Please try selecting a different time manually.');
+            }
+
+            appointmentData.appointment_date = nextSlotResult.nextDate;
+            appointmentData.appointment_time = nextSlotResult.nextTime;
+
+            // Keep originally assigned doctor if present.
+            if (assignedDoctorId) {
+              appointmentData.doctor_id = assignedDoctorId;
+            }
+
+            continue;
+          }
+
+          throw error;
+        }
+
+        if (!inserted || !appointmentId) {
+          throw new Error('Failed to book appointment. Please try again.');
+        }
         
         // Log audit event for appointment creation
         try {
@@ -1329,8 +1444,8 @@ const PatientAppointments = () => {
             patient_name: patientName,
             doctor_id: assignedDoctorId || values.doctor_id,
             branch: values.branch,
-            appointment_date: dateString,
-            appointment_time: values.appointment_time,
+            appointment_date: appointmentData.appointment_date,
+            appointment_time: appointmentData.appointment_time,
             service_id: values.service_id,
             notes: values.notes,
             is_emergency: values.is_emergency || false,
@@ -1359,8 +1474,8 @@ const PatientAppointments = () => {
               {
                 patientId: patientId,
                 appointmentId: appointmentId,
-                date: dateString,
-                time: values.appointment_time,
+                date: appointmentData.appointment_date,
+                time: appointmentData.appointment_time,
                 branch: values.branch,
                 doctorId: assignedDoctorId || values.doctor_id || null
               },
