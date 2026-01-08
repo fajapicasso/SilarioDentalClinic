@@ -208,11 +208,94 @@ const QueueManagement = () => {
       .on('postgres_changes', { 
         event: '*', 
         schema: 'public', 
-        table: 'appointments' 
-      }, () => {
-        logger.log('Appointments changed, refreshing queue...');
-        // Only refresh data, don't trigger auto-add logic
-        fetchQueueDataOnly();
+        table: 'appointments'
+      }, async (payload) => {
+        logger.log('Appointment changed, checking if should be added to queue...', payload);
+        
+        const appointment = payload.new || payload.old;
+        if (!appointment) return;
+        
+        const todayDate = getTodayDate();
+        const isPending = appointment.status === 'pending';
+        const isForToday = appointment.appointment_date === todayDate;
+        
+        // Handle INSERT and UPDATE events
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          const newAppointment = payload.new;
+          
+          // If appointment is pending and for today, add it to queue immediately
+          if (isPending && isForToday) {
+            // Check if appointment is already in queue
+            const { data: existingQueue, error: queueCheckError } = await supabase
+              .from('queue')
+              .select('id, appointment_id')
+              .eq('appointment_id', newAppointment.id)
+              .limit(1);
+            
+            if (queueCheckError) {
+              logger.error('Error checking queue for appointment:', queueCheckError);
+            } else if (!existingQueue || existingQueue.length === 0) {
+              // Appointment not in queue, add it immediately
+              logger.log(`Auto-adding pending appointment ${newAppointment.id} to queue...`);
+              
+              try {
+                // Fetch full appointment data with patient info
+                const { data: fullAppointment, error: fetchError } = await supabase
+                  .from('appointments')
+                  .select(`
+                    id,
+                    patient_id,
+                    doctor_id,
+                    guardian_id,
+                    appointment_date,
+                    appointment_time,
+                    status,
+                    notes,
+                    teeth_involved,
+                    branch,
+                    created_at,
+                    updated_at
+                  `)
+                  .eq('id', newAppointment.id)
+                  .single();
+                
+                if (!fetchError && fullAppointment) {
+                  const result = await QueueService.addAppointmentToQueue(fullAppointment, { 
+                    source: 'realtime_pending_appointment',
+                    skipDuplicateCheck: false
+                  });
+                  
+                  if (result.success) {
+                    logger.log(`✅ Successfully added pending appointment ${newAppointment.id} to queue`);
+                    // Refresh queue data to show the new entry
+                    setTimeout(() => fetchQueueDataOnly(), 500); // Small delay to ensure DB consistency
+                  } else {
+                    logger.log(`⚠️ Could not add appointment to queue: ${result.reason || result.message}`);
+                  }
+                }
+              } catch (error) {
+                logger.error('Error auto-adding pending appointment to queue:', error);
+              }
+            } else {
+              // Already in queue, just refresh
+              fetchQueueDataOnly();
+            }
+          } else if (payload.eventType === 'UPDATE') {
+            // Status changed - refresh queue to reflect changes
+            const oldAppointment = payload.old;
+            const wasPending = oldAppointment?.status === 'pending';
+            const isNowPending = newAppointment?.status === 'pending';
+            
+            // If status changed to/from pending, refresh queue
+            if (wasPending !== isNowPending) {
+              logger.log('Appointment status changed to/from pending, refreshing queue...');
+              fetchQueueDataOnly();
+            }
+          }
+        } else if (payload.eventType === 'DELETE') {
+          // Appointment deleted, refresh queue
+          fetchQueueDataOnly();
+        }
       })
       .subscribe();
     
@@ -504,15 +587,16 @@ const QueueManagement = () => {
   };
 
   // Function to fetch queue data without auto-add logic (for real-time updates)
+  // BUT still auto-add pending appointments (they should always be in queue)
   const fetchQueueDataOnly = async () => {
     setIsLoading(true);
     try {
       const todayDate = getTodayDate();
-      logger.log('=== FETCHING QUEUE DATA (NO AUTO-ADD) ===');
+      logger.log('=== FETCHING QUEUE DATA (SKIP CONFIRMED/APPOINTED AUTO-ADD, BUT ALLOW PENDING) ===');
       logger.log('Today date:', todayDate);
       
-      // Skip auto-add logic for real-time updates
-      await fetchQueueDataInternal(todayDate, true);
+      // Skip auto-add for confirmed/appointed, but still allow pending appointments to be added
+      await fetchQueueDataInternal(todayDate, true, false, true); // skipAutoAdd=true, but allowPending=true
     } catch (error) {
       logger.error('Error fetching queue data:', error);
       toast.error('Failed to fetch queue data');
@@ -535,7 +619,7 @@ const QueueManagement = () => {
       
       logger.log('Global auto-add check:', { globalAutoAddKey, hasAutoAddBeenProcessed });
       
-      await fetchQueueDataInternal(todayDate, false, hasAutoAddBeenProcessed);
+      await fetchQueueDataInternal(todayDate, false, hasAutoAddBeenProcessed, true);
     } catch (error) {
       logger.error('Error fetching queue data:', error);
       toast.error('Failed to fetch queue data');
@@ -545,7 +629,7 @@ const QueueManagement = () => {
   };
 
   // Internal function that handles the actual queue data fetching
-  const fetchQueueDataInternal = async (todayDate, skipAutoAdd = false, hasAutoAddBeenProcessed = false) => {
+  const fetchQueueDataInternal = async (todayDate, skipAutoAdd = false, hasAutoAddBeenProcessed = false, allowPendingAutoAdd = true) => {
     try {
       const globalAutoAddKey = `globalAutoAddProcessed_${todayDate}`;
       
@@ -814,9 +898,16 @@ const QueueManagement = () => {
            const isAppointmentInQueue = queueAppointmentIds.has(appointment.id);
            const isPatientInQueue = queuePatientIds.has(appointment.patient_id);
            
-          // Check if appointment should be added to queue (9 hours before appointment time)
+          // Check if appointment should be added to queue
+          // PENDING appointments are added immediately (no time restriction)
+          // CONFIRMED/APPOINTED appointments follow the 9-hour rule
           let shouldAddToQueue = false;
-          if (appointment.appointment_time) {
+          if (appointment.status === 'pending') {
+            // Pending appointments are always added immediately if they're for today
+            shouldAddToQueue = true;
+            logger.log(`Pending appointment ${appointment.id} will be added to queue immediately`);
+          } else if (appointment.appointment_time) {
+            // For confirmed/appointed, use 9-hour rule
             const [hours, minutes] = appointment.appointment_time.split(':').map(Number);
             const appointmentDateTime = new Date();
             appointmentDateTime.setHours(hours, minutes, 0, 0);
@@ -900,11 +991,51 @@ const QueueManagement = () => {
          }
        }
        
-       // Auto-add missing confirmed/appointed/pending appointments to queue
-       // ONLY DOCTORS can auto-add appointments to prevent duplication
-       // Staff and Admin roles will only see the queue, not add to it
-       if (missingAppointments.length > 0 && !isAutoAddingRef.current && !hasAutoAddBeenProcessed && !skipAutoAdd && userRole === 'doctor') {
-         logger.log(`👨‍⚕️ DOCTOR ROLE: Auto-adding ${missingAppointments.length} confirmed/appointed/pending appointments to queue`);
+       // Separate pending appointments from confirmed/appointed
+       const pendingAppointments = missingAppointments.filter(apt => apt.status === 'pending');
+       const otherAppointments = missingAppointments.filter(apt => apt.status !== 'pending');
+       
+       // ALWAYS auto-add pending appointments (regardless of role or skipAutoAdd flag)
+       // Pending appointments should appear in queue immediately
+       if (pendingAppointments.length > 0 && !isAutoAddingRef.current && allowPendingAutoAdd) {
+         logger.log(`🔄 Auto-adding ${pendingAppointments.length} pending appointments to queue (always enabled)`);
+         
+         let addedCount = 0;
+         isAutoAddingRef.current = true;
+         
+         // Process pending appointments sequentially to prevent race conditions
+         for (const appointment of pendingAppointments) {
+           try {
+             // 🚫 DUPLICATE BLOCKER: Check if this patient has already been processed today
+             if (await isDuplicatePatient(appointment.patient_id)) {
+               logger.log(`🚫 Skipping duplicate patient ${appointment.patient_id} (${appointment.patientProfile?.full_name})`);
+               continue;
+             }
+             
+             const result = await QueueService.addAppointmentToQueue(appointment, { source: 'auto_pending_appointment' });
+             if (result.success) {
+               addedCount++;
+               logger.log(`✅ Successfully added pending appointment ${appointment.id} to queue as #${result.queueNumber || 'unknown'}`);
+             } else {
+               logger.error(`❌ Failed to add pending appointment ${appointment.id} to queue:`, result.error);
+             }
+           } catch (error) {
+             logger.error(`❌ Error adding pending appointment ${appointment.id} to queue:`, error);
+           }
+         }
+         isAutoAddingRef.current = false;
+         if (addedCount > 0) {
+           logger.log(`✅ Auto-added ${addedCount} pending appointments to queue`);
+           // Refresh queue data after adding pending appointments
+           setTimeout(() => fetchQueueDataOnly(), 500);
+         }
+       }
+       
+       // Auto-add missing confirmed/appointed appointments to queue
+       // ONLY DOCTORS can auto-add confirmed/appointed appointments to prevent duplication
+       // Staff and Admin roles will only see the queue, not add confirmed/appointed to it
+       if (otherAppointments.length > 0 && !isAutoAddingRef.current && !hasAutoAddBeenProcessed && !skipAutoAdd && userRole === 'doctor') {
+         logger.log(`👨‍⚕️ DOCTOR ROLE: Auto-adding ${otherAppointments.length} confirmed/appointed appointments to queue`);
          
          // Mark that auto-add is being processed globally
          sessionStorage.setItem(globalAutoAddKey, 'true');
@@ -913,7 +1044,7 @@ const QueueManagement = () => {
          isAutoAddingRef.current = true;
          
          // Process appointments sequentially to prevent race conditions in queue numbering
-         for (const appointment of missingAppointments) {
+         for (const appointment of otherAppointments) {
            try {
              // 🚫 DUPLICATE BLOCKER: Check if this patient has already been processed today
              if (await isDuplicatePatient(appointment.patient_id)) {
@@ -937,12 +1068,12 @@ const QueueManagement = () => {
            const todayKey = getTodayDate();
            if (autoAddToastKeyRef.current !== todayKey) {
              autoAddToastKeyRef.current = todayKey;
-             toast.success(`Auto-added ${addedCount} confirmed/appointed/pending appointments to today's queue`);
+             toast.success(`Auto-added ${addedCount} confirmed/appointed appointments to today's queue`);
            }
            return;
          }
-       } else if (missingAppointments.length > 0 && userRole !== 'doctor') {
-         logger.log(`🚫 ${userRole?.toUpperCase()} ROLE: Auto-add blocked - only doctors can auto-add appointments to prevent duplication`);
+       } else if (otherAppointments.length > 0 && userRole !== 'doctor') {
+         logger.log(`🚫 ${userRole?.toUpperCase()} ROLE: Auto-add blocked for confirmed/appointed - only doctors can auto-add to prevent duplication`);
        }
       
       // Fetch patient profiles for queue entries
